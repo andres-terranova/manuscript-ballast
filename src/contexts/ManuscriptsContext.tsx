@@ -200,19 +200,26 @@ const seedManuscripts: Manuscript[] = [
 interface ManuscriptsContextType {
   manuscripts: Manuscript[];
   getManuscriptById: (id: string) => Manuscript | undefined;
+  updateManuscript: (id: string, updates: Partial<Manuscript>) => void;
 }
 
 const ManuscriptsContext = createContext<ManuscriptsContextType | undefined>(undefined);
 
 export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [manuscripts] = useState<Manuscript[]>(seedManuscripts);
+  const [manuscripts, setManuscripts] = useState<Manuscript[]>(seedManuscripts);
 
   const getManuscriptById = (id: string) => {
     return manuscripts.find(m => m.id === id);
   };
 
+  const updateManuscript = (id: string, updates: Partial<Manuscript>) => {
+    setManuscripts(prev => prev.map(m => 
+      m.id === id ? { ...m, ...updates } : m
+    ));
+  };
+
   return (
-    <ManuscriptsContext.Provider value={{ manuscripts, getManuscriptById }}>
+    <ManuscriptsContext.Provider value={{ manuscripts, getManuscriptById, updateManuscript }}>
       {children}
     </ManuscriptsContext.Provider>
   );

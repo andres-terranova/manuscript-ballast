@@ -21,9 +21,10 @@ type Suggestion = {
 interface DocumentCanvasProps {
   manuscript: any;
   suggestions?: Suggestion[];
+  isReadOnly?: boolean;
 }
 
-export const DocumentCanvas = ({ manuscript, suggestions = [] }: DocumentCanvasProps) => {
+export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = false }: DocumentCanvasProps) => {
   const [hoveredChange, setHoveredChange] = useState<string | null>(null);
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(null);
 

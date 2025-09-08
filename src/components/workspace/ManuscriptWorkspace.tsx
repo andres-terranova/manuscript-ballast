@@ -50,7 +50,7 @@ const ManuscriptWorkspace = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getManuscriptById } = useManuscripts();
+  const { getManuscriptById, updateManuscript } = useManuscripts();
   const [manuscript, setManuscript] = useState<Manuscript | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState("changes");
@@ -67,6 +67,9 @@ const ManuscriptWorkspace = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
+
+  // Read-only state derived from manuscript status
+  const isReviewed = manuscript?.status === "Reviewed";
 
   // Helper functions for suggestion processing
   const isOverlapping = (a: {start: number; end: number}, b: {start: number; end: number}) => {
@@ -438,6 +441,32 @@ const ManuscriptWorkspace = () => {
     }, 1500);
   };
 
+  // Handle Mark Reviewed
+  const handleMarkReviewed = () => {
+    if (!manuscript || manuscript.status === "Reviewed") return;
+
+    updateManuscript(manuscript.id, {
+      status: "Reviewed",
+      ballInCourt: "None",
+      updatedAt: new Date().toISOString()
+    });
+
+    // Update local state
+    setManuscript(prev => prev ? {
+      ...prev,
+      status: "Reviewed",
+      ballInCourt: "None",
+      updatedAt: new Date().toISOString()
+    } : null);
+
+    // Clear pending suggestions
+    setSuggestions([]);
+
+    toast({
+      title: "Marked as Reviewed — document is now read-only."
+    });
+  };
+
   useEffect(() => {
     if (!id) {
       navigate("/dashboard");
@@ -514,13 +543,26 @@ const ManuscriptWorkspace = () => {
               <RotateCcw className="mr-2 h-4 w-4" />
               History
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowStyleRules(true)}>
-              <Settings2 className="mr-2 h-4 w-4" />
-              Style Rules
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowRunAIModal(true)}>
-              <Play className="mr-2 h-4 w-4" />
-              Run AI Pass
+            {!isReviewed && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setShowStyleRules(true)}>
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  Style Rules
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowRunAIModal(true)}>
+                  <Play className="mr-2 h-4 w-4" />
+                  Run AI Pass
+                </Button>
+              </>
+            )}
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={handleMarkReviewed}
+              disabled={isReviewed || busySuggestions.size > 0}
+              data-testid="mark-reviewed-btn"
+            >
+              {isReviewed ? "Reviewed" : "Mark Reviewed"}
             </Button>
             <Button variant="outline" size="sm">
               <Download className="mr-2 h-4 w-4" />
@@ -562,7 +604,19 @@ const ManuscriptWorkspace = () => {
       <div className="h-[calc(100vh-81px)] flex">
         {/* Document Canvas - Left Column */}
         <div id="document-canvas" className="flex-1 overflow-hidden">
-          <DocumentCanvas manuscript={{...manuscript, contentText}} suggestions={suggestions} />
+          {isReviewed && (
+            <div 
+              data-testid="reviewed-banner" 
+              className="bg-green-50 border-b border-green-200 px-6 py-2 text-sm text-green-800"
+            >
+              Reviewed — read-only
+            </div>
+          )}
+          <DocumentCanvas 
+            manuscript={{...manuscript, contentText}} 
+            suggestions={isReviewed ? [] : suggestions}
+            isReadOnly={isReviewed}
+          />
         </div>
 
         {/* Right Sidebar */}
@@ -580,13 +634,15 @@ const ManuscriptWorkspace = () => {
             <div className="flex-1 overflow-hidden">
               <TabsContent value="changes" className="h-full mt-0">
                 <ChangeList 
-                  suggestions={suggestions}
+                  suggestions={isReviewed ? [] : suggestions}
                   onAcceptSuggestion={handleAcceptSuggestion}
                   onRejectSuggestion={handleRejectSuggestion}
                   busySuggestions={busySuggestions}
+                  isReviewed={isReviewed}
                 />
               </TabsContent>
 
+              <TabsContent value="comments" className="h-full mt-0">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
                     {manuscript.comments?.map((comment) => (
@@ -632,6 +688,7 @@ const ManuscriptWorkspace = () => {
                     ))}
                   </div>
                 </ScrollArea>
+              </TabsContent>
 
               <TabsContent value="checks" className="h-full mt-0">
                 <ScrollArea className="h-full">

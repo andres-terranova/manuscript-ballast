@@ -24,9 +24,10 @@ interface ChangeListProps {
   onAcceptSuggestion?: (suggestionId: string) => void;
   onRejectSuggestion?: (suggestionId: string) => void;
   busySuggestions?: Set<string>;
+  isReviewed?: boolean;
 }
 
-export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set() }: ChangeListProps) => {
+export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set(), isReviewed = false }: ChangeListProps) => {
   const [typeFilter, setTypeFilter] = useState<"all" | "insert" | "delete" | "replace">("all");
 
   const visibleSuggestions = useMemo(() => {
@@ -250,7 +251,12 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
         ) : (
           <div className="text-center py-8">
             <p className="text-muted-foreground">
-              {suggestions.length === 0 ? "No pending suggestions." : "No suggestions match this filter."}
+              {isReviewed 
+                ? "Document is reviewed — no changes available."
+                : suggestions.length === 0 
+                  ? "No pending suggestions." 
+                  : "No suggestions match this filter."
+              }
             </p>
           </div>
         )}
