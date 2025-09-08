@@ -1,22 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { sampleManuscripts, Manuscript } from "@/data/sampleManuscripts";
-import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 
 const Dashboard = () => {
-  const [manuscripts, setManuscripts] = useState<Manuscript[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadStep, setUploadStep] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loggedIn, logout } = useAuth();
+  const { manuscripts } = useManuscripts();
 
   useEffect(() => {
     // Check authentication
@@ -24,10 +26,17 @@ const Dashboard = () => {
       navigate("/login");
       return;
     }
-
-    // Load manuscripts - using empty array for now to show both states
-    setManuscripts([]);
   }, [navigate, loggedIn]);
+
+  // Debounced search filtering
+  const filteredManuscripts = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return manuscripts;
+    }
+    return manuscripts.filter(manuscript => 
+      manuscript.title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [manuscripts, searchTerm]);
 
   const handleLogout = () => {
     logout();
@@ -38,51 +47,57 @@ const Dashboard = () => {
     navigate("/login");
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: Manuscript['status']) => {
     const statusConfig = {
-      'draft': { label: 'Draft', color: 'bg-gray-100 text-gray-800' },
-      'in-review': { label: 'In Review', color: 'bg-blue-100 text-blue-800' },
-      'reviewed': { label: 'Reviewed', color: 'bg-green-100 text-green-800' },
-      'revision': { label: 'Revision', color: 'bg-purple-100 text-purple-800' }
+      'In Review': { color: 'bg-blue-100 text-blue-800' },
+      'Reviewed': { color: 'bg-green-100 text-green-800' },
+      'Tool Pending': { color: 'bg-gray-100 text-gray-800' },
+      'With Author': { color: 'bg-purple-100 text-purple-800' }
     };
     
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
+    const config = statusConfig[status] || statusConfig['In Review'];
     
     return (
       <Badge className={`${config.color} border-0`}>
-        {config.label}
+        {status}
       </Badge>
     );
   };
 
-  const formatDate = (date: Date) => {
+  const getBallInCourtIcon = (ballInCourt: Manuscript['ballInCourt']) => {
+    const config = {
+      'Editor': { icon: Monitor, tooltip: 'Editor', color: 'text-purple-600' },
+      'Author': { icon: User, tooltip: 'Author', color: 'text-blue-600' },
+      'Tool': { icon: Settings, tooltip: 'Tool', color: 'text-gray-600' },
+      'None': { icon: Clock, tooltip: 'None', color: 'text-gray-400' }
+    };
+    
+    const { icon: Icon, tooltip, color } = config[ballInCourt] || config.None;
+    
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-2">
+              <Icon className={`h-4 w-4 ${color}`} />
+              <span className="text-sm text-gray-600">{ballInCourt}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{tooltip}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  const formatDate = (isoDate: string) => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
-    }).format(date);
+    }).format(new Date(isoDate));
   };
-
-  const mockTableData = [
-    {
-      id: 1,
-      title: "Neural Pathways in Cognitive Processing",
-      owner: "Dr. Sarah Chen",
-      round: "Round 2",
-      status: "in-review",
-      ballInCourt: "editor",
-      lastModified: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
-    },
-    {
-      id: 2,
-      title: "Field Notes from the Amazon Basin",
-      owner: "Prof. Michael Torres",
-      round: "Round 1",
-      status: "reviewed",
-      ballInCourt: "author",
-      lastModified: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-white">
@@ -101,6 +116,8 @@ const Dashboard = () => {
               <Input 
                 placeholder="Search manuscripts..."
                 className="pl-10 bg-gray-50 border-gray-200"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
@@ -222,7 +239,7 @@ const Dashboard = () => {
           <h1 className="text-2xl font-semibold text-black">Manuscripts</h1>
         </div>
 
-        {manuscripts.length === 0 ? (
+        {filteredManuscripts.length === 0 ? (
           /* Empty State */
           <div id="empty-state" className="text-center py-16">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -256,27 +273,20 @@ const Dashboard = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockTableData.map((row) => (
+                {filteredManuscripts.map((manuscript) => (
                   <TableRow 
-                    key={row.id}
+                    key={manuscript.id}
                     className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => navigate(`/manuscript/${row.id}`)}
+                    onClick={() => navigate(`/manuscript/${manuscript.id}`)}
                   >
-                    <TableCell className="font-medium">{row.title}</TableCell>
-                    <TableCell>{row.owner}</TableCell>
-                    <TableCell>{row.round}</TableCell>
-                    <TableCell>{getStatusBadge(row.status)}</TableCell>
+                    <TableCell className="font-medium">{manuscript.title}</TableCell>
+                    <TableCell>{manuscript.owner}</TableCell>
+                    <TableCell>Round {manuscript.round}</TableCell>
+                    <TableCell>{getStatusBadge(manuscript.status)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {row.ballInCourt === 'author' ? (
-                          <User className="h-4 w-4 text-blue-600" />
-                        ) : (
-                          <Monitor className="h-4 w-4 text-purple-600" />
-                        )}
-                        <span className="text-sm text-gray-600 capitalize">{row.ballInCourt}</span>
-                      </div>
+                      {getBallInCourtIcon(manuscript.ballInCourt)}
                     </TableCell>
-                    <TableCell className="text-gray-600">{formatDate(row.lastModified)}</TableCell>
+                    <TableCell className="text-gray-600">{formatDate(manuscript.updatedAt)}</TableCell>
                     <TableCell>
                       <Button 
                         variant="ghost" 
