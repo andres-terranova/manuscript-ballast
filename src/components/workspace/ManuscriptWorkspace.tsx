@@ -357,36 +357,79 @@ const ManuscriptWorkspace = () => {
 
       {/* Run AI Settings Modal */}
       <Dialog open={showRunAIModal} onOpenChange={setShowRunAIModal}>
-        <DialogContent id="run-ai-modal" className="max-w-md">
+        <DialogContent id="run-ai-modal" className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Run AI Pass</DialogTitle>
+            <DialogTitle>Run AI Editing Pass</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Configure the scope and checks for the AI editing pass.
+            </p>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-medium mb-2">Scope Selection</h4>
-              <div className="space-y-2">
+          <div className="py-4 space-y-6">
+            {/* Scope Selection Section */}
+            <div id="run-ai-scope">
+              <h4 className="text-sm font-medium mb-3">Scope</h4>
+              <div className="space-y-3">
                 <label className="flex items-center gap-2">
                   <input type="radio" name="scope" defaultChecked />
-                  <span className="text-sm">Entire document</span>
+                  <span className="text-sm">Entire Document</span>
                 </label>
                 <label className="flex items-center gap-2">
                   <input type="radio" name="scope" />
-                  <span className="text-sm">Selected text only</span>
+                  <span className="text-sm">Current Section</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="scope" />
+                  <span className="text-sm">Selected Text</span>
                 </label>
               </div>
             </div>
-            <div>
-              <h4 className="text-sm font-medium mb-2">Active Rules</h4>
-              <p className="text-xs text-muted-foreground">Grammar, spelling, style consistency</p>
+
+            {/* Assistive Checks Section */}
+            <div id="run-ai-checks">
+              <h4 className="text-sm font-medium mb-3">Checks to Perform</h4>
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" defaultChecked />
+                  <span className="text-sm">Flag potential contradictions</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" defaultChecked />
+                  <span className="text-sm">Flag repetitions</span>
+                </label>
+              </div>
             </div>
+
+            {/* Active Style Rules Section */}
+            <div id="run-ai-style-rules">
+              <h4 className="text-sm font-medium mb-3">Active Style Rules</h4>
+              <div className="flex flex-wrap gap-1">
+                <Badge variant="secondary" className="text-xs">Serial Comma</Badge>
+                <Badge variant="secondary" className="text-xs">Punctuation Inside Quotes</Badge>
+                <Badge variant="secondary" className="text-xs">Oxford Spelling</Badge>
+                <Badge variant="secondary" className="text-xs">Consistent Tense</Badge>
+                <Badge variant="secondary" className="text-xs">Voice Consistency</Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-end gap-3">
             <Button 
+              id="run-ai-cancel"
+              variant="outline" 
+              onClick={() => setShowRunAIModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              id="run-ai-run"
+              className="bg-black text-white hover:bg-black/90"
               onClick={() => {
                 setShowRunAIModal(false);
                 setShowToolRunning(true);
               }}
-              className="w-full"
             >
-              Start AI Pass
+              Run
             </Button>
           </div>
         </DialogContent>
