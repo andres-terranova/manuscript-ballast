@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Check, X, Plus, Minus, Edit3 } from "lucide-react";
+import { useState, useMemo } from "react";
 
 type SuggestionType = "insert" | "delete" | "replace";
 type SuggestionActor = "Tool" | "Editor" | "Author";
@@ -26,6 +27,12 @@ interface ChangeListProps {
 }
 
 export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set() }: ChangeListProps) => {
+  const [typeFilter, setTypeFilter] = useState<"all" | "insert" | "delete" | "replace">("all");
+
+  const visibleSuggestions = useMemo(() => {
+    if (typeFilter === "all") return suggestions;
+    return suggestions.filter(s => s.type === typeFilter);
+  }, [suggestions, typeFilter]);
   const getSuggestionIcon = (type: SuggestionType) => {
     switch (type) {
       case 'insert':
@@ -75,8 +82,8 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
   };
 
   const getNextFocusableCard = (currentIndex: number) => {
-    if (currentIndex < suggestions.length - 1) {
-      return `change-card-${suggestions[currentIndex + 1].id}`;
+    if (currentIndex < visibleSuggestions.length - 1) {
+      return `change-card-${visibleSuggestions[currentIndex + 1].id}`;
     }
     return 'changes-list';
   };
@@ -95,13 +102,55 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
       <div className="p-4 border-b border-border">
         <h3 className="font-semibold text-foreground">Change List</h3>
         <p className="text-sm text-muted-foreground">
-          {suggestions.length} pending suggestions
+          {visibleSuggestions.length} of {suggestions.length} suggestions
         </p>
       </div>
 
+      {/* Filter Controls */}
+      <div className="p-4 border-b border-border" data-testid="changes-filter-group">
+        <div className="flex gap-1 bg-muted p-1 rounded-md">
+          <Button
+            data-testid="changes-filter-all"
+            size="sm"
+            variant={typeFilter === "all" ? "default" : "ghost"}
+            className="flex-1 text-xs h-7"
+            onClick={() => setTypeFilter("all")}
+          >
+            All
+          </Button>
+          <Button
+            data-testid="changes-filter-insert"
+            size="sm"
+            variant={typeFilter === "insert" ? "default" : "ghost"}
+            className="flex-1 text-xs h-7"
+            onClick={() => setTypeFilter("insert")}
+          >
+            Insert
+          </Button>
+          <Button
+            data-testid="changes-filter-delete"
+            size="sm"
+            variant={typeFilter === "delete" ? "default" : "ghost"}
+            className="flex-1 text-xs h-7"
+            onClick={() => setTypeFilter("delete")}
+          >
+            Delete
+          </Button>
+          <Button
+            data-testid="changes-filter-replace"
+            size="sm"
+            variant={typeFilter === "replace" ? "default" : "ghost"}
+            className="flex-1 text-xs h-7"
+            onClick={() => setTypeFilter("replace")}
+          >
+            Replace
+          </Button>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {suggestions.length > 0 ? (
-          suggestions.map((suggestion, index) => {
+        {visibleSuggestions.length > 0 ? (
+          visibleSuggestions.map((suggestion, index) => {
             const isBusy = busySuggestions.has(suggestion.id);
             return (
             <Card 
@@ -199,7 +248,9 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
           )})
         ) : (
           <div className="text-center py-8">
-            <p className="text-muted-foreground">No pending suggestions.</p>
+            <p className="text-muted-foreground">
+              {suggestions.length === 0 ? "No pending suggestions." : "No suggestions match this filter."}
+            </p>
           </div>
         )}
       </div>
