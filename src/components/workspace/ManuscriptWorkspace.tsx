@@ -231,10 +231,14 @@ const ManuscriptWorkspace = () => {
   const onAIPassComplete = () => {
     if (!manuscript) return;
     
+    console.log("AI Pass - Manuscript content:", manuscript.contentText);
     const newSuggestions = createBasicSuggestions(manuscript.contentText, {
       aiScope,
       aiChecks
     });
+    
+    console.log("AI Pass - Generated suggestions:", newSuggestions);
+    setSuggestions(newSuggestions);
     
     setSuggestions(newSuggestions);
     
