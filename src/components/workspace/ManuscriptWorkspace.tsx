@@ -47,6 +47,22 @@ const ManuscriptWorkspace = () => {
   const [aiChecks, setAiChecks] = useState({ contradictions: true, repetitions: true });
   const [styleRules, setStyleRules] = useState<string[]>(["Serial Comma", "Punctuation Inside Quotes", "Capitalize Proper Nouns"]);
 
+  // Stub completion callback
+  const onAIPassComplete = () => {
+    console.info("AI pass complete (stub)");
+  };
+
+  // Handle Run AI Pass
+  const handleRunAIPass = () => {
+    setShowRunAIModal(false);
+    setShowToolRunning(true);
+    
+    setTimeout(() => {
+      setShowToolRunning(false);
+      onAIPassComplete();
+    }, 1500);
+  };
+
   useEffect(() => {
     if (!id) {
       navigate("/dashboard");
@@ -458,10 +474,7 @@ const ManuscriptWorkspace = () => {
             <Button 
               id="run-ai-run"
               className="bg-black text-white hover:bg-black/90"
-              onClick={() => {
-                setShowRunAIModal(false);
-                setShowToolRunning(true);
-              }}
+              onClick={handleRunAIPass}
             >
               Run
             </Button>
