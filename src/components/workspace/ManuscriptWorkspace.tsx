@@ -65,6 +65,77 @@ const ManuscriptWorkspace = () => {
   
   // Suggestions state
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [contentText, setContentText] = useState<string>("");
+
+  // Helper functions for suggestion processing
+  const applySuggestionPatch = (src: string, s: Suggestion): string => {
+    // Preconditions (dev): for delete/replace, ensure src.slice(s.start, s.end) === s.before
+    if (s.type === "insert") {
+      return src.slice(0, s.start) + s.after + src.slice(s.start);
+    }
+    if (s.type === "delete") {
+      return src.slice(0, s.start) + src.slice(s.end);
+    }
+    // replace
+    return src.slice(0, s.start) + s.after + src.slice(s.end);
+  };
+
+  const recalcOffsetsAfterPatch = (suggestions: Suggestion[], applied: Suggestion): Suggestion[] => {
+    const delta =
+      applied.type === "insert"
+        ? applied.after.length
+        : applied.type === "delete"
+        ? -applied.before.length
+        : applied.after.length - applied.before.length;
+
+    return suggestions
+      .filter(s => s.id !== applied.id)
+      .map(s => {
+        // Drop overlapping suggestions for now (will refine later)
+        const overlaps = !(s.end <= applied.start || s.start >= applied.end);
+        if (overlaps) return null;
+
+        // Shift suggestions that occur after the applied change
+        if (s.start >= applied.end) {
+          return { ...s, start: s.start + delta, end: s.end + delta };
+        }
+        return s;
+      })
+      .filter(Boolean) as Suggestion[];
+  };
+
+  // Accept/Reject handlers
+  const handleAcceptSuggestion = (suggestionId: string) => {
+    const suggestion = suggestions.find(s => s.id === suggestionId);
+    if (!suggestion) return;
+
+    // Apply the suggestion patch to contentText
+    const newContentText = applySuggestionPatch(contentText, suggestion);
+    setContentText(newContentText);
+
+    // Recalculate offsets for remaining suggestions
+    const updatedSuggestions = recalcOffsetsAfterPatch(suggestions, suggestion);
+    setSuggestions(updatedSuggestions);
+
+    toast({
+      title: "Change accepted",
+      description: `Applied: ${suggestion.summary}`
+    });
+  };
+
+  const handleRejectSuggestion = (suggestionId: string) => {
+    const suggestion = suggestions.find(s => s.id === suggestionId);
+    if (!suggestion) return;
+
+    // Remove the suggestion without changing contentText
+    const updatedSuggestions = suggestions.filter(s => s.id !== suggestionId);
+    setSuggestions(updatedSuggestions);
+
+    toast({
+      title: "Change rejected",
+      description: `Rejected: ${suggestion.summary}`
+    });
+  };
 
   // Create basic suggestions function
   const createBasicSuggestions = (contentText: string, opts: { 
@@ -279,15 +350,13 @@ const ManuscriptWorkspace = () => {
   const onAIPassComplete = () => {
     if (!manuscript) return;
     
-    console.log("AI Pass - Manuscript content:", manuscript.contentText);
-    const newSuggestions = createBasicSuggestions(manuscript.contentText, {
+    console.log("AI Pass - Manuscript content:", contentText);
+    const newSuggestions = createBasicSuggestions(contentText, {
       aiScope,
       aiChecks
     });
     
     console.log("AI Pass - Generated suggestions:", newSuggestions);
-    setSuggestions(newSuggestions);
-    
     setSuggestions(newSuggestions);
     
     if (newSuggestions.length === 0) {
@@ -322,6 +391,7 @@ const ManuscriptWorkspace = () => {
     }
     
     setManuscript(found);
+    setContentText(found.contentText);
     setNotFound(false);
   }, [id, navigate, getManuscriptById]);
 
@@ -432,7 +502,7 @@ const ManuscriptWorkspace = () => {
       <div className="h-[calc(100vh-81px)] flex">
         {/* Document Canvas - Left Column */}
         <div id="document-canvas" className="flex-1 overflow-hidden">
-          <DocumentCanvas manuscript={manuscript} suggestions={suggestions} />
+          <DocumentCanvas manuscript={{...manuscript, contentText}} suggestions={suggestions} />
         </div>
 
         {/* Right Sidebar */}
@@ -449,7 +519,11 @@ const ManuscriptWorkspace = () => {
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
               <TabsContent value="changes" className="h-full mt-0">
-                <ChangeList suggestions={suggestions} />
+                <ChangeList 
+                  suggestions={suggestions} 
+                  onAcceptSuggestion={handleAcceptSuggestion}
+                  onRejectSuggestion={handleRejectSuggestion}
+                />
               </TabsContent>
 
                 <ScrollArea className="h-full">

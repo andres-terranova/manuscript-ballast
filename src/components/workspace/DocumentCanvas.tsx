@@ -60,15 +60,15 @@ export const DocumentCanvas = ({ manuscript, suggestions = [] }: DocumentCanvasP
             data-suggestion-id={suggestion.id}
             data-suggestion-type={suggestion.type}
             data-testid={`suggestion-span-${suggestion.id}`}
-            className="relative cursor-pointer border-b-2 border-dotted border-green-500 bg-green-50"
+            className="relative cursor-pointer border-b-2 border-dotted border-green-500"
             onMouseEnter={() => setHoveredSuggestion(suggestion.id)}
             onMouseLeave={() => setHoveredSuggestion(null)}
-            title={suggestion.summary}
+            title={`Insert: "${suggestion.after}"`}
           >
-            {suggestion.after}
+            <span className="text-green-600 text-xs">^</span>
             {hoveredSuggestion === suggestion.id && (
               <span className="absolute -top-8 left-0 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                {suggestion.summary}
+                Insert: "{suggestion.after}"
               </span>
             )}
           </span>
