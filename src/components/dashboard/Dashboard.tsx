@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -147,6 +147,12 @@ const Dashboard = () => {
                       <DialogTitle>
                         {uploadStep === 1 ? "Upload Manuscript" : "Configure Style Rules"}
                       </DialogTitle>
+                      <DialogDescription>
+                        {uploadStep === 1 
+                          ? "Select a manuscript file to upload and process" 
+                          : "Configure editing rules for your manuscript"
+                        }
+                      </DialogDescription>
                     </div>
                     <Button 
                       variant="ghost" 
