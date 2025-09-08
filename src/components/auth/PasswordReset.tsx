@@ -23,8 +23,8 @@ const PasswordReset = () => {
       if (email) {
         setSent(true);
         toast({
-          title: "Reset link sent",
-          description: "Check your email for password reset instructions.",
+          title: "Reset link sent (stub)",
+          description: "Password reset functionality is not yet implemented.",
         });
       } else {
         toast({

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -12,15 +13,16 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate authentication
-    setTimeout(() => {
-      if (email && password) {
-        localStorage.setItem("ballast_authenticated", "true");
+    // Simulate authentication delay
+    setTimeout(async () => {
+      const success = await login(email, password);
+      if (success) {
         toast({
           title: "Welcome back",
           description: "You have been successfully logged in.",
@@ -82,7 +84,7 @@ const Login = () => {
               type="button"
               variant="ghost"
               className="w-full"
-              onClick={() => navigate("/reset-password")}
+              onClick={() => navigate("/reset")}
             >
               Forgot password?
             </Button>

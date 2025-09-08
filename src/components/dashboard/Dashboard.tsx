@@ -6,26 +6,27 @@ import { Badge } from "@/components/ui/badge";
 import { sampleManuscripts, Manuscript } from "@/data/sampleManuscripts";
 import { LogOut, FileText, Clock, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Dashboard = () => {
   const [manuscripts, setManuscripts] = useState<Manuscript[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { loggedIn, logout } = useAuth();
 
   useEffect(() => {
     // Check authentication
-    const isAuthenticated = localStorage.getItem("ballast_authenticated");
-    if (!isAuthenticated) {
+    if (!loggedIn) {
       navigate("/login");
       return;
     }
 
     // Load manuscripts
     setManuscripts(sampleManuscripts);
-  }, [navigate]);
+  }, [navigate, loggedIn]);
 
   const handleLogout = () => {
-    localStorage.removeItem("ballast_authenticated");
+    logout();
     toast({
       title: "Logged out",
       description: "You have been successfully logged out.",
