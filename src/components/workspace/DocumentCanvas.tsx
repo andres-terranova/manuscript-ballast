@@ -32,14 +32,14 @@ export const DocumentCanvas = ({ manuscript }: DocumentCanvasProps) => {
                         >
                           silence
                           {hoveredChange === "change-1" && (
-                            <div className="absolute -top-12 left-0 flex gap-1 bg-white border border-border rounded shadow-lg p-1 z-10">
+                            <span className="absolute -top-12 left-0 flex gap-1 bg-white border border-border rounded shadow-lg p-1 z-10">
                               <Button size="sm" className="h-6 text-xs px-2">
                                 <Check className="h-3 w-3" />
                               </Button>
                               <Button variant="outline" size="sm" className="h-6 text-xs px-2">
                                 <X className="h-3 w-3" />
                               </Button>
-                            </div>
+                            </span>
                           )}
                         </span>
                         {" "}and the profound weight of unwritten words. {paragraph.substring(paragraph.indexOf('.') + 1).trim()}
@@ -54,14 +54,14 @@ export const DocumentCanvas = ({ manuscript }: DocumentCanvasProps) => {
                         >
                           [deleted text]
                           {hoveredChange === "change-2" && (
-                            <div className="absolute -top-12 left-0 flex gap-1 bg-white border border-border rounded shadow-lg p-1 z-10">
+                            <span className="absolute -top-12 left-0 flex gap-1 bg-white border border-border rounded shadow-lg p-1 z-10">
                               <Button size="sm" className="h-6 text-xs px-2">
                                 <Check className="h-3 w-3" />
                               </Button>
                               <Button variant="outline" size="sm" className="h-6 text-xs px-2">
                                 <X className="h-3 w-3" />
                               </Button>
-                            </div>
+                            </span>
                           )}
                         </span>
                         {" "}{paragraph.substring(paragraph.indexOf('.') + 1).trim()}
