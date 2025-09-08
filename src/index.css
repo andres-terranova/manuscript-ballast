@@ -157,3 +157,96 @@
     text-decoration-color: hsl(var(--modification));
   }
 }
+
+/* TipTap Editor Styles */
+.ProseMirror {
+  outline: none;
+  
+  /* Typography inherited from manuscript-content */
+  font-family: 'Merriweather', Georgia, serif;
+  font-size: 16px;
+  line-height: 1.7;
+  color: hsl(var(--document-foreground));
+  
+  /* Spacing */
+  padding: 0;
+  
+  /* Paragraphs */
+  p {
+    margin: 0 0 1.25rem 0;
+  }
+  
+  p:last-child {
+    margin-bottom: 0;
+  }
+  
+  /* Headings */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    margin: 2rem 0 1rem 0;
+    color: hsl(var(--foreground));
+  }
+  
+  h1 { 
+    font-size: 2rem; 
+    line-height: 1.2;
+  }
+  h2 { 
+    font-size: 1.5rem; 
+    line-height: 1.3;
+  }
+  h3 { 
+    font-size: 1.25rem; 
+  }
+  
+  /* Lists */
+  ul, ol {
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+  }
+  
+  li {
+    margin: 0.25rem 0;
+  }
+  
+  /* Links */
+  a {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+  }
+  
+  /* Blockquotes */
+  blockquote {
+    border-left: 4px solid hsl(var(--border));
+    margin: 1rem 0;
+    padding-left: 1rem;
+    color: hsl(var(--muted-foreground));
+  }
+  
+  /* Code */
+  code {
+    background-color: hsl(var(--muted));
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+  }
+  
+  /* Placeholder */
+  p.is-editor-empty:first-child::before {
+    color: hsl(var(--muted-foreground));
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+}
+
+/* TipTap focus styles */
+.ProseMirror:focus {
+  outline: none;
+}
+
+.ProseMirror.ProseMirror-focused {
+  outline: none;
+}

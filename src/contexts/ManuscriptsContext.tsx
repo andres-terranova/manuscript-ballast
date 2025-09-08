@@ -10,6 +10,7 @@ export type Manuscript = {
   updatedAt: string; // ISO
   excerpt: string;
   contentText: string;
+  contentHtml?: string; // canonical editor content (HTML)
   // Derived for editor screen (mocked for placeholders):
   changes?: Array<{
     id: string;
