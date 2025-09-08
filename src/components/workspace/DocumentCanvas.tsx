@@ -4,12 +4,166 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Check, X, MessageSquare } from "lucide-react";
 
+type SuggestionType = "insert" | "delete" | "replace";
+type SuggestionActor = "Tool" | "Editor" | "Author";
+type Suggestion = {
+  id: string;
+  type: SuggestionType;
+  actor: SuggestionActor;
+  start: number;
+  end: number;
+  before: string;
+  after: string;
+  summary: string;
+  location: string;
+};
+
 interface DocumentCanvasProps {
   manuscript: any;
+  suggestions?: Suggestion[];
 }
 
-export const DocumentCanvas = ({ manuscript }: DocumentCanvasProps) => {
+export const DocumentCanvas = ({ manuscript, suggestions = [] }: DocumentCanvasProps) => {
   const [hoveredChange, setHoveredChange] = useState<string | null>(null);
+  const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(null);
+
+  // Function to render the entire manuscript content with suggestions
+  const renderManuscriptWithSuggestions = () => {
+    const contentText = manuscript.contentText;
+    
+    if (suggestions.length === 0) {
+      return contentText.split('\n\n').map((paragraph, index) => (
+        <p key={index}>{paragraph}</p>
+      ));
+    }
+
+    // Sort suggestions by start position
+    const sortedSuggestions = [...suggestions].sort((a, b) => a.start - b.start);
+    const parts: (string | JSX.Element)[] = [];
+    let lastIndex = 0;
+
+    sortedSuggestions.forEach((suggestion) => {
+      // Add text before this suggestion
+      if (suggestion.start > lastIndex) {
+        parts.push(contentText.slice(lastIndex, suggestion.start));
+      }
+
+      // Create suggestion element based on type
+      let suggestionElement: JSX.Element;
+      const target = contentText.slice(suggestion.start, suggestion.end);
+      
+      if (suggestion.type === "insert") {
+        suggestionElement = (
+          <span
+            key={suggestion.id}
+            id={`suggestion-span-${suggestion.id}`}
+            data-suggestion-id={suggestion.id}
+            data-suggestion-type={suggestion.type}
+            data-testid={`suggestion-span-${suggestion.id}`}
+            className="relative cursor-pointer border-b-2 border-dotted border-green-500 bg-green-50"
+            onMouseEnter={() => setHoveredSuggestion(suggestion.id)}
+            onMouseLeave={() => setHoveredSuggestion(null)}
+            title={suggestion.summary}
+          >
+            {suggestion.after}
+            {hoveredSuggestion === suggestion.id && (
+              <span className="absolute -top-8 left-0 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                {suggestion.summary}
+              </span>
+            )}
+          </span>
+        );
+      } else if (suggestion.type === "delete") {
+        suggestionElement = (
+          <span
+            key={suggestion.id}
+            id={`suggestion-span-${suggestion.id}`}
+            data-suggestion-id={suggestion.id}
+            data-suggestion-type={suggestion.type}
+            data-testid={`suggestion-span-${suggestion.id}`}
+            className="relative cursor-pointer line-through bg-red-50 text-red-600"
+            onMouseEnter={() => setHoveredSuggestion(suggestion.id)}
+            onMouseLeave={() => setHoveredSuggestion(null)}
+            title={suggestion.summary}
+          >
+            {target}
+            {hoveredSuggestion === suggestion.id && (
+              <span className="absolute -top-8 left-0 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                {suggestion.summary}
+              </span>
+            )}
+          </span>
+        );
+      } else { // replace
+        suggestionElement = (
+          <span
+            key={suggestion.id}
+            id={`suggestion-span-${suggestion.id}`}
+            data-suggestion-id={suggestion.id}
+            data-suggestion-type={suggestion.type}
+            data-testid={`suggestion-span-${suggestion.id}`}
+            className="relative cursor-pointer line-through bg-yellow-50 text-amber-700"
+            onMouseEnter={() => setHoveredSuggestion(suggestion.id)}
+            onMouseLeave={() => setHoveredSuggestion(null)}
+            title={`${suggestion.summary}: "${suggestion.before}" → "${suggestion.after}"`}
+          >
+            {target}
+            <span className="no-underline text-green-700 font-medium ml-1">
+              {suggestion.after}
+            </span>
+            {hoveredSuggestion === suggestion.id && (
+              <span className="absolute -top-8 left-0 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                {suggestion.summary}: "{suggestion.before}" → "{suggestion.after}"
+              </span>
+            )}
+          </span>
+        );
+      }
+
+      parts.push(suggestionElement);
+      lastIndex = suggestion.end;
+    });
+
+    // Add remaining text
+    if (lastIndex < contentText.length) {
+      parts.push(contentText.slice(lastIndex));
+    }
+
+    // Convert parts to paragraphs
+    const content = parts.map((part, index) => 
+      typeof part === 'string' ? part : `{{ELEMENT_${index}}}`
+    ).join('');
+
+    const paragraphs = content.split('\n\n');
+    
+    return paragraphs.map((paragraph, pIndex) => {
+      const paragraphParts: (string | JSX.Element)[] = [];
+      let workingText = paragraph;
+      
+      // Find element placeholders and replace with actual elements
+      parts.forEach((part, partIndex) => {
+        if (typeof part !== 'string') {
+          const placeholder = `{{ELEMENT_${partIndex}}}`;
+          if (workingText.includes(placeholder)) {
+            const splitText = workingText.split(placeholder);
+            paragraphParts.push(splitText[0]);
+            paragraphParts.push(part);
+            workingText = splitText.slice(1).join(placeholder);
+          }
+        }
+      });
+      
+      if (workingText) {
+        paragraphParts.push(workingText);
+      }
+      
+      return (
+        <p key={pIndex}>
+          {paragraphParts.length > 0 ? paragraphParts : paragraph}
+        </p>
+      );
+    });
+  };
 
   return (
     <ScrollArea className="h-full">
@@ -20,57 +174,7 @@ export const DocumentCanvas = ({ manuscript }: DocumentCanvasProps) => {
               <h1 className="text-3xl font-bold mb-8 text-center">{manuscript.title}</h1>
               
               <div className="space-y-6 text-base leading-relaxed">
-                {manuscript.contentText.split('\n\n').map((paragraph, index) => (
-                  <p key={index}>
-                    {index === 0 ? (
-                      <>
-                        In the beginning, there was only{" "}
-                        <span 
-                          className="insertion relative cursor-pointer"
-                          onMouseEnter={() => setHoveredChange("change-1")}
-                          onMouseLeave={() => setHoveredChange(null)}
-                        >
-                          silence
-                          {hoveredChange === "change-1" && (
-                            <span className="absolute -top-12 left-0 flex gap-1 bg-white border border-border rounded shadow-lg p-1 z-10">
-                              <Button size="sm" className="h-6 text-xs px-2">
-                                <Check className="h-3 w-3" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="h-6 text-xs px-2">
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </span>
-                          )}
-                        </span>
-                        {" "}and the profound weight of unwritten words. {paragraph.substring(paragraph.indexOf('.') + 1).trim()}
-                      </>
-                    ) : index === 1 ? (
-                      <>
-                        {paragraph.split('.')[0]}.{" "}
-                        <span 
-                          className="deletion relative cursor-pointer"
-                          onMouseEnter={() => setHoveredChange("change-2")}
-                          onMouseLeave={() => setHoveredChange(null)}
-                        >
-                          [deleted text]
-                          {hoveredChange === "change-2" && (
-                            <span className="absolute -top-12 left-0 flex gap-1 bg-white border border-border rounded shadow-lg p-1 z-10">
-                              <Button size="sm" className="h-6 text-xs px-2">
-                                <Check className="h-3 w-3" />
-                              </Button>
-                              <Button variant="outline" size="sm" className="h-6 text-xs px-2">
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </span>
-                          )}
-                        </span>
-                        {" "}{paragraph.substring(paragraph.indexOf('.') + 1).trim()}
-                      </>
-                    ) : (
-                      paragraph
-                    )}
-                  </p>
-                ))}
+                {renderManuscriptWithSuggestions()}
 
                 {/* Comment indicator - keep as static placeholder */}
                 <div className="relative inline-block">

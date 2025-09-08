@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentCanvas } from "./DocumentCanvas";
+import { ChangeList } from "./ChangeList";
 
 const ManuscriptWorkspace = () => {
   const { id } = useParams<{ id: string }>();
@@ -379,7 +380,7 @@ const ManuscriptWorkspace = () => {
       <div className="h-[calc(100vh-81px)] flex">
         {/* Document Canvas - Left Column */}
         <div id="document-canvas" className="flex-1 overflow-hidden">
-          <DocumentCanvas manuscript={manuscript} />
+          <DocumentCanvas manuscript={manuscript} suggestions={suggestions} />
         </div>
 
         {/* Right Sidebar */}
@@ -396,61 +397,7 @@ const ManuscriptWorkspace = () => {
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
               <TabsContent value="changes" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    {/* Filter controls */}
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Filter className="mr-2 h-4 w-4" />
-                        All actors
-                        <ChevronDown className="ml-2 h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        All types
-                        <ChevronDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    {/* Change cards */}
-                    {manuscript.changes?.map((change) => (
-                      <div key={change.id} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <Badge variant="outline" className="text-xs">
-                            {change.type === "insert" ? "Insertion" : 
-                             change.type === "delete" ? "Deletion" : "Replacement"}
-                          </Badge>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {change.location} • {change.actor}
-                        </p>
-                        <p className="text-sm mb-3">{change.summary}</p>
-                        <div className="flex gap-2">
-                          <Button size="sm" className="h-7 text-xs">Accept</Button>
-                          <Button variant="outline" size="sm" className="h-7 text-xs">Reject</Button>
-                        </div>
-                      </div>
-                    )) || [1, 2, 3].map((i) => (
-                      <div key={i} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <Badge variant="outline" className="text-xs">Insertion</Badge>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Line {10 + i}, paragraph {i}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button size="sm" className="h-7 text-xs">Accept</Button>
-                          <Button variant="outline" size="sm" className="h-7 text-xs">Reject</Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+                <ChangeList suggestions={suggestions} />
               </TabsContent>
 
                 <ScrollArea className="h-full">
