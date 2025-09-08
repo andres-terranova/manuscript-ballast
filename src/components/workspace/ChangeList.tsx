@@ -33,6 +33,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
     if (typeFilter === "all") return suggestions;
     return suggestions.filter(s => s.type === typeFilter);
   }, [suggestions, typeFilter]);
+
   const getSuggestionIcon = (type: SuggestionType) => {
     switch (type) {
       case 'insert':
