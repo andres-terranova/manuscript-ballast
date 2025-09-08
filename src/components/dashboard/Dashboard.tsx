@@ -10,15 +10,20 @@ import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronL
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
+import { markdownToHtml, htmlToPlainText, validateMarkdownFile, readFileAsText } from "@/lib/markdownUtils";
+import { updateEditorContent } from "@/lib/editorUtils";
 
 const Dashboard = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadStep, setUploadStep] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
+  const [uploadError, setUploadError] = useState<string>("");
+  const [uploadWarning, setUploadWarning] = useState<string>("");
+  const [isUploading, setIsUploading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loggedIn, logout } = useAuth();
-  const { manuscripts } = useManuscripts();
+  const { manuscripts, updateManuscript, addManuscript } = useManuscripts();
 
   useEffect(() => {
     // Check authentication
@@ -99,6 +104,92 @@ const Dashboard = () => {
     }).format(new Date(isoDate));
   };
 
+  const handleFileSelect = async (file: File) => {
+    setUploadError("");
+    setUploadWarning("");
+    
+    // Validate file
+    const validation = validateMarkdownFile(file);
+    if (!validation.valid) {
+      setUploadError(validation.error || "Invalid file");
+      return;
+    }
+    
+    setIsUploading(true);
+    
+    try {
+      // Read markdown content
+      const markdownContent = await readFileAsText(file);
+      
+      // Convert to HTML
+      const htmlContent = await markdownToHtml(markdownContent);
+      
+      // Convert to plain text for excerpts/search
+      const plainText = htmlToPlainText(htmlContent);
+      
+      // Check for local images and warn
+      if (markdownContent.includes('![') && markdownContent.match(/!\[.*?\]\([^http]/)) {
+        setUploadWarning("Local image paths aren't supported yet; images may not display correctly.");
+      }
+      
+      // Create new manuscript
+      const newManuscript: Manuscript = {
+        id: `m${Date.now()}`,
+        title: file.name.replace('.md', ''),
+        owner: "A. Editor",
+        round: 1,
+        status: "In Review",
+        ballInCourt: "Editor",
+        updatedAt: new Date().toISOString(),
+        excerpt: plainText.substring(0, 100) + "...",
+        contentText: plainText,
+        contentHtml: htmlContent,
+        sourceMarkdown: markdownContent,
+        changes: [],
+        comments: [],
+        checks: [],
+        newContent: []
+      };
+      
+      // Add manuscript to store
+      addManuscript(newManuscript);
+      
+      // Update TipTap editor content if we're currently editing this manuscript
+      updateEditorContent(htmlContent);
+      toast({
+        title: "Imported from Markdown",
+        description: `Successfully imported "${newManuscript.title}".`,
+      });
+      
+      setShowUploadModal(false);
+      setUploadStep(1);
+      
+      // Navigate to the new manuscript
+      navigate(`/manuscript/${newManuscript.id}`);
+      
+    } catch (error) {
+      console.error('Error processing markdown:', error);
+      setUploadError("Failed to process markdown file. Please check the file format.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Fixed Header */}
@@ -166,20 +257,48 @@ const Dashboard = () => {
                 
                 <div id="upload-modal" className="py-6">
                   {uploadStep === 1 ? (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                      <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">
-                        Drop your manuscript here
-                      </h3>
-                      <p className="text-gray-600 mb-4">
-                        or click to browse files
-                      </p>
-                      <Button 
-                        variant="outline"
-                        onClick={() => setUploadStep(2)}
+                    <div className="space-y-4">
+                      <div 
+                        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
+                        onDrop={handleFileDrop}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDragEnter={(e) => e.preventDefault()}
                       >
-                        Choose File
-                      </Button>
+                        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                          Drop your Markdown file here
+                        </h3>
+                        <p className="text-gray-600 mb-4">
+                          or click to browse .md files
+                        </p>
+                        <input
+                          id="md-upload-input"
+                          type="file"
+                          accept=".md"
+                          className="hidden"
+                          onChange={handleFileInputChange}
+                          disabled={isUploading}
+                        />
+                        <Button 
+                          variant="outline"
+                          onClick={() => document.getElementById('md-upload-input')?.click()}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? "Processing..." : "Choose File"}
+                        </Button>
+                      </div>
+                      
+                      {uploadError && (
+                        <div id="md-upload-error" className="text-red-600 text-sm bg-red-50 p-3 rounded">
+                          {uploadError}
+                        </div>
+                      )}
+                      
+                      {uploadWarning && (
+                        <div id="md-upload-warning" className="text-amber-600 text-sm bg-amber-50 p-3 rounded">
+                          {uploadWarning}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-6 max-h-96 overflow-y-auto">
@@ -216,8 +335,12 @@ const Dashboard = () => {
                       </div>
 
                       <div className="pt-4 border-t border-gray-200">
-                        <Button className="w-full bg-black text-white hover:bg-gray-800">
-                          Start Processing
+                        <Button 
+                          id="md-upload-submit"
+                          className="w-full bg-black text-white hover:bg-gray-800"
+                          disabled
+                        >
+                          Start Processing (Coming Soon)
                         </Button>
                       </div>
                     </div>

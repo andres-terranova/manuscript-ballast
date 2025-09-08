@@ -23,3 +23,19 @@ export function textToHtml(text: string): string {
     .map(paragraph => `<p>${paragraph}</p>`)
     .join('');
 }
+
+// Helper to update editor content (for imports)
+export function updateEditorContent(html: string): boolean {
+  if (!globalEditor) {
+    console.warn('No editor instance available');
+    return false;
+  }
+  
+  try {
+    globalEditor.commands.setContent(html);
+    return true;
+  } catch (error) {
+    console.error('Failed to update editor content:', error);
+    return false;
+  }
+}

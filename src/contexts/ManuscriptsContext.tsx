@@ -11,6 +11,7 @@ export type Manuscript = {
   excerpt: string;
   contentText: string;
   contentHtml?: string; // canonical editor content (HTML)
+  sourceMarkdown?: string; // original markdown content
   // Derived for editor screen (mocked for placeholders):
   changes?: Array<{
     id: string;
@@ -202,6 +203,7 @@ interface ManuscriptsContextType {
   manuscripts: Manuscript[];
   getManuscriptById: (id: string) => Manuscript | undefined;
   updateManuscript: (id: string, updates: Partial<Manuscript>) => void;
+  addManuscript: (manuscript: Manuscript) => void;
 }
 
 const ManuscriptsContext = createContext<ManuscriptsContextType | undefined>(undefined);
@@ -219,8 +221,12 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     ));
   };
 
+  const addManuscript = (manuscript: Manuscript) => {
+    setManuscripts(prev => [manuscript, ...prev]);
+  };
+
   return (
-    <ManuscriptsContext.Provider value={{ manuscripts, getManuscriptById, updateManuscript }}>
+    <ManuscriptsContext.Provider value={{ manuscripts, getManuscriptById, updateManuscript, addManuscript }}>
       {children}
     </ManuscriptsContext.Provider>
   );
