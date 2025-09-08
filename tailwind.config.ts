@@ -13,20 +13,55 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Merriweather', 'Georgia', 'serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        
+        document: {
+          DEFAULT: "hsl(var(--document-bg))",
+          foreground: "hsl(var(--document-foreground))",
+        },
+        
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          light: "hsl(var(--primary-light))",
         },
+        
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
+          light: "hsl(var(--secondary-light))",
         },
+        
+        insertion: {
+          DEFAULT: "hsl(var(--insertion))",
+          foreground: "hsl(var(--insertion-foreground))",
+          bg: "hsl(var(--insertion-bg))",
+          light: "hsl(var(--insertion-light))",
+        },
+        
+        deletion: {
+          DEFAULT: "hsl(var(--deletion))",
+          foreground: "hsl(var(--deletion-foreground))",
+          bg: "hsl(var(--deletion-bg))",
+          light: "hsl(var(--deletion-light))",
+        },
+        
+        modification: {
+          DEFAULT: "hsl(var(--modification))",
+          foreground: "hsl(var(--modification-foreground))",
+          bg: "hsl(var(--modification-bg))",
+          light: "hsl(var(--modification-light))",
+        },
+
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
@@ -46,6 +81,7 @@ export default {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+          border: "hsl(var(--card-border))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
