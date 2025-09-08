@@ -22,9 +22,10 @@ interface ChangeListProps {
   suggestions: Suggestion[];
   onAcceptSuggestion?: (suggestionId: string) => void;
   onRejectSuggestion?: (suggestionId: string) => void;
+  busySuggestions?: Set<string>;
 }
 
-export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion }: ChangeListProps) => {
+export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set() }: ChangeListProps) => {
   const getSuggestionIcon = (type: SuggestionType) => {
     switch (type) {
       case 'insert':
@@ -55,7 +56,29 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
     const element = document.getElementById(`suggestion-span-${suggestionId}`);
     if (element) {
       element.scrollIntoView({ block: "center", behavior: "smooth" });
+      // Brief highlight
+      element.classList.add('ring-2', 'ring-primary');
+      setTimeout(() => {
+        element.classList.remove('ring-2', 'ring-primary');
+      }, 800);
     }
+  };
+
+  const handleCardKeyDown = (e: React.KeyboardEvent, suggestionId: string) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onAcceptSuggestion?.(suggestionId);
+    } else if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      onRejectSuggestion?.(suggestionId);
+    }
+  };
+
+  const getNextFocusableCard = (currentIndex: number) => {
+    if (currentIndex < suggestions.length - 1) {
+      return `change-card-${suggestions[currentIndex + 1].id}`;
+    }
+    return 'changes-list';
   };
 
   const formatTimestamp = (date: Date) => {
@@ -78,12 +101,16 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {suggestions.length > 0 ? (
-          suggestions.map((suggestion) => (
+          suggestions.map((suggestion, index) => {
+            const isBusy = busySuggestions.has(suggestion.id);
+            return (
             <Card 
               key={suggestion.id} 
               data-testid={`change-card-${suggestion.id}`}
-              className="border-card-border cursor-pointer hover:bg-muted/50 transition-colors"
+              className="border-card-border cursor-pointer hover:bg-muted/50 transition-colors focus-within:ring-2 focus-within:ring-primary"
               onClick={() => handleSuggestionClick(suggestion.id)}
+              tabIndex={0}
+              onKeyDown={(e) => handleCardKeyDown(e, suggestion.id)}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -133,8 +160,14 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                       onClick={(e) => {
                         e.stopPropagation();
                         onAcceptSuggestion?.(suggestion.id);
+                        // Focus next card after action
+                        setTimeout(() => {
+                          const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
+                          nextCard?.focus();
+                        }, 100);
                       }}
-                      disabled={!onAcceptSuggestion}
+                      disabled={!onAcceptSuggestion || isBusy}
+                      aria-keyshortcuts="Enter"
                     >
                       <Check className="mr-1 h-3 w-3" />
                       Accept
@@ -147,8 +180,14 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                       onClick={(e) => {
                         e.stopPropagation();
                         onRejectSuggestion?.(suggestion.id);
+                        // Focus next card after action
+                        setTimeout(() => {
+                          const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
+                          nextCard?.focus();
+                        }, 100);
                       }}
-                      disabled={!onRejectSuggestion}
+                      disabled={!onRejectSuggestion || isBusy}
+                      aria-keyshortcuts="Shift+Enter"
                     >
                       <X className="mr-1 h-3 w-3" />
                       Reject
@@ -157,7 +196,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                 </div>
               </CardContent>
             </Card>
-          ))
+          )})
         ) : (
           <div className="text-center py-8">
             <p className="text-muted-foreground">No pending suggestions.</p>

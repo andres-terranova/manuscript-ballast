@@ -66,10 +66,21 @@ const ManuscriptWorkspace = () => {
   // Suggestions state
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
+  const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
 
   // Helper functions for suggestion processing
+  const isOverlapping = (a: {start: number; end: number}, b: {start: number; end: number}) => {
+    return !(a.end <= b.start || a.start >= b.end);
+  };
+
+  const byStartAsc = (a: {start: number}, b: {start: number}) => a.start - b.start;
+
   const applySuggestionPatch = (src: string, s: Suggestion): string => {
-    // Preconditions (dev): for delete/replace, ensure src.slice(s.start, s.end) === s.before
+    // Integrity check: for delete/replace, ensure src.slice(s.start, s.end) === s.before
+    if ((s.type === "delete" || s.type === "replace") && src.slice(s.start, s.end) !== s.before) {
+      return null; // Signal integrity failure
+    }
+    
     if (s.type === "insert") {
       return src.slice(0, s.start) + s.after + src.slice(s.start);
     }
@@ -91,9 +102,12 @@ const ManuscriptWorkspace = () => {
     return suggestions
       .filter(s => s.id !== applied.id)
       .map(s => {
-        // Drop overlapping suggestions for now (will refine later)
-        const overlaps = !(s.end <= applied.start || s.start >= applied.end);
-        if (overlaps) return null;
+        // Drop overlapping suggestions
+        const overlaps = isOverlapping(s, applied);
+        if (overlaps) {
+          console.info('Dropped overlapping suggestion', { id: s.id });
+          return null;
+        }
 
         // Shift suggestions that occur after the applied change
         if (s.start >= applied.end) {
@@ -101,40 +115,86 @@ const ManuscriptWorkspace = () => {
         }
         return s;
       })
-      .filter(Boolean) as Suggestion[];
+      .filter(Boolean)
+      .sort(byStartAsc) as Suggestion[];
   };
 
   // Accept/Reject handlers
-  const handleAcceptSuggestion = (suggestionId: string) => {
+  const handleAcceptSuggestion = async (suggestionId: string) => {
     const suggestion = suggestions.find(s => s.id === suggestionId);
-    if (!suggestion) return;
+    if (!suggestion || busySuggestions.has(suggestionId)) return;
 
-    // Apply the suggestion patch to contentText
-    const newContentText = applySuggestionPatch(contentText, suggestion);
-    setContentText(newContentText);
+    // Set busy state
+    setBusySuggestions(prev => new Set(prev).add(suggestionId));
 
-    // Recalculate offsets for remaining suggestions
-    const updatedSuggestions = recalcOffsetsAfterPatch(suggestions, suggestion);
-    setSuggestions(updatedSuggestions);
+    try {
+      // Apply the suggestion patch to contentText with integrity check
+      const newContentText = applySuggestionPatch(contentText, suggestion);
+      
+      if (newContentText === null) {
+        // Integrity check failed
+        const updatedSuggestions = suggestions.filter(s => s.id !== suggestionId).sort(byStartAsc);
+        setSuggestions(updatedSuggestions);
+        
+        toast({
+          title: "Suggestion no longer matches the text; skipped.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    toast({
-      title: "Change accepted",
-      description: `Applied: ${suggestion.summary}`
-    });
+      setContentText(newContentText);
+
+      // Recalculate offsets for remaining suggestions
+      const updatedSuggestions = recalcOffsetsAfterPatch(suggestions, suggestion);
+      setSuggestions(updatedSuggestions);
+
+      // Scroll and highlight the applied change
+      setTimeout(() => {
+        const element = document.getElementById(`suggestion-span-${suggestionId}`);
+        if (element) {
+          element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          element.classList.add('ring-2', 'ring-primary');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-primary');
+          }, 800);
+        }
+      }, 100);
+
+      toast({
+        title: "Change applied."
+      });
+    } finally {
+      setBusySuggestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(suggestionId);
+        return newSet;
+      });
+    }
   };
 
-  const handleRejectSuggestion = (suggestionId: string) => {
+  const handleRejectSuggestion = async (suggestionId: string) => {
     const suggestion = suggestions.find(s => s.id === suggestionId);
-    if (!suggestion) return;
+    if (!suggestion || busySuggestions.has(suggestionId)) return;
 
-    // Remove the suggestion without changing contentText
-    const updatedSuggestions = suggestions.filter(s => s.id !== suggestionId);
-    setSuggestions(updatedSuggestions);
+    // Set busy state
+    setBusySuggestions(prev => new Set(prev).add(suggestionId));
 
-    toast({
-      title: "Change rejected",
-      description: `Rejected: ${suggestion.summary}`
-    });
+    try {
+      // Remove the suggestion without changing contentText
+      const updatedSuggestions = suggestions.filter(s => s.id !== suggestionId).sort(byStartAsc);
+      setSuggestions(updatedSuggestions);
+
+      toast({
+        title: "Change dismissed."
+      });
+    } finally {
+      setBusySuggestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(suggestionId);
+        return newSet;
+      });
+    }
   };
 
   // Create basic suggestions function
@@ -520,9 +580,10 @@ const ManuscriptWorkspace = () => {
             <div className="flex-1 overflow-hidden">
               <TabsContent value="changes" className="h-full mt-0">
                 <ChangeList 
-                  suggestions={suggestions} 
+                  suggestions={suggestions}
                   onAcceptSuggestion={handleAcceptSuggestion}
                   onRejectSuggestion={handleRejectSuggestion}
+                  busySuggestions={busySuggestions}
                 />
               </TabsContent>
 
