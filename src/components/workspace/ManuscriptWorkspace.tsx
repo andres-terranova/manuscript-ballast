@@ -7,6 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { 
   ArrowLeft, 
@@ -39,6 +41,11 @@ const ManuscriptWorkspace = () => {
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
+  
+  // Run AI Settings state
+  const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
+  const [aiChecks, setAiChecks] = useState({ contradictions: true, repetitions: true });
+  const [styleRules, setStyleRules] = useState<string[]>(["Serial Comma", "Punctuation Inside Quotes", "Capitalize Proper Nouns"]);
 
   useEffect(() => {
     if (!id) {
@@ -369,16 +376,31 @@ const ManuscriptWorkspace = () => {
             <div id="run-ai-scope">
               <h4 className="text-sm font-medium mb-3">Scope</h4>
               <div className="space-y-3">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="scope" defaultChecked />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="scope" 
+                    checked={aiScope === "Entire Document"}
+                    onChange={() => setAiScope("Entire Document")}
+                  />
                   <span className="text-sm">Entire Document</span>
                 </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="scope" />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="scope" 
+                    checked={aiScope === "Current Section"}
+                    onChange={() => setAiScope("Current Section")}
+                  />
                   <span className="text-sm">Current Section</span>
                 </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="scope" />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="scope" 
+                    checked={aiScope === "Selected Text"}
+                    onChange={() => setAiScope("Selected Text")}
+                  />
                   <span className="text-sm">Selected Text</span>
                 </label>
               </div>
@@ -388,12 +410,20 @@ const ManuscriptWorkspace = () => {
             <div id="run-ai-checks">
               <h4 className="text-sm font-medium mb-3">Checks to Perform</h4>
               <div className="space-y-3">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={aiChecks.contradictions}
+                    onChange={() => setAiChecks(prev => ({ ...prev, contradictions: !prev.contradictions }))}
+                  />
                   <span className="text-sm">Flag potential contradictions</span>
                 </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={aiChecks.repetitions}
+                    onChange={() => setAiChecks(prev => ({ ...prev, repetitions: !prev.repetitions }))}
+                  />
                   <span className="text-sm">Flag repetitions</span>
                 </label>
               </div>
@@ -403,11 +433,15 @@ const ManuscriptWorkspace = () => {
             <div id="run-ai-style-rules">
               <h4 className="text-sm font-medium mb-3">Active Style Rules</h4>
               <div className="flex flex-wrap gap-1">
-                <Badge variant="secondary" className="text-xs">Serial Comma</Badge>
-                <Badge variant="secondary" className="text-xs">Punctuation Inside Quotes</Badge>
-                <Badge variant="secondary" className="text-xs">Oxford Spelling</Badge>
-                <Badge variant="secondary" className="text-xs">Consistent Tense</Badge>
-                <Badge variant="secondary" className="text-xs">Voice Consistency</Badge>
+                {styleRules.length > 0 ? (
+                  styleRules.map((rule, index) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {rule}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">No active rules</span>
+                )}
               </div>
             </div>
           </div>
