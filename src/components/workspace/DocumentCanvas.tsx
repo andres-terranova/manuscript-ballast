@@ -65,10 +65,10 @@ export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = fals
   if (!editor) {
     return (
       <ScrollArea className="h-full">
-        <div className="flex justify-center p-8">
+        <div className="flex justify-center p-4 lg:p-8">
           <Card className="w-full max-w-4xl bg-document border border-card-border shadow-sm">
-            <div className="p-12">
-              <div className="animate-pulse">Loading editor...</div>
+            <div className="p-6 lg:p-12">
+              <div className="animate-pulse text-center">Loading editor...</div>
             </div>
           </Card>
         </div>
@@ -78,26 +78,26 @@ export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = fals
 
   return (
     <ScrollArea className="h-full">
-      <div className="flex justify-center p-8">
+      <div className="flex justify-center p-4 lg:p-8">
         <Card 
           id="document-canvas" 
           className="w-full max-w-4xl bg-document border border-card-border shadow-sm"
         >
-          <div className="p-12">
+          <div className="p-6 lg:p-12">
             <div className="manuscript-content">
-              <h1 className="text-3xl font-bold mb-8 text-center">{manuscript.title}</h1>
+              <h1 className="text-2xl lg:text-3xl font-bold mb-6 lg:mb-8 text-center">{manuscript.title}</h1>
               
               <div className="prose max-w-none">
                 <EditorContent 
                   editor={editor} 
-                  className="min-h-[500px] focus:outline-none"
+                  className="min-h-[300px] lg:min-h-[500px] focus:outline-none"
                 />
               </div>
 
               {/* Comment indicator - keep as static placeholder for now */}
               {!isReadOnly && (
-                <div className="relative inline-block mt-6">
-                  <span className="bg-yellow-100 px-1 rounded">
+                <div className="relative inline-block mt-4 lg:mt-6">
+                  <span className="bg-yellow-100 px-1 rounded text-sm">
                     The conclusion would need to tie these themes together
                   </span>
                   <button className="absolute -right-2 -top-2 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">

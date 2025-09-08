@@ -521,37 +521,37 @@ const ManuscriptWorkspace = () => {
       {/* Header */}
       <header id="header" className="border-b border-border bg-white">
         {/* Header Row 1 - Navigation & Actions */}
-        <div className="px-6 py-3 flex items-center justify-between">
+        <div className="px-4 lg:px-6 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           {/* Left: Breadcrumb navigation */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
             <button 
               onClick={() => navigate("/dashboard")}
-              className="hover:text-foreground transition-colors"
+              className="hover:text-foreground transition-colors flex-shrink-0"
             >
               Manuscripts
             </button>
-            <span>&gt;</span>
-            <span className="text-foreground font-medium">{manuscript.title}</span>
+            <span className="flex-shrink-0">&gt;</span>
+            <span className="text-foreground font-medium truncate">{manuscript.title}</span>
           </div>
 
           {/* Right: Action buttons */}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="border-dashed">
+          <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
+            <Button variant="outline" size="sm" className="border-dashed hidden sm:flex">
               Switch
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="hidden lg:flex">
               <RotateCcw className="mr-2 h-4 w-4" />
               History
             </Button>
             {!isReviewed && (
               <>
-                <Button variant="outline" size="sm" onClick={() => setShowStyleRules(true)}>
+                <Button variant="outline" size="sm" onClick={() => setShowStyleRules(true)} className="hidden lg:flex">
                   <Settings2 className="mr-2 h-4 w-4" />
-                  Style Rules
+                  <span className="hidden xl:inline">Style Rules</span>
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setShowRunAIModal(true)}>
                   <Play className="mr-2 h-4 w-4" />
-                  Run AI Pass
+                  <span className="hidden sm:inline">Run AI Pass</span>
                 </Button>
               </>
             )}
@@ -564,24 +564,24 @@ const ManuscriptWorkspace = () => {
             >
               {isReviewed ? "Reviewed" : "Mark Reviewed"}
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="hidden lg:flex">
               <Download className="mr-2 h-4 w-4" />
-              Export
+              <span className="hidden xl:inline">Export</span>
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="hidden lg:flex">
               <Send className="mr-2 h-4 w-4" />
-              Send to Author
+              <span className="hidden xl:inline">Send to Author</span>
             </Button>
           </div>
         </div>
 
         {/* Header Row 2 - Status Information */}
-        <div className="px-6 py-4 flex items-center justify-between">
+        <div className="px-4 lg:px-6 py-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           {/* Left: Large manuscript title */}
-          <h1 className="text-3xl font-semibold text-foreground">{manuscript.title}</h1>
+          <h1 className="text-2xl lg:text-3xl font-semibold text-foreground truncate flex-1 min-w-0">{manuscript.title}</h1>
 
           {/* Right: Status badges and metadata */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4 flex-wrap lg:flex-nowrap flex-shrink-0">
             <Badge className={getStatusBadgeVariant(manuscript.status)}>
               Round {manuscript.round}
             </Badge>
@@ -601,13 +601,13 @@ const ManuscriptWorkspace = () => {
       </header>
 
       {/* Main Content Area */}
-      <div className="h-[calc(100vh-81px)] flex">
+      <div className="h-[calc(100vh-160px)] flex flex-col lg:flex-row">
         {/* Document Canvas - Left Column */}
-        <div id="document-canvas" className="flex-1 overflow-hidden">
+        <div id="document-canvas" className="flex-1 min-h-0 overflow-hidden">
           {isReviewed && (
             <div 
               data-testid="reviewed-banner" 
-              className="bg-green-50 border-b border-green-200 px-6 py-2 text-sm text-green-800"
+              className="bg-green-50 border-b border-green-200 px-4 lg:px-6 py-2 text-sm text-green-800"
             >
               Reviewed — read-only
             </div>
@@ -620,14 +620,14 @@ const ManuscriptWorkspace = () => {
         </div>
 
         {/* Right Sidebar */}
-        <div id="right-sidebar" className="w-80 bg-muted border-l border-border overflow-hidden">
+        <div id="right-sidebar" className="w-full lg:w-80 bg-muted border-t lg:border-t-0 lg:border-l border-border overflow-hidden flex-shrink-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             {/* Tab List */}
             <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
-              <TabsTrigger value="changes" className="text-xs">Changes</TabsTrigger>
-              <TabsTrigger value="comments" className="text-xs">Comments</TabsTrigger>
-              <TabsTrigger value="checks" className="text-xs">Checks</TabsTrigger>
-              <TabsTrigger value="new-content" className="text-xs">New Content</TabsTrigger>
+              <TabsTrigger value="changes" className="text-xs px-2">Changes</TabsTrigger>
+              <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
+              <TabsTrigger value="checks" className="text-xs px-2">Checks</TabsTrigger>
+              <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
             </TabsList>
 
             {/* Tab Content */}
