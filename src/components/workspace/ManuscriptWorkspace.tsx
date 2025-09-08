@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useManuscripts } from "@/contexts/ManuscriptsContext";
+import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { 
   ArrowLeft, 
   RotateCcw, 
@@ -32,21 +32,57 @@ const ManuscriptWorkspace = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { manuscripts } = useManuscripts();
-  const [manuscript, setManuscript] = useState<any>(null);
+  const { getManuscriptById } = useManuscripts();
+  const [manuscript, setManuscript] = useState<Manuscript | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState("changes");
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
 
   useEffect(() => {
-    const found = manuscripts.find(m => m.id === id);
-    if (!found) {
+    if (!id) {
       navigate("/dashboard");
       return;
     }
+    
+    const found = getManuscriptById(id);
+    if (!found) {
+      setNotFound(true);
+      return;
+    }
+    
     setManuscript(found);
-  }, [id, navigate, manuscripts]);
+    setNotFound(false);
+  }, [id, navigate, getManuscriptById]);
+
+  const getStatusBadgeVariant = (status: Manuscript["status"]) => {
+    switch (status) {
+      case "In Review":
+        return "bg-blue-100 text-blue-800 hover:bg-blue-100";
+      case "With Author":
+        return "bg-purple-100 text-purple-800 hover:bg-purple-100";
+      case "Tool Pending":
+        return "bg-gray-100 text-gray-800 hover:bg-gray-100";
+      case "Reviewed":
+        return "bg-green-100 text-green-800 hover:bg-green-100";
+      default:
+        return "bg-gray-100 text-gray-800 hover:bg-gray-100";
+    }
+  };
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Manuscript not found</h1>
+          <Button onClick={() => navigate("/dashboard")}>
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!manuscript) {
     return <div>Loading...</div>;
@@ -105,11 +141,11 @@ const ManuscriptWorkspace = () => {
 
           {/* Right: Status badges and metadata */}
           <div className="flex items-center gap-4">
-            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+            <Badge className={getStatusBadgeVariant(manuscript.status)}>
               Round {manuscript.round}
             </Badge>
-            <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-              With Editor
+            <Badge className={getStatusBadgeVariant(manuscript.status)}>
+              {manuscript.status}
             </Badge>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-4 w-4" />
@@ -160,7 +196,27 @@ const ManuscriptWorkspace = () => {
                     </div>
 
                     {/* Change cards */}
-                    {[1, 2, 3].map((i) => (
+                    {manuscript.changes?.map((change) => (
+                      <div key={change.id} className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <Badge variant="outline" className="text-xs">
+                            {change.type === "insert" ? "Insertion" : 
+                             change.type === "delete" ? "Deletion" : "Replacement"}
+                          </Badge>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {change.location} • {change.actor}
+                        </p>
+                        <p className="text-sm mb-3">{change.summary}</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" className="h-7 text-xs">Accept</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs">Reject</Button>
+                        </div>
+                      </div>
+                    )) || [1, 2, 3].map((i) => (
                       <div key={i} className="bg-card border border-card-border rounded-lg p-3">
                         <div className="flex items-start justify-between mb-2">
                           <Badge variant="outline" className="text-xs">Insertion</Badge>
@@ -181,10 +237,33 @@ const ManuscriptWorkspace = () => {
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="comments" className="h-full mt-0">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
-                    {[1, 2].map((i) => (
+                    {manuscript.comments?.map((comment) => (
+                      <div key={comment.id} className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                            <User className="h-3 w-3" />
+                          </div>
+                          <span className="text-sm font-medium">{comment.author}</span>
+                          <span className="text-xs text-muted-foreground">2h ago</span>
+                        </div>
+                        <p className="text-sm mb-2">{comment.text}</p>
+                        <p className="text-xs text-muted-foreground mb-3">{comment.location}</p>
+                        {comment.replies?.map((reply) => (
+                          <div key={reply.id} className="ml-4 mt-2 p-2 bg-muted rounded">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-medium">{reply.author}</span>
+                            </div>
+                            <p className="text-xs">{reply.text}</p>
+                          </div>
+                        ))}
+                        <div className="flex gap-2 mt-3">
+                          <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
+                        </div>
+                      </div>
+                    )) || [1, 2].map((i) => (
                       <div key={i} className="bg-card border border-card-border rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
@@ -203,12 +282,27 @@ const ManuscriptWorkspace = () => {
                     ))}
                   </div>
                 </ScrollArea>
-              </TabsContent>
 
               <TabsContent value="checks" className="h-full mt-0">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
-                    {[1, 2, 3].map((i) => (
+                    {manuscript.checks?.map((check) => (
+                      <div key={check.id} className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className={`h-4 w-4 mt-0.5 ${
+                            check.severity === "warn" ? "text-amber-500" : "text-blue-500"
+                          }`} />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">
+                              {check.severity === "warn" ? "Warning" : "Information"}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {check.text}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )) || [1, 2, 3].map((i) => (
                       <div key={i} className="bg-card border border-card-border rounded-lg p-3">
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5" />
@@ -228,7 +322,19 @@ const ManuscriptWorkspace = () => {
               <TabsContent value="new-content" className="h-full mt-0">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
-                    {[1, 2].map((i) => (
+                    {manuscript.newContent?.map((content) => (
+                      <div key={content.id} className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{content.snippet}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {content.location}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )) || [1, 2].map((i) => (
                       <div key={i} className="bg-card border border-card-border rounded-lg p-3">
                         <div className="flex items-start gap-2">
                           <Plus className="h-4 w-4 text-green-500 mt-0.5" />
