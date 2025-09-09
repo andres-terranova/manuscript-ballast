@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +89,12 @@ const ManuscriptWorkspace = () => {
 
   // Read-only state derived from manuscript status
   const isReviewed = manuscript?.status === "Reviewed";
+
+  // Memoized function to get current UI suggestions
+  const getUISuggestions = useCallback(() => {
+    console.log('getUISuggestions called, returning', uiSuggestions.length, 'suggestions');
+    return uiSuggestions;
+  }, [uiSuggestions]);
 
   // Helper functions for suggestion processing
   const isOverlapping = (a: {start: number; end: number}, b: {start: number; end: number}) => {
@@ -460,7 +466,7 @@ const ManuscriptWorkspace = () => {
             manuscript={{...manuscript, contentText}} 
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
-            getUISuggestions={() => uiSuggestions}
+            getUISuggestions={getUISuggestions}
           />
         </div>
 
