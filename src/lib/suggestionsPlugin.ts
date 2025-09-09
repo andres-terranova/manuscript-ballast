@@ -40,23 +40,37 @@ export const SuggestionsExtension = Extension.create({
                   el.dataset.suggestionId = s.id;
                   el.dataset.type = s.type;
                   el.setAttribute("data-testid", `suggestion-span-${s.id}`);
-                  el.className = "suggest-insert underline decoration-dotted decoration-2 decoration-green-500 cursor-pointer";
-                  el.style.backgroundColor = "rgba(34, 197, 94, 0.1)";
+                  el.className = "suggest-insert";
                   el.textContent = `+${s.after}`;
                   el.title = s.note;
                   return el;
                 }));
               } else {
                 // For delete/replace suggestions, show inline decoration over the range
-                decos.push(Decoration.inline(s.pmFrom, s.pmTo, {
-                  class: s.type === "delete" 
-                    ? "suggest-delete line-through decoration-2 decoration-red-500 bg-red-50 cursor-pointer"
-                    : "suggest-replace line-through decoration-2 decoration-yellow-500 bg-yellow-50 cursor-pointer",
-                  "data-suggestion-id": s.id,
-                  id: `suggestion-span-${s.id}`,
-                  "data-testid": `suggestion-span-${s.id}`,
-                  title: s.note
-                }));
+                const from = Math.max(0, s.pmFrom);
+                let to = Math.max(from, s.pmTo);
+                
+                // Expand single-char matches for better visibility
+                if (to - from < 2) {
+                  const expand = 2;
+                  const newFrom = Math.max(0, from - expand);
+                  const newTo = Math.min(newState.doc.content.size, to + expand);
+                  decos.push(Decoration.inline(newFrom, newTo, {
+                    class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
+                    "data-suggestion-id": s.id,
+                    id: `suggestion-span-${s.id}`,
+                    "data-testid": `suggestion-span-${s.id}`,
+                    title: s.note
+                  }));
+                } else {
+                  decos.push(Decoration.inline(from, to, {
+                    class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
+                    "data-suggestion-id": s.id,
+                    id: `suggestion-span-${s.id}`,
+                    "data-testid": `suggestion-span-${s.id}`,
+                    title: s.note
+                  }));
+                }
               }
             }
             
