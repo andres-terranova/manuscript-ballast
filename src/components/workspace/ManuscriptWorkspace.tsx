@@ -128,19 +128,21 @@ const ManuscriptWorkspace = () => {
   };
 
   const handleRunChecks = () => {
+    console.log('handleRunChecks called');
     const editor = getGlobalEditor();
-    if (!editor) return;
+    if (!editor) {
+      console.log('No editor found');
+      return;
+    }
     
-  const handleRunChecks = () => {
-    const editor = getGlobalEditor();
-    if (!editor) return;
-    
+    console.log('Running checks with rules:', activeStyleRules);
     const results = runDeterministicChecks(editor, activeStyleRules);
+    console.log('Check results:', results);
     setChecks(results);
     
     // Refresh decorations
     editor.view?.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
-  };
+    console.log('Decorations refreshed');
   };
 
   const handleJumpToCheck = (check: CheckItem) => {
