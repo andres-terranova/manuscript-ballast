@@ -21,71 +21,70 @@ export type UISuggestion = ServerSuggestion & { pmFrom: number; pmTo: number };
 export function mapPlainTextToPM(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
   console.log('mapPlainTextToPM called with', items.length, 'suggestions');
   console.log('Plain text length:', plain.length);
-  console.log('Editor text length:', editor.getText().length);
-  console.log('Plain text preview:', plain.substring(0, 100) + '...');
-  console.log('Editor text preview:', editor.getText().substring(0, 100) + '...');
   
   if (!editor?.state?.doc) return [];
   
   const { state } = editor;
   const doc = state.doc;
   
-  // Build segments of text nodes with cumulative lengths
-  // ProseMirror positions include block boundaries, so we need to track them
-  const segs: Array<{ t0: number; t1: number; p0: number; p1: number }> = [];
-  let textOffset = 0;
+  // Get the actual text that ProseMirror sees using the same method
+  const editorText = editor.getText();
+  console.log('Editor text length:', editorText.length);
+  console.log('Text comparison - Plain vs Editor match:', plain === editorText);
   
-  // Debug: log document structure
-  console.log('Document structure:');
+  if (plain !== editorText) {
+    console.warn('Text mismatch between plain and editor text');
+    console.log('Plain text preview:', plain.substring(0, 200));
+    console.log('Editor text preview:', editorText.substring(0, 200));
+  }
+  
+  // Build character-by-character mapping from plain text to ProseMirror positions
+  const charToPosMap: number[] = [];
+  let textIndex = 0;
+  
+  // Traverse the document and build position mapping
   doc.descendants((node: any, pos: number) => {
-    console.log(`Node at pos ${pos}: type=${node.type.name}, text="${node.textContent}", isText=${node.isText}, isBlock=${node.isBlock}`);
-    
     if (node.isText && node.text) {
-      const len = node.text.length;
-      if (len > 0) {
-        segs.push({ 
-          t0: textOffset, 
-          t1: textOffset + len, 
-          p0: pos, 
-          p1: pos + len 
-        });
-        console.log(`Text segment: t0=${textOffset}, t1=${textOffset + len}, p0=${pos}, p1=${pos + len}, text="${node.text}"`);
-        textOffset += len;
+      const text = node.text;
+      for (let i = 0; i < text.length; i++) {
+        if (textIndex < plain.length) {
+          charToPosMap[textIndex] = pos + i;
+          textIndex++;
+        }
+      }
+    } else if (node.isBlock && node.childCount === 0) {
+      // Handle empty blocks - they might contribute newlines in getText()
+      if (textIndex < plain.length && plain[textIndex] === '\n') {
+        charToPosMap[textIndex] = pos;
+        textIndex++;
       }
     }
     return true;
   });
-
-  console.log('Built segments:', segs);
+  
+  console.log('Built character mapping, mapped', textIndex, 'characters out of', plain.length);
 
   function toPM(textIdx: number): number {
-    console.log(`Mapping text index ${textIdx} to PM position`);
+    // Clamp to valid range
+    if (textIdx < 0) return 1; // Start of document content
+    if (textIdx >= charToPosMap.length) return doc.content.size; // End of document
     
-    // Find the segment containing this text index
-    for (let i = 0; i < segs.length; i++) {
-      const seg = segs[i];
-      if (textIdx >= seg.t0 && textIdx <= seg.t1) {
-        const pmPos = seg.p0 + (textIdx - seg.t0);
-        console.log(`Found in segment ${i}: textIdx ${textIdx} -> pmPos ${pmPos}`);
-        return pmPos;
-      }
+    const pmPos = charToPosMap[textIdx];
+    if (pmPos !== undefined) {
+      return pmPos;
     }
     
-    // If not found in any segment, clamp to document bounds
-    if (textIdx <= 0) {
-      console.log(`Text index ${textIdx} clamped to start: 0`);
-      return 0;
+    // Fallback: find closest mapped position
+    let closestIdx = textIdx;
+    while (closestIdx >= 0 && charToPosMap[closestIdx] === undefined) {
+      closestIdx--;
     }
     
-    const lastSeg = segs[segs.length - 1];
-    if (lastSeg) {
-      const endPos = lastSeg.p1;
-      console.log(`Text index ${textIdx} clamped to end: ${endPos}`);
-      return endPos;
+    if (closestIdx >= 0 && charToPosMap[closestIdx] !== undefined) {
+      return charToPosMap[closestIdx] + (textIdx - closestIdx);
     }
     
-    console.log(`Text index ${textIdx} defaulted to: 0`);
-    return 0;
+    return 1; // Fallback to start of content
   }
 
   const out: UISuggestion[] = [];
