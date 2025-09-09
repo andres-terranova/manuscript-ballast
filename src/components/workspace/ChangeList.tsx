@@ -156,7 +156,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
             const isBusy = busySuggestions.has(suggestion.id);
             return (
             <Card 
-              key={suggestion.id} 
+              key={`${suggestion.id}-${index}`} 
               data-testid={`change-card-${suggestion.id}`}
               className="border-card-border cursor-pointer hover:bg-muted/50 transition-colors focus-within:ring-2 focus-within:ring-primary"
               onClick={() => handleSuggestionClick(suggestion.id)}
