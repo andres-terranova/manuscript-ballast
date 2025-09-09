@@ -30,6 +30,11 @@ export const SuggestionsExtension = Extension.create({
             
             const list = getUISuggestions();
             console.log('Plugin creating decorations for', list.length, 'suggestions', list);
+            
+            // If no suggestions (could be empty due to toggle), return empty decoration set
+            if (list.length === 0) {
+              return DecorationSet.empty;
+            }
             const decos: Decoration[] = [];
 
             for (const s of list) {

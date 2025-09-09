@@ -29,6 +29,11 @@ export const ChecksExtension = Extension.create({
             
             const list = getChecks();
             console.log('Checks plugin creating decorations for', list.length, 'checks');
+            
+            // If no checks (could be empty due to toggle), return empty decoration set
+            if (list.length === 0) {
+              return DecorationSet.empty;
+            }
             const decos: Decoration[] = [];
 
             for (const c of list) {

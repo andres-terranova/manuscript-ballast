@@ -96,6 +96,10 @@ const ManuscriptWorkspace = () => {
   const [checks, setChecks] = useState<CheckItem[]>([]);
   const checksRef = useRef<CheckItem[]>([]);
 
+  // Highlight toggles state
+  const [showChecks, setShowChecks] = useState(true);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+
   // Style Rules Management
   const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
   
@@ -206,11 +210,17 @@ const ManuscriptWorkspace = () => {
     }
   }, [uiSuggestions]);
 
-  // Callback that always returns current suggestions from ref
+  // Callback that always returns current suggestions from ref (with toggle respect)
   const getUISuggestions = useCallback(() => {
-    console.log('getUISuggestions called, returning', uiSuggestionsRef.current.length, 'suggestions from ref');
-    return uiSuggestionsRef.current;
-  }, []); // No dependencies - always reads from ref
+    console.log('getUISuggestions called, returning', uiSuggestionsRef.current.length, 'suggestions from ref, showSuggestions:', showSuggestions);
+    return showSuggestions ? uiSuggestionsRef.current : [];
+  }, [showSuggestions]); // Dependencies include toggle state
+
+  // Callback that returns current checks from ref (with toggle respect)
+  const getChecks = useCallback(() => {
+    console.log('getChecks called, returning', checksRef.current.length, 'checks from ref, showChecks:', showChecks);
+    return showChecks ? checksRef.current : [];
+  }, [showChecks]); // Dependencies include toggle state
 
   // TipTap Transaction Helper Functions
   const withEditorTransaction = (editor: any, fn: (tr: any) => void) => {
@@ -565,12 +575,45 @@ const ManuscriptWorkspace = () => {
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
             getUISuggestions={getUISuggestions}
-            getChecks={() => checksRef.current}
+            getChecks={getChecks}
           />
         </div>
 
         {/* Right Sidebar */}
         <div id="right-sidebar" className="w-full lg:w-80 bg-muted border-t lg:border-t-0 lg:border-l border-border overflow-hidden flex-shrink-0">
+          {/* Highlight Legend */}
+          <div className="p-3 border-b bg-background">
+            <div className="flex items-center gap-4 text-sm" data-testid="highlight-legend">
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showChecks}
+                  onChange={() => setShowChecks(!showChecks)}
+                  data-testid="toggle-checks"
+                  className="rounded"
+                />
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-3 bg-yellow-300 border border-yellow-600 rounded-sm"></span>
+                  Checks
+                </span>
+              </label>
+
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showSuggestions}
+                  onChange={() => setShowSuggestions(!showSuggestions)}
+                  data-testid="toggle-suggestions"
+                  className="rounded"
+                />
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-3 bg-blue-300 border border-blue-600 rounded-sm"></span>
+                  AI Suggestions
+                </span>
+              </label>
+            </div>
+          </div>
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             {/* Tab List */}
             <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
