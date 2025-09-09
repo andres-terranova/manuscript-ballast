@@ -14,6 +14,8 @@ import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
 import { useToast } from "@/hooks/use-toast";
+import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
+import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
 
 // Suggestion types
 type SuggestionType = "insert" | "delete" | "replace";
@@ -75,11 +77,11 @@ const ManuscriptWorkspace = () => {
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
+  const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]); // For the sheet
   
   // Run AI Settings state
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
   const [aiChecks, setAiChecks] = useState({ contradictions: true, repetitions: true });
-  const [styleRules, setStyleRules] = useState<string[]>(["Serial Comma", "Punctuation Inside Quotes", "Capitalize Proper Nouns"]);
   
   // Suggestions state
   const [suggestions, setSuggestions] = useState<ServerSuggestion[]>([]);
@@ -87,8 +89,49 @@ const ManuscriptWorkspace = () => {
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
 
+  // Style Rules Management
+  const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
+  
   // Read-only state derived from manuscript status
   const isReviewed = manuscript?.status === "Reviewed";
+  
+  const handleOpenStyleRules = () => {
+    setTempStyleRules(activeStyleRules);
+    setShowStyleRules(true);
+  };
+
+  const handleSaveStyleRules = () => {
+    if (!manuscript) return;
+    
+    updateManuscript(manuscript.id, {
+      styleRules: tempStyleRules,
+      updatedAt: new Date().toISOString()
+    });
+    
+    // Update local state
+    setManuscript(prev => prev ? {
+      ...prev,
+      styleRules: tempStyleRules,
+      updatedAt: new Date().toISOString()
+    } : null);
+    
+    setShowStyleRules(false);
+    toast({
+      title: "Style rules updated."
+    });
+  };
+
+  const handleCancelStyleRules = () => {
+    setShowStyleRules(false);
+  };
+
+  const toggleStyleRule = (ruleKey: StyleRuleKey) => {
+    setTempStyleRules(prev => 
+      prev.includes(ruleKey) 
+        ? prev.filter(r => r !== ruleKey)
+        : [...prev, ruleKey]
+    );
+  };
 
   // Use ref to hold current suggestions so plugin can always access them
   const uiSuggestionsRef = useRef<UISuggestion[]>([]);
@@ -241,7 +284,7 @@ const ManuscriptWorkspace = () => {
       const scope = 
         aiScope === "Entire Document" ? "entire" :
         aiScope === "Current Section" ? "section" : "selection";
-      const rules = Array.isArray(styleRules) ? styleRules : [];
+      const rules = activeStyleRules;
 
       const { data, error } = await supabase.functions.invoke('suggest', {
         body: { text, scope, rules }
@@ -397,7 +440,7 @@ const ManuscriptWorkspace = () => {
             </Button>
             {!isReviewed && (
               <>
-                <Button variant="outline" size="sm" onClick={() => setShowStyleRules(true)} className="hidden lg:flex">
+                <Button variant="outline" size="sm" onClick={handleOpenStyleRules} className="hidden lg:flex">
                   <Settings2 className="mr-2 h-4 w-4" />
                   <span className="hidden xl:inline">Style Rules</span>
                 </Button>
@@ -686,10 +729,10 @@ const ManuscriptWorkspace = () => {
             <div id="run-ai-style-rules">
               <h4 className="text-sm font-medium mb-3">Active Style Rules</h4>
               <div className="flex flex-wrap gap-1">
-                {styleRules.length > 0 ? (
-                  styleRules.map((rule, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      {rule}
+                {activeStyleRules.length > 0 ? (
+                  activeStyleRules.map((ruleKey) => (
+                    <Badge key={ruleKey} variant="secondary" className="text-xs">
+                      {STYLE_RULES[ruleKey]}
                     </Badge>
                   ))
                 ) : (
@@ -721,27 +764,54 @@ const ManuscriptWorkspace = () => {
 
       {/* Style Rules Sheet */}
       <Sheet open={showStyleRules} onOpenChange={setShowStyleRules}>
-        <SheetContent id="style-rules-sheet" className="w-96">
+        <SheetContent data-testid="style-presets" className="w-96">
           <SheetHeader>
             <SheetTitle>Style Rules</SheetTitle>
+            <p className="text-sm text-muted-foreground">
+              Select which CMOS style rules to apply during AI editing passes.
+            </p>
           </SheetHeader>
-          <ScrollArea className="h-full mt-6">
-            <div className="space-y-6">
-              {['Grammar', 'Style', 'Formatting', 'Citations'].map((category) => (
-                <div key={category}>
-                  <h4 className="font-medium mb-3">{category}</h4>
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => (
-                      <label key={i} className="flex items-center gap-2">
-                        <input type="checkbox" defaultChecked={i <= 2} />
-                        <span className="text-sm">{category} rule {i}</span>
-                      </label>
-                    ))}
+          <div className="mt-6 space-y-6">
+            <div className="space-y-4">
+              {Object.entries(STYLE_RULES).map(([ruleKey, ruleName]) => (
+                <div key={ruleKey} className="flex items-start space-x-3">
+                  <Checkbox
+                    id={`rule-${ruleKey}`}
+                    data-testid={`rule-${ruleKey}`}
+                    checked={tempStyleRules.includes(ruleKey as StyleRuleKey)}
+                    onCheckedChange={() => toggleStyleRule(ruleKey as StyleRuleKey)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <label 
+                      htmlFor={`rule-${ruleKey}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {ruleName}
+                    </label>
                   </div>
                 </div>
               ))}
             </div>
-          </ScrollArea>
+            
+            <div className="flex gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={handleCancelStyleRules}
+                data-testid="style-cancel"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveStyleRules}
+                data-testid="style-save"
+                className="flex-1"
+              >
+                Save
+              </Button>
+            </div>
+          </div>
         </SheetContent>
       </Sheet>
 

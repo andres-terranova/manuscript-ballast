@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { DEFAULT_STYLE_RULES } from '@/lib/styleRuleConstants';
 
 export type Manuscript = {
   id: string;
@@ -12,6 +13,7 @@ export type Manuscript = {
   contentText: string;
   contentHtml?: string; // canonical editor content (HTML)
   sourceMarkdown?: string; // original markdown content
+  styleRules?: string[]; // enabled CMOS rule keys
   // Derived for editor screen (mocked for placeholders):
   changes?: Array<{
     id: string;
@@ -42,6 +44,7 @@ const seedManuscripts: Manuscript[] = [
     updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     excerpt: "In this chapter...",
     contentText: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.",
+    styleRules: DEFAULT_STYLE_RULES,
     changes: [
       {
         id: "c1",
@@ -112,6 +115,7 @@ const seedManuscripts: Manuscript[] = [
     updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     excerpt: "Field observations...",
     contentText: "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit.\n\nSed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur.\n\nQuis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti.",
+    styleRules: DEFAULT_STYLE_RULES,
     changes: [
       {
         id: "c4",
@@ -195,7 +199,8 @@ const seedManuscripts: Manuscript[] = [
         location: "After §3",
         snippet: "Conclusion paragraph"
       }
-    ]
+    ],
+    styleRules: DEFAULT_STYLE_RULES
   }
 ];
 
@@ -222,7 +227,12 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const addManuscript = (manuscript: Manuscript) => {
-    setManuscripts(prev => [manuscript, ...prev]);
+    // Ensure new manuscripts have default style rules if not provided
+    const manuscriptWithDefaults = {
+      ...manuscript,
+      styleRules: manuscript.styleRules || DEFAULT_STYLE_RULES
+    };
+    setManuscripts(prev => [manuscriptWithDefaults, ...prev]);
   };
 
   return (
