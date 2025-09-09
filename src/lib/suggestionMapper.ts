@@ -19,6 +19,7 @@ export type UISuggestion = ServerSuggestion & { pmFrom: number; pmTo: number };
  * Maps plain text indices to ProseMirror positions
  */
 export function mapPlainTextToPM(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
+  console.log('mapPlainTextToPM called with', items.length, 'suggestions');
   if (!editor?.state?.doc) return [];
   
   const { state } = editor;
@@ -79,5 +80,6 @@ export function mapPlainTextToPM(editor: any, plain: string, items: ServerSugges
     }
   }
   
+  console.log('Mapped suggestions:', out);
   return out.sort((a, b) => a.pmFrom - b.pmFrom || a.pmTo - b.pmTo);
 }

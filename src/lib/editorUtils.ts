@@ -29,11 +29,14 @@ export function refreshSuggestions(): void {
 }
 
 export function mapAndRefreshSuggestions(serverSuggestions: any[], setUISuggestions: (suggestions: UISuggestion[]) => void): void {
+  console.log('mapAndRefreshSuggestions called with', serverSuggestions.length, 'server suggestions');
   if (!globalEditor) return;
   
   const currentText = getEditorPlainText();
+  console.log('Current editor text length:', currentText.length);
   const mapped = mapPlainTextToPM(globalEditor, currentText, serverSuggestions);
   setUISuggestions(mapped);
+  console.log('About to refresh suggestions in editor');
   refreshSuggestions();
 }
 

@@ -253,13 +253,27 @@
 
 /* AI Suggestion decorations */
 .suggest-delete {
-  text-decoration-thickness: from-font;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: hsl(var(--destructive));
+  background-color: hsl(var(--destructive) / 0.1);
+  cursor: pointer;
 }
 
 .suggest-replace {
-  text-decoration-thickness: from-font;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: hsl(45 100% 50%);
+  background-color: hsl(45 100% 50% / 0.1);
+  cursor: pointer;
 }
 
 .suggest-insert {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 2px;
+  text-decoration-color: hsl(142 76% 36%);
+  background-color: hsl(142 76% 36% / 0.1);
+  cursor: pointer;
   text-underline-offset: 2px;
 }

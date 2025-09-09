@@ -28,6 +28,7 @@ export const SuggestionsExtension = Extension.create({
             if (!needsRefresh) return oldSet;
             
             const list = getUISuggestions();
+            console.log('Plugin creating decorations for', list.length, 'suggestions');
             const decos: Decoration[] = [];
 
             for (const s of list) {
