@@ -48,6 +48,11 @@
     --muted-foreground: 220 9% 46%;
 
     --accent: 220 13% 96%;
+    
+    /* Style Check Colors */
+    --check-primary: 43 96% 56%;
+    --check-bg: 43 96% 95%;
+    --check-light: 43 96% 98%;
     --accent-foreground: 220 13% 18%;
 
     --destructive: 0 84% 60%;
@@ -276,4 +281,38 @@
   background-color: hsl(142 76% 36% / 0.1);
   cursor: pointer;
   text-underline-offset: 2px;
+}
+
+/* Style Check decorations */
+.check-highlight {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 2px;
+  text-decoration-color: hsl(var(--check-primary));
+  text-underline-offset: 2px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.check-point {
+  display: inline-block;
+  width: 0;
+  border-bottom: 2px dotted hsl(var(--check-primary));
+}
+
+.check-highlight:hover {
+  background-color: hsl(var(--check-bg) / 0.35);
+}
+
+/* Specific rule styling - all use the same amber color for simplicity */
+.check-serialComma,
+.check-punctInsideQuotes,
+.check-smartQuotes,
+.check-singleSpaceAfterPeriod,
+.check-emDashNoSpaces,
+.check-titleCaseHeadings,
+.check-spellOutOneToNine,
+.check-ordinalStyle,
+.check-numericRangeEnDash {
+  text-decoration-color: hsl(var(--check-primary));
 }

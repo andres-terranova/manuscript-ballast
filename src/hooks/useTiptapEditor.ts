@@ -4,16 +4,19 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import { SuggestionsExtension } from '@/lib/suggestionsPlugin';
+import { ChecksExtension } from '@/lib/checksPlugin';
 import type { UISuggestion } from '@/lib/suggestionMapper';
+import type { CheckItem } from '@/lib/styleValidator';
 
 interface UseTiptapEditorOptions {
   contentHtml: string;
   readOnly: boolean;
   onUpdate: (html: string, text: string) => void;
   getUISuggestions?: () => UISuggestion[];
+  getChecks?: () => CheckItem[];
 }
 
-export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate, getUISuggestions }: UseTiptapEditorOptions) => {
+export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate, getUISuggestions, getChecks }: UseTiptapEditorOptions) => {
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   
   const debouncedUpdate = useCallback((html: string, text: string) => {
@@ -40,6 +43,8 @@ export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate, getUISuggesti
       }),
       // Add suggestions extension if getter is provided
       ...(getUISuggestions ? [SuggestionsExtension.configure({ getUISuggestions })] : []),
+      // Add checks extension if getter is provided
+      ...(getChecks ? [ChecksExtension.configure({ getChecks })] : []),
     ],
     content: contentHtml,
     editable: !readOnly,

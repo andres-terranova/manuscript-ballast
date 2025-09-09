@@ -7,6 +7,7 @@ import { useTiptapEditor } from "@/hooks/useTiptapEditor";
 import { useManuscripts } from "@/contexts/ManuscriptsContext";
 import { setGlobalEditor, textToHtml } from "@/lib/editorUtils";
 import type { UISuggestion } from "@/lib/suggestionMapper";
+import type { CheckItem } from "@/lib/styleValidator";
 
 type SuggestionType = "insert" | "delete" | "replace";
 type SuggestionCategory = "grammar" | "spelling" | "style";
@@ -27,9 +28,10 @@ interface DocumentCanvasProps {
   suggestions?: ServerSuggestion[];
   isReadOnly?: boolean;
   getUISuggestions?: () => UISuggestion[];
+  getChecks?: () => CheckItem[];
 }
 
-export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = false, getUISuggestions }: DocumentCanvasProps) => {
+export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = false, getUISuggestions, getChecks }: DocumentCanvasProps) => {
   const { updateManuscript } = useManuscripts();
 
   // Initialize contentHtml from contentText if not present
@@ -57,6 +59,7 @@ export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = fals
     readOnly: isReadOnly,
     onUpdate: handleEditorUpdate,
     getUISuggestions,
+    getChecks,
   });
 
   // Set global editor reference for utility functions

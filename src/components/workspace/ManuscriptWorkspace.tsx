@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
+import { checksPluginKey } from "@/lib/checksPlugin";
 import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
 import { useToast } from "@/hooks/use-toast";
 import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
@@ -130,44 +131,31 @@ const ManuscriptWorkspace = () => {
     const editor = getGlobalEditor();
     if (!editor) return;
     
+  const handleRunChecks = () => {
+    const editor = getGlobalEditor();
+    if (!editor) return;
+    
     const results = runDeterministicChecks(editor, activeStyleRules);
     setChecks(results);
+    
+    // Refresh decorations
+    editor.view?.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
+  };
   };
 
   const handleJumpToCheck = (check: CheckItem) => {
-    const editor = getGlobalEditor();
-    if (!editor || check.pmFrom === undefined || check.pmTo === undefined) return;
-
-    try {
-      const { pmFrom, pmTo } = check;
-      
-      // Focus and scroll to the position in the editor
-      editor.commands.focus();
-      
-      // Create a selection at the check location
-      editor.commands.setTextSelection({ from: pmFrom, to: pmTo });
-      
-      // Get DOM coordinates and scroll the window
-      const coords = editor.view.coordsAtPos(pmFrom);
-      const editorElement = editor.view.dom;
-      const editorRect = editorElement.getBoundingClientRect();
-      
-      // Scroll window to center the location
-      window.scrollTo({ 
-        top: window.scrollY + coords.top - window.innerHeight / 2, 
-        behavior: "smooth" 
-      });
-      
-      // Add a temporary highlight effect by creating a decoration
-      // This mimics the highlight behavior from the Changes tab
-      setTimeout(() => {
-        // Clear selection after highlighting
-        const currentPos = editor.state.selection.head;
-        editor.commands.setTextSelection(currentPos);
-      }, 800);
-      
-    } catch (error) {
-      console.error('Error jumping to check location:', error);
+    const el = document.getElementById(`check-span-${check.id}`);
+    if (el) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.classList.add("ring-2", "ring-yellow-400");
+      setTimeout(() => el.classList.remove("ring-2", "ring-yellow-400"), 800);
+    } else if (check.pmFrom !== undefined) {
+      const editor = getGlobalEditor();
+      if (editor) {
+        editor.commands.focus();
+        editor.commands.setTextSelection(check.pmFrom);
+        editor.view.focus();
+      }
     }
   };
 
@@ -562,6 +550,7 @@ const ManuscriptWorkspace = () => {
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
             getUISuggestions={getUISuggestions}
+            getChecks={() => checks}
           />
         </div>
 
