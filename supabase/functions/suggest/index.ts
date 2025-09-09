@@ -1,6 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+// Vercel AI SDK imports
+import { generateObject } from "https://esm.sh/ai@5.0.38";
+import { openai } from "https://esm.sh/@ai-sdk/openai@2.0.27";
+
 // Zod schemas (exact as specified)
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
@@ -94,40 +98,22 @@ async function generateSuggestions(text: string, scope: string, rules: string[])
     throw new Error('OpenAI API key not configured');
   }
 
-  const model = Deno.env.get('AI_MODEL') || 'gpt-4.1-2025-04-14';
+  const modelName = Deno.env.get('AI_MODEL') || 'gpt-4.1-2025-04-14';
+  const model = openai(modelName, { apiKey: openaiApiKey });
   const prompt = buildPrompt(scope, rules, text);
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: prompt }
-      ],
-      max_completion_tokens: 4000,
-      response_format: { type: "json_object" }
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error('OpenAI API error:', error);
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-  
   try {
-    const parsed = JSON.parse(content);
-    return SuggestResponseZ.parse(parsed);
+    const result = await generateObject({
+      model,
+      schema: SuggestResponseZ,
+      system: SYSTEM_PROMPT,
+      prompt: prompt,
+      maxTokens: 4000,
+    });
+
+    return result.object;
   } catch (e) {
-    console.error('Failed to parse OpenAI response:', content, e);
+    console.error('Failed to generate suggestions:', e);
     throw new Error('Invalid response format from AI');
   }
 }
