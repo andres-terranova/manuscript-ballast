@@ -10,6 +10,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
+import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
+import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 
 // Suggestion types
 type SuggestionType = "insert" | "delete" | "replace";
@@ -59,7 +61,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
-import { getEditorPlainText } from "@/lib/editorUtils";
+import { getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
 import { supabase } from "@/integrations/supabase/client";
 
 const ManuscriptWorkspace = () => {
@@ -81,6 +83,7 @@ const ManuscriptWorkspace = () => {
   
   // Suggestions state
   const [suggestions, setSuggestions] = useState<ServerSuggestion[]>([]);
+  const [uiSuggestions, setUISuggestions] = useState<UISuggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
 
@@ -263,6 +266,9 @@ const ManuscriptWorkspace = () => {
 
       const serverSuggestions = data?.suggestions || [];
       setSuggestions(Array.isArray(serverSuggestions) ? serverSuggestions : []);
+      
+      // Map suggestions to UI suggestions and trigger plugin refresh
+      mapAndRefreshSuggestions(serverSuggestions, setUISuggestions);
       
       toast({
         title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`
@@ -454,6 +460,7 @@ const ManuscriptWorkspace = () => {
             manuscript={{...manuscript, contentText}} 
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
+            getUISuggestions={() => uiSuggestions}
           />
         </div>
 

@@ -1,4 +1,6 @@
 import { Editor } from '@tiptap/core';
+import { suggestionsPluginKey } from './suggestionsPlugin';
+import { mapPlainTextToPM, type UISuggestion } from './suggestionMapper';
 
 let globalEditor: Editor | null = null;
 
@@ -12,6 +14,27 @@ export function getEditorHTML(): string {
 
 export function getEditorPlainText(): string {
   return globalEditor?.getText() || '';
+}
+
+export function getGlobalEditor(): Editor | null {
+  return globalEditor;
+}
+
+export function refreshSuggestions(): void {
+  if (globalEditor?.view) {
+    globalEditor.view.dispatch(
+      globalEditor.state.tr.setMeta(suggestionsPluginKey, "refresh")
+    );
+  }
+}
+
+export function mapAndRefreshSuggestions(serverSuggestions: any[], setUISuggestions: (suggestions: UISuggestion[]) => void): void {
+  if (!globalEditor) return;
+  
+  const currentText = getEditorPlainText();
+  const mapped = mapPlainTextToPM(globalEditor, currentText, serverSuggestions);
+  setUISuggestions(mapped);
+  refreshSuggestions();
 }
 
 // Helper to convert plain text to basic HTML paragraphs

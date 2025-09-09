@@ -6,6 +6,7 @@ import { MessageSquare } from "lucide-react";
 import { useTiptapEditor } from "@/hooks/useTiptapEditor";
 import { useManuscripts } from "@/contexts/ManuscriptsContext";
 import { setGlobalEditor, textToHtml } from "@/lib/editorUtils";
+import type { UISuggestion } from "@/lib/suggestionMapper";
 
 type SuggestionType = "insert" | "delete" | "replace";
 type SuggestionCategory = "grammar" | "spelling" | "style";
@@ -25,9 +26,10 @@ interface DocumentCanvasProps {
   manuscript: any;
   suggestions?: ServerSuggestion[];
   isReadOnly?: boolean;
+  getUISuggestions?: () => UISuggestion[];
 }
 
-export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = false }: DocumentCanvasProps) => {
+export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = false, getUISuggestions }: DocumentCanvasProps) => {
   const { updateManuscript } = useManuscripts();
 
   // Initialize contentHtml from contentText if not present
@@ -54,6 +56,7 @@ export const DocumentCanvas = ({ manuscript, suggestions = [], isReadOnly = fals
     contentHtml,
     readOnly: isReadOnly,
     onUpdate: handleEditorUpdate,
+    getUISuggestions,
   });
 
   // Set global editor reference for utility functions

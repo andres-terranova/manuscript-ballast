@@ -250,3 +250,16 @@
 .ProseMirror.ProseMirror-focused {
   outline: none;
 }
+
+/* AI Suggestion decorations */
+.suggest-delete {
+  text-decoration-thickness: from-font;
+}
+
+.suggest-replace {
+  text-decoration-thickness: from-font;
+}
+
+.suggest-insert {
+  text-underline-offset: 2px;
+}

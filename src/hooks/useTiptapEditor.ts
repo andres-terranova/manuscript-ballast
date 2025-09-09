@@ -3,14 +3,17 @@ import { useCallback, useRef } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
+import { SuggestionsExtension } from '@/lib/suggestionsPlugin';
+import type { UISuggestion } from '@/lib/suggestionMapper';
 
 interface UseTiptapEditorOptions {
   contentHtml: string;
   readOnly: boolean;
   onUpdate: (html: string, text: string) => void;
+  getUISuggestions?: () => UISuggestion[];
 }
 
-export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate }: UseTiptapEditorOptions) => {
+export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate, getUISuggestions }: UseTiptapEditorOptions) => {
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   
   const debouncedUpdate = useCallback((html: string, text: string) => {
@@ -35,6 +38,8 @@ export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate }: UseTiptapEd
           class: 'text-blue-600 underline',
         },
       }),
+      // Add suggestions extension if getter is provided
+      ...(getUISuggestions ? [SuggestionsExtension.configure({ getUISuggestions })] : []),
     ],
     content: contentHtml,
     editable: !readOnly,
