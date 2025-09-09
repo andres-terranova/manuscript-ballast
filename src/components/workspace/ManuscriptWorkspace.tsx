@@ -285,13 +285,31 @@ const ManuscriptWorkspace = () => {
         }
       });
 
-      // Remove accepted suggestion from both lists
-      setSuggestions(prev => prev.filter(x => x.id !== suggestionId));
-      setUISuggestions(prev => prev.filter(x => x.id !== suggestionId));
+      console.log('Accepting suggestion:', suggestionId, 'at positions', uiSuggestion.pmFrom, uiSuggestion.pmTo);
+      
+      // Remove only the specific suggestion (find by ID + position for uniqueness)
+      setSuggestions(prev => {
+        const filtered = prev.filter((x, index) => {
+          const uiMatch = uiSuggestions[index];
+          const shouldRemove = x.id === suggestionId && uiMatch?.pmFrom === uiSuggestion.pmFrom && uiMatch?.pmTo === uiSuggestion.pmTo;
+          return !shouldRemove;
+        });
+        console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
+        return filtered;
+      });
+      
+      setUISuggestions(prev => {
+        const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
+        console.log('Filtered UI suggestions from', prev.length, 'to', filtered.length);
+        return filtered;
+      });
 
       // Re-map remaining suggestions' positions against the UPDATED doc
-      const plain = editor.getText();
-      const remaining = suggestions.filter(x => x.id !== suggestionId); // Get current ServerSuggestion[] (source of truth)
+      const remaining = suggestions.filter((x, index) => {
+        const uiMatch = uiSuggestions[index];
+        return !(x.id === suggestionId && uiMatch?.pmFrom === uiSuggestion.pmFrom && uiMatch?.pmTo === uiSuggestion.pmTo);
+      });
+      console.log('Remapping', remaining.length, 'remaining suggestions');
       mapAndRefreshSuggestions(remaining, setUISuggestions);
 
       toast({
@@ -312,11 +330,29 @@ const ManuscriptWorkspace = () => {
     const editor = getGlobalEditor();
     if (!editor) return;
 
+    const uiSuggestion = uiSuggestions.find(s => s.id === suggestionId);
+    if (!uiSuggestion) return;
+
     setActionBusy(suggestionId, true);
     try {
-      // Remove only this suggestion
-      setSuggestions(prev => prev.filter(x => x.id !== suggestionId));
-      setUISuggestions(prev => prev.filter(x => x.id !== suggestionId));
+      console.log('Rejecting suggestion:', suggestionId, 'at positions', uiSuggestion.pmFrom, uiSuggestion.pmTo);
+      
+      // Remove only the specific suggestion (find by ID + position for uniqueness)
+      setSuggestions(prev => {
+        const filtered = prev.filter((x, index) => {
+          const uiMatch = uiSuggestions[index];
+          const shouldRemove = x.id === suggestionId && uiMatch?.pmFrom === uiSuggestion.pmFrom && uiMatch?.pmTo === uiSuggestion.pmTo;
+          return !shouldRemove;
+        });
+        console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
+        return filtered;
+      });
+      
+      setUISuggestions(prev => {
+        const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
+        console.log('Filtered UI suggestions from', prev.length, 'to', filtered.length);
+        return filtered;
+      });
 
       // Refresh decorations
       editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
