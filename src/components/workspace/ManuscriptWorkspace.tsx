@@ -241,9 +241,20 @@ const ManuscriptWorkspace = () => {
       });
 
       if (error) {
-        const msg = error.message || `Server error`;
+        let msg = error.message || "Server error";
+        let title = "AI request failed";
+        
+        // Handle specific error types
+        if (error.message?.includes('timeout') || error.message?.includes('504')) {
+          title = "Request timed out";
+          msg = "The text is too long to process. Try selecting a smaller section or current section instead.";
+        } else if (error.message?.includes('429')) {
+          title = "Rate limit exceeded";
+          msg = "Please wait a moment before trying again.";
+        }
+        
         toast({
-          title: "AI request failed",
+          title,
           description: msg,
           variant: "destructive"
         });

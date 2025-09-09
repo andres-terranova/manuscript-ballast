@@ -68,7 +68,8 @@ function checkRateLimit(clientId: string): boolean {
 }
 
 function chunkText(text: string): string[] {
-  if (text.length <= 30000) {
+  // Reduce threshold to 8000 chars to handle large texts better
+  if (text.length <= 8000) {
     return [text];
   }
   
@@ -77,7 +78,8 @@ function chunkText(text: string): string[] {
   let currentChunk = '';
   
   for (const paragraph of paragraphs) {
-    if (currentChunk.length + paragraph.length + 2 > 5000 && currentChunk.length > 0) {
+    // Use smaller chunk size of 3000 chars for better processing
+    if (currentChunk.length + paragraph.length + 2 > 3000 && currentChunk.length > 0) {
       chunks.push(currentChunk.trim());
       currentChunk = paragraph;
     } else {
@@ -185,7 +187,7 @@ serve(async (req) => {
       try {
         const result = await withTimeout(
           generateSuggestions(chunk, scope, rules),
-          30000 // 30 second timeout
+          45000 // 45 second timeout for better reliability
         );
 
         // Shift indices by current offset
