@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent } from "@/components/ui/card";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
@@ -135,18 +136,39 @@ const ManuscriptWorkspace = () => {
 
   const handleJumpToCheck = (check: CheckItem) => {
     const editor = getGlobalEditor();
-    if (!editor || check.pmFrom === undefined) return;
+    if (!editor || check.pmFrom === undefined || check.pmTo === undefined) return;
 
-    const pos = check.pmFrom;
-    // Scroll the editor view
-    editor.view?.dispatch(editor.state.tr.scrollIntoView());
-    
-    // Get coordinates and scroll window
-    const coords = editor.view.coordsAtPos(pos);
-    window.scrollTo({ 
-      top: Math.max(coords.top - 200, 0), 
-      behavior: "smooth" 
-    });
+    try {
+      const { pmFrom, pmTo } = check;
+      
+      // Focus and scroll to the position in the editor
+      editor.commands.focus();
+      
+      // Create a selection at the check location
+      editor.commands.setTextSelection({ from: pmFrom, to: pmTo });
+      
+      // Get DOM coordinates and scroll the window
+      const coords = editor.view.coordsAtPos(pmFrom);
+      const editorElement = editor.view.dom;
+      const editorRect = editorElement.getBoundingClientRect();
+      
+      // Scroll window to center the location
+      window.scrollTo({ 
+        top: window.scrollY + coords.top - window.innerHeight / 2, 
+        behavior: "smooth" 
+      });
+      
+      // Add a temporary highlight effect by creating a decoration
+      // This mimics the highlight behavior from the Changes tab
+      setTimeout(() => {
+        // Clear selection after highlighting
+        const currentPos = editor.state.selection.head;
+        editor.commands.setTextSelection(currentPos);
+      }, 800);
+      
+    } catch (error) {
+      console.error('Error jumping to check location:', error);
+    }
   };
 
   const handleCancelStyleRules = () => {
@@ -632,29 +654,48 @@ const ManuscriptWorkspace = () => {
                   </div>
                   
                   {/* Checks list */}
-                  <ScrollArea className="flex-1">
-                    <div className="p-4" data-testid="checks-list">
+                  <div className="flex-1 overflow-y-auto p-4">
+                    <div data-testid="checks-list">
                       {checks.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No checks found.</div>
+                        <div className="text-center py-8">
+                          <p className="text-sm text-muted-foreground">No checks found.</p>
+                        </div>
                       ) : (
-                        <ul className="space-y-2">
+                        <div className="space-y-4">
                           {checks.map(c => (
-                            <li key={c.id} data-testid={`check-${c.id}`} className="rounded border p-2">
-                              <div className="text-xs font-medium">{c.rule}</div>
-                              <div className="text-sm">{c.message}</div>
-                              <button
-                                data-testid={`check-jump-${c.id}`}
-                                className="text-xs underline mt-1 hover:no-underline"
-                                onClick={() => handleJumpToCheck(c)}
-                              >
-                                Jump to location
-                              </button>
-                            </li>
+                            <Card 
+                              key={c.id} 
+                              data-testid={`check-${c.id}`} 
+                              className="border-card-border cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => handleJumpToCheck(c)}
+                            >
+                              <CardContent className="p-4">
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                    <Badge variant="outline" className="text-xs">
+                                      {c.rule}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm font-medium">{c.message}</div>
+                                  <button
+                                    data-testid={`check-jump-${c.id}`}
+                                    className="text-xs text-primary hover:underline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleJumpToCheck(c);
+                                    }}
+                                  >
+                                    Jump to location
+                                  </button>
+                                </div>
+                              </CardContent>
+                            </Card>
                           ))}
-                        </ul>
+                        </div>
                       )}
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
               </TabsContent>
 
