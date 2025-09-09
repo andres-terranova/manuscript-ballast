@@ -25,10 +25,11 @@ export const SuggestionsExtension = Extension.create({
           apply(tr, oldSet, _oldState, newState) {
             // Rebuild decorations when doc changes or a meta flag is present
             const needsRefresh = tr.docChanged || tr.getMeta(suggestionsPluginKey) === "refresh";
+            console.log('Plugin apply called, needsRefresh:', needsRefresh, 'docChanged:', tr.docChanged, 'meta:', tr.getMeta(suggestionsPluginKey));
             if (!needsRefresh) return oldSet;
             
             const list = getUISuggestions();
-            console.log('Plugin creating decorations for', list.length, 'suggestions');
+            console.log('Plugin creating decorations for', list.length, 'suggestions', list);
             const decos: Decoration[] = [];
 
             for (const s of list) {
