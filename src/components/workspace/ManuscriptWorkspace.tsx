@@ -16,6 +16,7 @@ import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@
 import { useToast } from "@/hooks/use-toast";
 import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
 import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
+import { type CheckItem, runDeterministicChecks } from "@/lib/styleValidator";
 
 // Suggestion types
 type SuggestionType = "insert" | "delete" | "replace";
@@ -88,6 +89,9 @@ const ManuscriptWorkspace = () => {
   const [uiSuggestions, setUISuggestions] = useState<UISuggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
+  
+  // Style checks state
+  const [checks, setChecks] = useState<CheckItem[]>([]);
 
   // Style Rules Management
   const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
@@ -118,6 +122,30 @@ const ManuscriptWorkspace = () => {
     setShowStyleRules(false);
     toast({
       title: "Style rules updated."
+    });
+  };
+
+  const handleRunChecks = () => {
+    const editor = getGlobalEditor();
+    if (!editor) return;
+    
+    const results = runDeterministicChecks(editor, activeStyleRules);
+    setChecks(results);
+  };
+
+  const handleJumpToCheck = (check: CheckItem) => {
+    const editor = getGlobalEditor();
+    if (!editor || check.pmFrom === undefined) return;
+
+    const pos = check.pmFrom;
+    // Scroll the editor view
+    editor.view?.dispatch(editor.state.tr.scrollIntoView());
+    
+    // Get coordinates and scroll window
+    const coords = editor.view.coordsAtPos(pos);
+    window.scrollTo({ 
+      top: Math.max(coords.top - 200, 0), 
+      behavior: "smooth" 
     });
   };
 
@@ -587,39 +615,47 @@ const ManuscriptWorkspace = () => {
               </TabsContent>
 
               <TabsContent value="checks" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    {manuscript.checks?.map((check) => (
-                      <div key={check.id} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className={`h-4 w-4 mt-0.5 ${
-                            check.severity === "warn" ? "text-amber-500" : "text-blue-500"
-                          }`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">
-                              {check.severity === "warn" ? "Warning" : "Information"}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {check.text}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )) || [1, 2, 3].map((i) => (
-                      <div key={i} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">Potential issue detected</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Line {8 + i}: Consider revising for clarity
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                <div className="flex flex-col h-full">
+                  {/* Header with Run Checks button */}
+                  <div className="p-4 border-b">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium">Style Checks</h3>
+                      <Button 
+                        size="sm" 
+                        onClick={handleRunChecks}
+                        data-testid="checks-run"
+                        disabled={isReviewed}
+                      >
+                        Run Checks
+                      </Button>
+                    </div>
                   </div>
-                </ScrollArea>
+                  
+                  {/* Checks list */}
+                  <ScrollArea className="flex-1">
+                    <div className="p-4" data-testid="checks-list">
+                      {checks.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No checks found.</div>
+                      ) : (
+                        <ul className="space-y-2">
+                          {checks.map(c => (
+                            <li key={c.id} data-testid={`check-${c.id}`} className="rounded border p-2">
+                              <div className="text-xs font-medium">{c.rule}</div>
+                              <div className="text-sm">{c.message}</div>
+                              <button
+                                data-testid={`check-jump-${c.id}`}
+                                className="text-xs underline mt-1 hover:no-underline"
+                                onClick={() => handleJumpToCheck(c)}
+                              >
+                                Jump to location
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
               </TabsContent>
 
               <TabsContent value="new-content" className="h-full mt-0">
