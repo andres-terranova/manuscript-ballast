@@ -33,18 +33,33 @@ export const ChecksExtension = Extension.create({
 
             for (const c of list) {
               const from = Math.max(0, c.pmFrom ?? 0);
-              const to = Math.max(from, c.pmTo ?? from);
+              let to = Math.max(from, c.pmTo ?? from);
               
               if (to > from) {
-                // Inline decoration over range
-                decos.push(Decoration.inline(from, to, {
-                  class: `check-highlight check-${c.rule}`,
-                  id: `check-span-${c.id}`,
-                  "data-check-id": c.id,
-                  "data-rule": c.rule,
-                  title: c.message,
-                  "data-testid": `check-span-${c.id}`
-                }));
+                // Expand single-char matches for better visibility
+                if (to - from < 2) {
+                  const expand = 2;
+                  const newFrom = Math.max(0, from - expand);
+                  const newTo = Math.min(newState.doc.content.size, to + expand);
+                  decos.push(Decoration.inline(newFrom, newTo, {
+                    class: `check-highlight check-${c.rule}`,
+                    id: `check-span-${c.id}`,
+                    "data-check-id": c.id,
+                    "data-rule": c.rule,
+                    title: c.message,
+                    "data-testid": `check-span-${c.id}`
+                  }));
+                } else {
+                  // Normal inline decoration over range
+                  decos.push(Decoration.inline(from, to, {
+                    class: `check-highlight check-${c.rule}`,
+                    id: `check-span-${c.id}`,
+                    "data-check-id": c.id,
+                    "data-rule": c.rule,
+                    title: c.message,
+                    "data-testid": `check-span-${c.id}`
+                  }));
+                }
               } else {
                 // Widget marker at point
                 decos.push(Decoration.widget(from, () => {

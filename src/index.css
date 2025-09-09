@@ -285,13 +285,11 @@
 
 /* Style Check decorations */
 .check-highlight {
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-decoration-thickness: 2px;
-  text-decoration-color: hsl(var(--check-primary));
-  text-underline-offset: 2px;
+  background-color: rgba(255, 230, 0, 0.5); /* stronger yellow background */
+  border-bottom: 2px solid #d97706;        /* bold amber underline */
+  border-radius: 2px;
+  text-decoration: none !important;        /* remove dashed underline */
   cursor: pointer;
-  opacity: 0.8;
 }
 
 .check-point {
@@ -301,7 +299,7 @@
 }
 
 .check-highlight:hover {
-  background-color: hsl(var(--check-bg) / 0.35);
+  background-color: rgba(255, 200, 0, 0.7); /* deeper on hover */
 }
 
 /* Specific rule styling - all use the same amber color for simplicity */
