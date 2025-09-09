@@ -40,6 +40,7 @@ const corsHeaders = {
 // System prompt (verbatim as specified)
 const SYSTEM_PROMPT = `You are a meticulous copy editor. Return ONLY valid JSON matching this schema:
 { "suggestions": [ { "id": "string", "type": "insert"|"delete"|"replace", "start": number, "end": number, "before": "string", "after": "string", "category": "grammar"|"spelling"|"style", "note": "string", "location": "string" } ] }.
+CRITICAL: The "category" field MUST be exactly one of: "grammar", "spelling", or "style". Never use "punctuation" - classify punctuation fixes as "grammar" instead.
 Indices refer to UTF-16 positions in THE PROVIDED PLAIN TEXT (not HTML). Fix grammar, spelling, clarity and concise style; prefer Chicago style conventions when ambiguous. Do not introduce new facts. Never include prose outside the JSON object.`;
 
 function buildPrompt(scope: string, rules: string[], text: string): string {

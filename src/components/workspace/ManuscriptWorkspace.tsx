@@ -61,7 +61,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
-import { getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
+import { getEditorPlainText, getGlobalEditor } from "@/lib/editorUtils";
 import { supabase } from "@/integrations/supabase/client";
 
 const ManuscriptWorkspace = () => {
@@ -274,7 +274,21 @@ const ManuscriptWorkspace = () => {
       setSuggestions(Array.isArray(serverSuggestions) ? serverSuggestions : []);
       
       // Map suggestions to UI suggestions and trigger plugin refresh
-      mapAndRefreshSuggestions(serverSuggestions, setUISuggestions);
+      const editor = getGlobalEditor();
+      const mapped = mapPlainTextToPM(editor, getEditorPlainText(), serverSuggestions);
+      console.log('About to set UI suggestions:', mapped.length);
+      setUISuggestions(mapped);
+      
+      // Force plugin refresh after a small delay to ensure state update
+      setTimeout(() => {
+        const currentEditor = getGlobalEditor();
+        if (currentEditor) {
+          console.log('Force refreshing plugin with', mapped.length, 'suggestions');
+          currentEditor.view.dispatch(
+            currentEditor.state.tr.setMeta(suggestionsPluginKey, "refresh")
+          );
+        }
+      }, 10);
       
       toast({
         title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`
