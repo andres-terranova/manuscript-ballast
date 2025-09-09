@@ -94,6 +94,7 @@ const ManuscriptWorkspace = () => {
   
   // Style checks state
   const [checks, setChecks] = useState<CheckItem[]>([]);
+  const checksRef = useRef<CheckItem[]>([]);
 
   // Style Rules Management
   const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
@@ -127,6 +128,22 @@ const ManuscriptWorkspace = () => {
     });
   };
 
+  const refreshChecksWithResults = (newChecks: CheckItem[]) => {
+    console.log('Refreshing checks with results:', newChecks);
+    const editor = getGlobalEditor();
+    if (!editor) return;
+    
+    // Update ref immediately for plugin access
+    checksRef.current = newChecks;
+    
+    // Update state for UI
+    setChecks(newChecks);
+    
+    // Refresh decorations with fresh data
+    editor.view?.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
+    console.log('Decorations refreshed with', newChecks.length, 'checks');
+  };
+
   const handleRunChecks = () => {
     console.log('handleRunChecks called');
     const editor = getGlobalEditor();
@@ -138,11 +155,7 @@ const ManuscriptWorkspace = () => {
     console.log('Running checks with rules:', activeStyleRules);
     const results = runDeterministicChecks(editor, activeStyleRules);
     console.log('Check results:', results);
-    setChecks(results);
-    
-    // Refresh decorations
-    editor.view?.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
-    console.log('Decorations refreshed');
+    refreshChecksWithResults(results);
   };
 
   const handleJumpToCheck = (check: CheckItem) => {
@@ -552,7 +565,7 @@ const ManuscriptWorkspace = () => {
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
             getUISuggestions={getUISuggestions}
-            getChecks={() => checks}
+            getChecks={() => checksRef.current}
           />
         </div>
 
