@@ -12,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
+import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
+import { useToast } from "@/hooks/use-toast";
 
 // Suggestion types
 type SuggestionType = "insert" | "delete" | "replace";
@@ -58,10 +60,8 @@ import {
   MoreHorizontal,
   Loader2
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
-import { getEditorPlainText, getGlobalEditor } from "@/lib/editorUtils";
 import { supabase } from "@/integrations/supabase/client";
 
 const ManuscriptWorkspace = () => {
@@ -116,132 +116,110 @@ const ManuscriptWorkspace = () => {
     return uiSuggestionsRef.current;
   }, []); // No dependencies - always reads from ref
 
-  // Helper functions for suggestion processing
-  const isOverlapping = (a: {start: number; end: number}, b: {start: number; end: number}) => {
-    return !(a.end <= b.start || a.start >= b.end);
+  // TipTap Transaction Helper Functions
+  const withEditorTransaction = (editor: any, fn: (tr: any) => void) => {
+    const { state, view } = editor;
+    let tr = state.tr;
+    fn(tr);
+    view.dispatch(tr);
   };
 
-  const byStartAsc = (a: {start: number}, b: {start: number}) => a.start - b.start;
-
-  const applySuggestionPatch = (src: string, s: ServerSuggestion): string => {
-    // Integrity check: for delete/replace, ensure src.slice(s.start, s.end) === s.before
-    if ((s.type === "delete" || s.type === "replace") && src.slice(s.start, s.end) !== s.before) {
-      return null; // Signal integrity failure
-    }
-    
-    if (s.type === "insert") {
-      return src.slice(0, s.start) + s.after + src.slice(s.start);
-    }
-    if (s.type === "delete") {
-      return src.slice(0, s.start) + src.slice(s.end);
-    }
-    // replace
-    return src.slice(0, s.start) + s.after + src.slice(s.end);
+  const getPMText = (editor: any, from: number, to: number): string => {
+    const { state } = editor;
+    return state.doc.textBetween(from, to, "\n", "\n");
   };
 
-  const recalcOffsetsAfterPatch = (suggestions: ServerSuggestion[], applied: ServerSuggestion): ServerSuggestion[] => {
-    const delta =
-      applied.type === "insert"
-        ? applied.after.length
-        : applied.type === "delete"
-        ? -applied.before.length
-        : applied.after.length - applied.before.length;
-
-    return suggestions
-      .filter(s => s.id !== applied.id)
-      .map(s => {
-        // Drop overlapping suggestions
-        const overlaps = isOverlapping(s, applied);
-        if (overlaps) {
-          console.info('Dropped overlapping suggestion', { id: s.id });
-          return null;
-        }
-
-        // Shift suggestions that occur after the applied change
-        if (s.start >= applied.end) {
-          return { ...s, start: s.start + delta, end: s.end + delta };
-        }
-        return s;
-      })
-      .filter(Boolean)
-      .sort(byStartAsc) as ServerSuggestion[];
+  // Helper to set busy state for individual suggestions
+  const setActionBusy = (suggestionId: string, busy: boolean) => {
+    setBusySuggestions(prev => {
+      const newSet = new Set(prev);
+      if (busy) {
+        newSet.add(suggestionId);
+      } else {
+        newSet.delete(suggestionId);
+      }
+      return newSet;
+    });
   };
 
-  // Accept/Reject handlers
+  // Accept/Reject handlers using TipTap transactions
   const handleAcceptSuggestion = async (suggestionId: string) => {
-    const suggestion = suggestions.find(s => s.id === suggestionId);
-    if (!suggestion || busySuggestions.has(suggestionId)) return;
+    const editor = getGlobalEditor();
+    if (!editor) return;
 
-    // Set busy state
-    setBusySuggestions(prev => new Set(prev).add(suggestionId));
+    const uiSuggestion = uiSuggestions.find(s => s.id === suggestionId);
+    if (!uiSuggestion || busySuggestions.has(suggestionId)) return;
+
+    // Disable buttons for this card while processing
+    setActionBusy(suggestionId, true);
 
     try {
-      // Apply the suggestion patch to contentText with integrity check
-      const newContentText = applySuggestionPatch(contentText, suggestion);
-      
-      if (newContentText === null) {
-        // Integrity check failed
-        const updatedSuggestions = suggestions.filter(s => s.id !== suggestionId).sort(byStartAsc);
-        setSuggestions(updatedSuggestions);
-        
-        toast({
-          title: "Suggestion no longer matches the text; skipped.",
-          variant: "destructive"
-        });
-        return;
+      // Optional integrity check (delete/replace): current text matches 'before'
+      if (uiSuggestion.type !== "insert") {
+        const current = getPMText(editor, uiSuggestion.pmFrom, uiSuggestion.pmTo);
+        if (current !== uiSuggestion.before) {
+          toast({
+            title: "Suggestion no longer matches the text; skipped.",
+            variant: "destructive"
+          });
+          // Treat as reject & bail
+          handleRejectSuggestion(suggestionId);
+          return;
+        }
       }
 
-      setContentText(newContentText);
-
-      // Recalculate offsets for remaining suggestions
-      const updatedSuggestions = recalcOffsetsAfterPatch(suggestions, suggestion);
-      setSuggestions(updatedSuggestions);
-
-      // Scroll and highlight the applied change
-      setTimeout(() => {
-        const element = document.getElementById(`suggestion-span-${suggestionId}`);
-        if (element) {
-          element.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          element.classList.add('ring-2', 'ring-primary');
-          setTimeout(() => {
-            element.classList.remove('ring-2', 'ring-primary');
-          }, 800);
+      // Apply the patch via TipTap transaction
+      withEditorTransaction(editor, tr => {
+        if (uiSuggestion.type === "insert") {
+          tr.insertText(uiSuggestion.after, uiSuggestion.pmFrom);
+        } else if (uiSuggestion.type === "delete") {
+          tr.delete(uiSuggestion.pmFrom, uiSuggestion.pmTo);
+        } else {
+          tr.insertText(uiSuggestion.after, uiSuggestion.pmFrom, uiSuggestion.pmTo); // replace
         }
-      }, 100);
+      });
+
+      // Remove accepted suggestion from both lists
+      setSuggestions(prev => prev.filter(x => x.id !== suggestionId));
+      setUISuggestions(prev => prev.filter(x => x.id !== suggestionId));
+
+      // Re-map remaining suggestions' positions against the UPDATED doc
+      const plain = editor.getText();
+      const remaining = suggestions.filter(x => x.id !== suggestionId); // Get current ServerSuggestion[] (source of truth)
+      mapAndRefreshSuggestions(remaining, setUISuggestions);
 
       toast({
         title: "Change applied."
       });
-    } finally {
-      setBusySuggestions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(suggestionId);
-        return newSet;
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: "Failed to apply change.",
+        variant: "destructive"
       });
+    } finally {
+      setActionBusy(suggestionId, false);
     }
   };
 
-  const handleRejectSuggestion = async (suggestionId: string) => {
-    const suggestion = suggestions.find(s => s.id === suggestionId);
-    if (!suggestion || busySuggestions.has(suggestionId)) return;
+  const handleRejectSuggestion = (suggestionId: string) => {
+    const editor = getGlobalEditor();
+    if (!editor) return;
 
-    // Set busy state
-    setBusySuggestions(prev => new Set(prev).add(suggestionId));
-
+    setActionBusy(suggestionId, true);
     try {
-      // Remove the suggestion without changing contentText
-      const updatedSuggestions = suggestions.filter(s => s.id !== suggestionId).sort(byStartAsc);
-      setSuggestions(updatedSuggestions);
+      // Remove only this suggestion
+      setSuggestions(prev => prev.filter(x => x.id !== suggestionId));
+      setUISuggestions(prev => prev.filter(x => x.id !== suggestionId));
+
+      // Refresh decorations
+      editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
 
       toast({
         title: "Change dismissed."
       });
     } finally {
-      setBusySuggestions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(suggestionId);
-        return newSet;
-      });
+      setActionBusy(suggestionId, false);
     }
   };
 
@@ -334,6 +312,7 @@ const ManuscriptWorkspace = () => {
 
     // Clear pending suggestions
     setSuggestions([]);
+    setUISuggestions([]);
 
     toast({
       title: "Marked as Reviewed — document is now read-only."
