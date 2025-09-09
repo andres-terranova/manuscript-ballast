@@ -6,21 +6,21 @@ import { Check, X, Plus, Minus, Edit3 } from "lucide-react";
 import { useState, useMemo } from "react";
 
 type SuggestionType = "insert" | "delete" | "replace";
-type SuggestionActor = "Tool" | "Editor" | "Author";
-type Suggestion = {
+type SuggestionCategory = "grammar" | "spelling" | "style";
+type ServerSuggestion = {
   id: string;
   type: SuggestionType;
-  actor: SuggestionActor;
   start: number;
   end: number;
   before: string;
   after: string;
-  summary: string;
-  location: string;
+  category: SuggestionCategory;
+  note: string;
+  location?: string;
 };
 
 interface ChangeListProps {
-  suggestions: Suggestion[];
+  suggestions: ServerSuggestion[];
   onAcceptSuggestion?: (suggestionId: string) => void;
   onRejectSuggestion?: (suggestionId: string) => void;
   busySuggestions?: Set<string>;
@@ -170,18 +170,18 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                       {getSuggestionIcon(suggestion.type)}
                     </div>
                     <Badge variant="secondary" className="text-xs">
-                      {suggestion.actor}
+                      AI Tool
                     </Badge>
                     <Badge variant="outline" className="text-xs">
-                      {suggestion.type}
+                      {suggestion.category}
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="pb-3">
                 <div className="space-y-2">
-                  <div className="text-sm font-medium">{suggestion.summary}</div>
-                  <div className="text-xs text-muted-foreground">{suggestion.location}</div>
+                  <div className="text-sm font-medium">{suggestion.note}</div>
+                  <div className="text-xs text-muted-foreground">{suggestion.location || 'Unknown location'}</div>
                   
                   {suggestion.type === 'replace' && (
                     <div className="text-xs">

@@ -8,22 +8,22 @@ import { useManuscripts } from "@/contexts/ManuscriptsContext";
 import { setGlobalEditor, textToHtml } from "@/lib/editorUtils";
 
 type SuggestionType = "insert" | "delete" | "replace";
-type SuggestionActor = "Tool" | "Editor" | "Author";
-type Suggestion = {
+type SuggestionCategory = "grammar" | "spelling" | "style";
+type ServerSuggestion = {
   id: string;
   type: SuggestionType;
-  actor: SuggestionActor;
   start: number;
   end: number;
   before: string;
   after: string;
-  summary: string;
-  location: string;
+  category: SuggestionCategory;
+  note: string;
+  location?: string;
 };
 
 interface DocumentCanvasProps {
   manuscript: any;
-  suggestions?: Suggestion[];
+  suggestions?: ServerSuggestion[];
   isReadOnly?: boolean;
 }
 

@@ -13,7 +13,21 @@ import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 
 // Suggestion types
 type SuggestionType = "insert" | "delete" | "replace";
+type SuggestionCategory = "grammar" | "spelling" | "style";
 type SuggestionActor = "Tool" | "Editor" | "Author";
+
+type ServerSuggestion = {
+  id: string;
+  type: SuggestionType;
+  start: number;
+  end: number;
+  before: string;
+  after: string;
+  category: SuggestionCategory;
+  note: string;
+  location?: string;
+};
+
 type Suggestion = {
   id: string;
   type: SuggestionType;
@@ -45,6 +59,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
+import { getEditorPlainText } from "@/lib/editorUtils";
+import { supabase } from "@/integrations/supabase/client";
 
 const ManuscriptWorkspace = () => {
   const { id } = useParams<{ id: string }>();
@@ -64,7 +80,7 @@ const ManuscriptWorkspace = () => {
   const [styleRules, setStyleRules] = useState<string[]>(["Serial Comma", "Punctuation Inside Quotes", "Capitalize Proper Nouns"]);
   
   // Suggestions state
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<ServerSuggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
 
@@ -78,7 +94,7 @@ const ManuscriptWorkspace = () => {
 
   const byStartAsc = (a: {start: number}, b: {start: number}) => a.start - b.start;
 
-  const applySuggestionPatch = (src: string, s: Suggestion): string => {
+  const applySuggestionPatch = (src: string, s: ServerSuggestion): string => {
     // Integrity check: for delete/replace, ensure src.slice(s.start, s.end) === s.before
     if ((s.type === "delete" || s.type === "replace") && src.slice(s.start, s.end) !== s.before) {
       return null; // Signal integrity failure
@@ -94,7 +110,7 @@ const ManuscriptWorkspace = () => {
     return src.slice(0, s.start) + s.after + src.slice(s.end);
   };
 
-  const recalcOffsetsAfterPatch = (suggestions: Suggestion[], applied: Suggestion): Suggestion[] => {
+  const recalcOffsetsAfterPatch = (suggestions: ServerSuggestion[], applied: ServerSuggestion): ServerSuggestion[] => {
     const delta =
       applied.type === "insert"
         ? applied.after.length
@@ -119,7 +135,7 @@ const ManuscriptWorkspace = () => {
         return s;
       })
       .filter(Boolean)
-      .sort(byStartAsc) as Suggestion[];
+      .sort(byStartAsc) as ServerSuggestion[];
   };
 
   // Accept/Reject handlers
@@ -200,245 +216,56 @@ const ManuscriptWorkspace = () => {
     }
   };
 
-  // Create basic suggestions function
-  const createBasicSuggestions = (contentText: string, opts: { 
-    aiScope: "Entire Document" | "Current Section" | "Selected Text"; 
-    aiChecks: { contradictions: boolean; repetitions: boolean } 
-  }): Suggestion[] => {
-    const suggestions: Suggestion[] = [];
-    let workingText = contentText;
-    
-    // Limit scope based on selection
-    if (opts.aiScope === "Selected Text") {
-      workingText = contentText.slice(0, 400); // First ~400 chars as fallback
-    } else if (opts.aiScope === "Current Section") {
-      workingText = contentText.slice(0, 800); // First ~800 chars
-    } else {
-      workingText = contentText.slice(0, 1500); // First ~1500 chars for performance
-    }
+  // Create basic suggestions function (removed - now using real API)
+  // This function has been removed since we're using the real /api/suggest endpoint
 
-    console.log("Working text length:", workingText.length);
-    console.log("Working text sample:", workingText.slice(0, 200));
-
-    let suggestionId = 1;
-    
-    // Add a simple test suggestion to ensure the function works
-    suggestions.push({
-      id: `suggestion-${suggestionId++}`,
-      type: "replace",
-      actor: "Tool",
-      start: 0,
-      end: 3,
-      before: "But",
-      after: "However",
-      summary: "Use more formal transition",
-      location: "Line 1"
-    });
-    
-    // Add an insertion suggestion
-    const periodIndex = workingText.indexOf('.');
-    if (periodIndex > 0) {
-      suggestions.push({
-        id: `suggestion-${suggestionId++}`,
-        type: "insert",
-        actor: "Tool",
-        start: periodIndex + 1,
-        end: periodIndex + 1,
-        before: "",
-        after: " Additionally,",
-        summary: "Add transitional phrase",
-        location: `Line ${Math.floor(periodIndex / 50) + 1}`
-      });
-    }
-    
-    // Add a deletion suggestion for redundant words
-    const redundantMatch = workingText.match(/\bthat are\b/i);
-    if (redundantMatch && redundantMatch.index !== undefined) {
-      suggestions.push({
-        id: `suggestion-${suggestionId++}`,
-        type: "delete",
-        actor: "Tool",
-        start: redundantMatch.index,
-        end: redundantMatch.index + redundantMatch[0].length,
-        before: redundantMatch[0],
-        after: "",
-        summary: "Remove redundant words",
-        location: `Line ${Math.floor(redundantMatch.index / 50) + 1}`
-      });
-    }
-    
-    // Replace verbose words
-    const utilizeMatches = [...workingText.matchAll(/\butilize\b/gi)];
-    utilizeMatches.forEach(match => {
-      if (suggestions.length >= 8) return;
-      const start = match.index || 0;
-      const end = start + match[0].length;
-      suggestions.push({
-        id: `suggestion-${suggestionId++}`,
-        type: "replace",
-        actor: "Tool",
-        start,
-        end,
-        before: match[0],
-        after: "use",
-        summary: "Use simpler word",
-        location: `Line ${Math.floor(start / 50) + 1}`
-      });
-    });
-
-    // Replace "in order to"
-    const inOrderMatches = [...workingText.matchAll(/\bin order to\b/gi)];
-    inOrderMatches.forEach(match => {
-      if (suggestions.length >= 8) return;
-      const start = match.index || 0;
-      const end = start + match[0].length;
-      const overlapping = suggestions.some(s => 
-        (start >= s.start && start < s.end) || (end > s.start && end <= s.end)
-      );
-      if (!overlapping) {
-        suggestions.push({
-          id: `suggestion-${suggestionId++}`,
-          type: "replace",
-          actor: "Tool",
-          start,
-          end,
-          before: match[0],
-          after: "to",
-          summary: "Remove redundant phrase",
-          location: `Line ${Math.floor(start / 50) + 1}`
-        });
-      }
-    });
-
-    // Fix double spaces
-    const doubleSpaceMatches = [...workingText.matchAll(/  +/g)];
-    doubleSpaceMatches.forEach(match => {
-      if (suggestions.length >= 8) return;
-      const start = match.index || 0;
-      const end = start + match[0].length;
-      const overlapping = suggestions.some(s => 
-        (start >= s.start && start < s.end) || (end > s.start && end <= s.end)
-      );
-      if (!overlapping) {
-        suggestions.push({
-          id: `suggestion-${suggestionId++}`,
-          type: "replace",
-          actor: "Tool",
-          start,
-          end,
-          before: match[0],
-          after: " ",
-          summary: "Remove extra spaces",
-          location: `Line ${Math.floor(start / 50) + 1}`
-        });
-      }
-    });
-
-    // Fix space before punctuation
-    const spacePuncMatches = [...workingText.matchAll(/ ([,.!?;:])/g)];
-    spacePuncMatches.forEach(match => {
-      if (suggestions.length >= 8) return;
-      const start = match.index || 0;
-      const end = start + match[0].length;
-      const overlapping = suggestions.some(s => 
-        (start >= s.start && start < s.end) || (end > s.start && end <= s.end)
-      );
-      if (!overlapping) {
-        suggestions.push({
-          id: `suggestion-${suggestionId++}`,
-          type: "replace",
-          actor: "Tool",
-          start,
-          end,
-          before: match[0],
-          after: match[1],
-          summary: "Remove space before punctuation",
-          location: `Line ${Math.floor(start / 50) + 1}`
-        });
-      }
-    });
-
-    // Capitalize after period
-    const capitalizeMatches = [...workingText.matchAll(/\. ([a-z])/g)];
-    capitalizeMatches.forEach(match => {
-      if (suggestions.length >= 8) return;
-      const start = match.index || 0;
-      const end = start + match[0].length;
-      const overlapping = suggestions.some(s => 
-        (start >= s.start && start < s.end) || (end > s.start && end <= s.end)
-      );
-      if (!overlapping) {
-        suggestions.push({
-          id: `suggestion-${suggestionId++}`,
-          type: "replace",
-          actor: "Tool",
-          start,
-          end,
-          before: match[0],
-          after: ". " + match[1].toUpperCase(),
-          summary: "Capitalize after period",
-          location: `Line ${Math.floor(start / 50) + 1}`
-        });
-      }
-    });
-
-    // Replace straight quotes with typographic quotes
-    const quoteMatches = [...workingText.matchAll(/"([^"]+)"/g)];
-    quoteMatches.forEach(match => {
-      if (suggestions.length >= 8) return;
-      const start = match.index || 0;
-      const end = start + match[0].length;
-      const overlapping = suggestions.some(s => 
-        (start >= s.start && start < s.end) || (end > s.start && end <= s.end)
-      );
-      if (!overlapping) {
-        suggestions.push({
-          id: `suggestion-${suggestionId++}`,
-          type: "replace",
-          actor: "Tool",
-          start,
-          end,
-          before: match[0],
-          after: `"${match[1]}"`,
-          summary: "Use typographic quotes",
-          location: `Line ${Math.floor(start / 50) + 1}`
-        });
-      }
-    });
-
-    return suggestions.slice(0, 8); // Limit to 8 suggestions
-  };
-
-  // Stub completion callback
+  // Stub completion callback (now unused since we call API directly)
   const onAIPassComplete = () => {
-    if (!manuscript) return;
-    
-    console.log("AI Pass - Manuscript content:", contentText);
-    const newSuggestions = createBasicSuggestions(contentText, {
-      aiScope,
-      aiChecks
-    });
-    
-    console.log("AI Pass - Generated suggestions:", newSuggestions);
-    setSuggestions(newSuggestions);
-    
-    if (newSuggestions.length === 0) {
-      toast({
-        title: "No issues found (stub)",
-        description: "The AI pass completed without finding any issues to address."
-      });
-    }
+    // This function is no longer used since handleRunAIPass calls the API directly
   };
 
   // Handle Run AI Pass
-  const handleRunAIPass = () => {
+  const handleRunAIPass = async () => {
     setShowRunAIModal(false);
     setShowToolRunning(true);
     
-    setTimeout(() => {
+    try {
+      const text = getEditorPlainText();
+      const scope = 
+        aiScope === "Entire Document" ? "entire" :
+        aiScope === "Current Section" ? "section" : "selection";
+      const rules = Array.isArray(styleRules) ? styleRules : [];
+
+      const { data, error } = await supabase.functions.invoke('suggest', {
+        body: { text, scope, rules }
+      });
+
+      if (error) {
+        const msg = error.message || `Server error`;
+        toast({
+          title: "AI request failed",
+          description: msg,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const serverSuggestions = data?.suggestions || [];
+      setSuggestions(Array.isArray(serverSuggestions) ? serverSuggestions : []);
+      
+      toast({
+        title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`
+      });
+    } catch (e) {
+      console.error('AI request failed:', e);
+      toast({
+        title: "AI request failed",
+        description: "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
       setShowToolRunning(false);
-      onAIPassComplete();
-    }, 1500);
+    }
   };
 
   // Handle Mark Reviewed
