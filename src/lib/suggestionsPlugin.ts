@@ -15,17 +15,19 @@ export const SuggestionsExtension = Extension.create({
   },
 
   addProseMirrorPlugins() {
+    const { getUISuggestions } = this.options;
+    
     return [
       new Plugin({
         key: suggestionsPluginKey,
         state: {
           init: (_cfg, state) => DecorationSet.create(state.doc, []),
-          apply(tr, oldSet) {
+          apply(tr, oldSet, _oldState, newState) {
             // Rebuild decorations when doc changes or a meta flag is present
             const needsRefresh = tr.docChanged || tr.getMeta(suggestionsPluginKey) === "refresh";
             if (!needsRefresh) return oldSet;
             
-            const list = this.options.getUISuggestions();
+            const list = getUISuggestions();
             const decos: Decoration[] = [];
 
             for (const s of list) {
