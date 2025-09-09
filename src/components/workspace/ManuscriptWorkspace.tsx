@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -90,14 +90,15 @@ const ManuscriptWorkspace = () => {
   // Read-only state derived from manuscript status
   const isReviewed = manuscript?.status === "Reviewed";
 
-  // Memoized function to get current UI suggestions
-  const getUISuggestions = useCallback(() => {
-    console.log('getUISuggestions called, returning', uiSuggestions.length, 'suggestions');
-    return uiSuggestions;
-  }, [uiSuggestions]);
-
-  // Force plugin refresh when uiSuggestions change
+  // Use ref to hold current suggestions so plugin can always access them
+  const uiSuggestionsRef = useRef<UISuggestion[]>([]);
+  
+  // Update ref when suggestions change
   useEffect(() => {
+    uiSuggestionsRef.current = uiSuggestions;
+    console.log('Updated uiSuggestionsRef with', uiSuggestions.length, 'suggestions');
+    
+    // Refresh plugin when suggestions change
     if (uiSuggestions.length > 0) {
       const editor = getGlobalEditor();
       if (editor) {
@@ -108,6 +109,12 @@ const ManuscriptWorkspace = () => {
       }
     }
   }, [uiSuggestions]);
+
+  // Callback that always returns current suggestions from ref
+  const getUISuggestions = useCallback(() => {
+    console.log('getUISuggestions called, returning', uiSuggestionsRef.current.length, 'suggestions from ref');
+    return uiSuggestionsRef.current;
+  }, []); // No dependencies - always reads from ref
 
   // Helper functions for suggestion processing
   const isOverlapping = (a: {start: number; end: number}, b: {start: number; end: number}) => {
