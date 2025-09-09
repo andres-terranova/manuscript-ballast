@@ -31,46 +31,61 @@ export function mapPlainTextToPM(editor: any, plain: string, items: ServerSugges
   const doc = state.doc;
   
   // Build segments of text nodes with cumulative lengths
-  const segs: Array<{ t0: number; t1: number; p0: number }> = [];
-  let t = 0;
+  // ProseMirror positions include block boundaries, so we need to track them
+  const segs: Array<{ t0: number; t1: number; p0: number; p1: number }> = [];
+  let textOffset = 0;
   
+  // Debug: log document structure
+  console.log('Document structure:');
   doc.descendants((node: any, pos: number) => {
-    if (node.isText) {
-      const len = node.text?.length ?? 0;
-      if (len) {
-        segs.push({ t0: t, t1: t + len, p0: pos });
-        t += len;
+    console.log(`Node at pos ${pos}: type=${node.type.name}, text="${node.textContent}", isText=${node.isText}, isBlock=${node.isBlock}`);
+    
+    if (node.isText && node.text) {
+      const len = node.text.length;
+      if (len > 0) {
+        segs.push({ 
+          t0: textOffset, 
+          t1: textOffset + len, 
+          p0: pos, 
+          p1: pos + len 
+        });
+        console.log(`Text segment: t0=${textOffset}, t1=${textOffset + len}, p0=${pos}, p1=${pos + len}, text="${node.text}"`);
+        textOffset += len;
       }
-    } else if (node.isBlock && node.textContent === "" && node.childCount === 0) {
-      // no-op for empty blocks
     }
     return true;
   });
 
-  function toPM(idx: number): number {
-    // binary search segment containing text index
-    let lo = 0, hi = segs.length - 1, k = -1;
-    while (lo <= hi) {
-      const m = (lo + hi) >> 1;
-      const s = segs[m];
-      if (idx < s.t0) {
-        hi = m - 1;
-      } else if (idx >= s.t1) {
-        lo = m + 1;
-      } else {
-        k = m;
-        break;
+  console.log('Built segments:', segs);
+
+  function toPM(textIdx: number): number {
+    console.log(`Mapping text index ${textIdx} to PM position`);
+    
+    // Find the segment containing this text index
+    for (let i = 0; i < segs.length; i++) {
+      const seg = segs[i];
+      if (textIdx >= seg.t0 && textIdx <= seg.t1) {
+        const pmPos = seg.p0 + (textIdx - seg.t0);
+        console.log(`Found in segment ${i}: textIdx ${textIdx} -> pmPos ${pmPos}`);
+        return pmPos;
       }
     }
     
-    if (k === -1) {
-      // clamp to end of doc if past last char
-      const last = segs[segs.length - 1];
-      return last ? last.p0 + (last.t1 - last.t0) : 0;
+    // If not found in any segment, clamp to document bounds
+    if (textIdx <= 0) {
+      console.log(`Text index ${textIdx} clamped to start: 0`);
+      return 0;
     }
     
-    const s = segs[k];
-    return s.p0 + (idx - s.t0);
+    const lastSeg = segs[segs.length - 1];
+    if (lastSeg) {
+      const endPos = lastSeg.p1;
+      console.log(`Text index ${textIdx} clamped to end: ${endPos}`);
+      return endPos;
+    }
+    
+    console.log(`Text index ${textIdx} defaulted to: 0`);
+    return 0;
   }
 
   const out: UISuggestion[] = [];
