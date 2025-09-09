@@ -293,11 +293,11 @@ const ManuscriptWorkspace = () => {
       const serverSuggestions = data?.suggestions || [];
       setSuggestions(Array.isArray(serverSuggestions) ? serverSuggestions : []);
       
-  // Map suggestions to UI suggestions
-  const editor = getGlobalEditor();
-  const mapped = mapPlainTextToPM(editor, getEditorPlainText(), serverSuggestions);
-  console.log('About to set UI suggestions:', mapped.length);
-  setUISuggestions(mapped);
+      // Map suggestions to UI suggestions using the SAME text that was sent to AI
+      const editor = getGlobalEditor();
+      const mapped = mapPlainTextToPM(editor, text, serverSuggestions);
+      console.log('About to set UI suggestions:', mapped.length);
+      setUISuggestions(mapped);
       
       toast({
         title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`

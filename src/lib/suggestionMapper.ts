@@ -20,6 +20,11 @@ export type UISuggestion = ServerSuggestion & { pmFrom: number; pmTo: number };
  */
 export function mapPlainTextToPM(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
   console.log('mapPlainTextToPM called with', items.length, 'suggestions');
+  console.log('Plain text length:', plain.length);
+  console.log('Editor text length:', editor.getText().length);
+  console.log('Plain text preview:', plain.substring(0, 100) + '...');
+  console.log('Editor text preview:', editor.getText().substring(0, 100) + '...');
+  
   if (!editor?.state?.doc) return [];
   
   const { state } = editor;
