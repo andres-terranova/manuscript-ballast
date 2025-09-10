@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
+import { ChecksList } from "./ChecksList";
 import { supabase } from "@/integrations/supabase/client";
 
 const ManuscriptWorkspace = () => {
@@ -65,6 +66,7 @@ const ManuscriptWorkspace = () => {
   const [suggestions, setSuggestions] = useState<UISuggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
+  const [busyChecks, setBusyChecks] = useState<Set<string>>(new Set());
   
   // Style checks state
   const [checks, setChecks] = useState<CheckItem[]>([]);
@@ -326,6 +328,65 @@ const ManuscriptWorkspace = () => {
       });
     } finally {
       setActionBusy(suggestionId, false);
+    }
+  };
+
+  // Handler for accepting a check (remove it from the list)
+  const handleAcceptCheck = (checkId: string) => {
+    console.log('Accepting check:', checkId);
+    setBusyChecks(prev => new Set(prev).add(checkId));
+    
+    try {
+      // Remove check from the list
+      setChecks(prev => prev.filter(check => check.id !== checkId));
+      
+      // You could also apply the suggested fix here if checks had fix suggestions
+      // For now, we just remove the check
+      
+      console.log('Check accepted successfully:', checkId);
+      toast({
+        title: "Check accepted."
+      });
+    } catch (error) {
+      console.error('Error accepting check:', error);
+      toast({
+        title: "Failed to accept check.",
+        variant: "destructive"
+      });
+    } finally {
+      setBusyChecks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(checkId);
+        return newSet;
+      });
+    }
+  };
+
+  // Handler for rejecting a check (remove it from the list)
+  const handleRejectCheck = (checkId: string) => {
+    console.log('Rejecting check:', checkId);
+    setBusyChecks(prev => new Set(prev).add(checkId));
+    
+    try {
+      // Remove check from the list (rejecting means ignoring the issue)
+      setChecks(prev => prev.filter(check => check.id !== checkId));
+      
+      console.log('Check rejected successfully:', checkId);
+      toast({
+        title: "Check dismissed."
+      });
+    } catch (error) {
+      console.error('Error rejecting check:', error);
+      toast({
+        title: "Failed to reject check.",
+        variant: "destructive"
+      });
+    } finally {
+      setBusyChecks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(checkId);
+        return newSet;
+      });
     }
   };
 
@@ -789,9 +850,21 @@ const ManuscriptWorkspace = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             {/* Tab List */}
             <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
-              <TabsTrigger value="changes" className="text-xs px-2">Changes</TabsTrigger>
+              <TabsTrigger value="changes" className="text-xs px-2">
+                Changes {suggestions.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                    {suggestions.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
-              <TabsTrigger value="checks" className="text-xs px-2">Checks</TabsTrigger>
+              <TabsTrigger value="checks" className="text-xs px-2">
+                Checks {checks.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                    {checks.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
             </TabsList>
 
@@ -856,66 +929,14 @@ const ManuscriptWorkspace = () => {
               </TabsContent>
 
               <TabsContent value="checks" className="h-full mt-0">
-                <div className="flex flex-col h-full">
-                  {/* Header with Run Checks button */}
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium">Style Checks</h3>
-                      <Button 
-                        size="sm" 
-                        onClick={handleRunChecks}
-                        data-testid="checks-run"
-                        disabled={isReviewed}
-                      >
-                        Run Checks
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {/* Checks list */}
-                  <div className="flex-1 overflow-y-auto p-4">
-                    <div data-testid="checks-list">
-                      {checks.length === 0 ? (
-                        <div className="text-center py-8">
-                          <p className="text-sm text-muted-foreground">No checks found.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {checks.map(c => (
-                            <Card 
-                              key={c.id} 
-                              data-testid={`check-${c.id}`} 
-                              className="border-card-border cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => handleJumpToCheck(c)}
-                            >
-                              <CardContent className="p-4">
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                                    <Badge variant="outline" className="text-xs">
-                                      {c.rule}
-                                    </Badge>
-                                  </div>
-                                  <div className="text-sm font-medium">{c.message}</div>
-                                  <button
-                                    data-testid={`check-jump-${c.id}`}
-                                    className="text-xs text-primary hover:underline"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleJumpToCheck(c);
-                                    }}
-                                  >
-                                    Jump to location
-                                  </button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <ChecksList 
+                  checks={isReviewed ? [] : checks}
+                  onAcceptCheck={handleAcceptCheck}
+                  onRejectCheck={handleRejectCheck}
+                  busyChecks={busyChecks}
+                  isReviewed={isReviewed}
+                  onRunChecks={handleRunChecks}
+                />
               </TabsContent>
 
               <TabsContent value="new-content" className="h-full mt-0">
