@@ -12,11 +12,12 @@ export const SuggestionsExtension = Extension.create({
   addOptions() {
     return {
       getUISuggestions: () => [] as UISuggestion[],
+      maxVisibleSuggestions: 200,
     }
   },
 
   addProseMirrorPlugins() {
-    const { getUISuggestions } = this.options;
+    const { getUISuggestions, maxVisibleSuggestions } = this.options;
     
     return [
       new Plugin({
@@ -29,16 +30,17 @@ export const SuggestionsExtension = Extension.create({
             console.log('Plugin apply called, needsRefresh:', needsRefresh, 'docChanged:', tr.docChanged, 'meta:', tr.getMeta(suggestionsPluginKey));
             if (!needsRefresh) return oldSet;
             
-            const list = getUISuggestions();
-            console.log('Plugin creating decorations for', list.length, 'suggestions', list);
+            const allSuggestions = getUISuggestions();
+            const cappedList = allSuggestions.slice(0, maxVisibleSuggestions);
+            console.log('Plugin creating decorations for', cappedList.length, 'of', allSuggestions.length, 'suggestions');
             
             // If no suggestions (could be empty due to toggle), return empty decoration set
-            if (list.length === 0) {
+            if (cappedList.length === 0) {
               return DecorationSet.empty;
             }
             const decos: Decoration[] = [];
 
-            for (const s of list) {
+            for (const s of cappedList) {
               if (s.type === "insert") {
                 // For insert suggestions, show a widget at the insertion point
                 decos.push(Decoration.widget(s.pmFrom, () => {

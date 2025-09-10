@@ -1,10 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Check, X, Plus, Minus, Edit3 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { UISuggestion, SuggestionType } from "@/lib/types";
+import { ChangeCard } from "./ChangeCard";
 
 interface ChangeListProps {
   suggestions: UISuggestion[];
@@ -16,37 +15,27 @@ interface ChangeListProps {
 
 export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set(), isReviewed = false }: ChangeListProps) => {
   const [typeFilter, setTypeFilter] = useState<"all" | "insert" | "delete" | "replace">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
 
-  const visibleSuggestions = useMemo(() => {
+  const filteredSuggestions = useMemo(() => {
     if (typeFilter === "all") return suggestions;
     return suggestions.filter(s => s.type === typeFilter);
   }, [suggestions, typeFilter]);
 
-  const getSuggestionIcon = (type: SuggestionType) => {
-    switch (type) {
-      case 'insert':
-        return <Plus className="h-3 w-3" />;
-      case 'delete':
-        return <Minus className="h-3 w-3" />;
-      case 'replace':
-        return <Edit3 className="h-3 w-3" />;
-      default:
-        return null;
-    }
-  };
+  const totalPages = Math.ceil(filteredSuggestions.length / itemsPerPage);
+  
+  const visibleSuggestions = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    return filteredSuggestions.slice(start, end);
+  }, [filteredSuggestions, currentPage, itemsPerPage]);
 
-  const getSuggestionColor = (type: SuggestionType) => {
-    switch (type) {
-      case 'insert':
-        return 'text-green-700 bg-green-50 border-green-200';
-      case 'delete':
-        return 'text-red-700 bg-red-50 border-red-200';
-      case 'replace':
-        return 'text-amber-700 bg-amber-50 border-amber-200';
-      default:
-        return 'text-muted-foreground bg-muted border-border';
-    }
-  };
+  // Reset to page 1 when filter changes
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [typeFilter]);
+
 
   const handleSuggestionClick = (suggestionId: string) => {
     const element = document.getElementById(`suggestion-span-${suggestionId}`);
@@ -60,16 +49,6 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
     }
   };
 
-  const handleCardKeyDown = (e: React.KeyboardEvent, suggestionId: string) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      onAcceptSuggestion?.(suggestionId);
-    } else if (e.key === 'Enter' && e.shiftKey) {
-      e.preventDefault();
-      onRejectSuggestion?.(suggestionId);
-    }
-  };
-
   const getNextFocusableCard = (currentIndex: number) => {
     if (currentIndex < visibleSuggestions.length - 1) {
       return `change-card-${visibleSuggestions[currentIndex + 1].id}`;
@@ -77,22 +56,40 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
     return 'changes-list';
   };
 
-  const formatTimestamp = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
-
   return (
     <div data-testid="changes-list" className="h-full flex flex-col">
       <div className="p-4 border-b border-border">
         <h3 className="font-semibold text-foreground">Change List</h3>
         <p className="text-sm text-muted-foreground">
-          {visibleSuggestions.length} of {suggestions.length} suggestions
+          Showing {visibleSuggestions.length} of {filteredSuggestions.length} filtered ({suggestions.length} total)
         </p>
+        
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Prev
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filter Controls */}
@@ -142,101 +139,18 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
           visibleSuggestions.map((suggestion, index) => {
             const isBusy = busySuggestions.has(suggestion.id);
             return (
-            <Card 
-              key={`${suggestion.id}-${index}`} 
-              data-testid={`change-card-${suggestion.id}`}
-              className="border-card-border cursor-pointer hover:bg-muted/50 transition-colors focus-within:ring-2 focus-within:ring-primary"
-              onClick={() => handleSuggestionClick(suggestion.id)}
-              tabIndex={0}
-              onKeyDown={(e) => handleCardKeyDown(e, suggestion.id)}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={`p-1 rounded border ${getSuggestionColor(suggestion.type)}`}>
-                      {getSuggestionIcon(suggestion.type)}
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {suggestion.actor === 'Tool' ? 'AI Tool' : 'Manual'}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {suggestion.category}
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">{suggestion.note}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {suggestion.origin === 'server' ? suggestion.location || 'Unknown location' : 'Manual edit'}
-                  </div>
-                  
-                  {suggestion.type === 'replace' && (
-                    <div className="text-xs">
-                      <span className="text-muted-foreground">From:</span> "{suggestion.before}" →{' '}
-                      <span className="text-muted-foreground">To:</span> "{suggestion.after}"
-                    </div>
-                  )}
-                  
-                  {suggestion.type === 'insert' && (
-                    <div className="text-xs">
-                      <span className="text-muted-foreground">Insert:</span> "{suggestion.after}"
-                    </div>
-                  )}
-                  
-                  {suggestion.type === 'delete' && (
-                    <div className="text-xs">
-                      <span className="text-muted-foreground">Remove:</span> "{suggestion.before}"
-                    </div>
-                  )}
-                  
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      data-testid={`change-card-accept-${suggestion.id}`}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 text-xs h-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAcceptSuggestion?.(suggestion.id);
-                        // Focus next card after action
-                        setTimeout(() => {
-                          const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
-                          nextCard?.focus();
-                        }, 100);
-                      }}
-                      disabled={!onAcceptSuggestion || isBusy}
-                      aria-keyshortcuts="Enter"
-                    >
-                      <Check className="mr-1 h-3 w-3" />
-                      Accept
-                    </Button>
-                    <Button
-                      data-testid={`change-card-reject-${suggestion.id}`}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 text-xs h-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRejectSuggestion?.(suggestion.id);
-                        // Focus next card after action
-                        setTimeout(() => {
-                          const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
-                          nextCard?.focus();
-                        }, 100);
-                      }}
-                      disabled={!onRejectSuggestion || isBusy}
-                      aria-keyshortcuts="Shift+Enter"
-                    >
-                      <X className="mr-1 h-3 w-3" />
-                      Reject
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )})
+              <ChangeCard
+                key={`${suggestion.id}-${index}`}
+                suggestion={suggestion}
+                index={index}
+                onAccept={onAcceptSuggestion}
+                onReject={onRejectSuggestion}
+                isBusy={isBusy}
+                onSuggestionClick={handleSuggestionClick}
+                getNextFocusableCard={getNextFocusableCard}
+              />
+            );
+          })
         ) : (
           <div className="text-center py-8">
             <p className="text-muted-foreground">

@@ -11,11 +11,12 @@ export const ChecksExtension = Extension.create({
   addOptions() {
     return {
       getChecks: () => [] as CheckItem[],
+      maxVisibleChecks: 200,
     }
   },
 
   addProseMirrorPlugins() {
-    const { getChecks } = this.options;
+    const { getChecks, maxVisibleChecks } = this.options;
     
     return [
       new Plugin({
@@ -27,16 +28,17 @@ export const ChecksExtension = Extension.create({
             const needsRefresh = tr.docChanged || tr.getMeta(checksPluginKey) === "refresh";
             if (!needsRefresh) return oldSet;
             
-            const list = getChecks();
-            console.log('Checks plugin creating decorations for', list.length, 'checks');
+            const allChecks = getChecks();
+            const cappedList = allChecks.slice(0, maxVisibleChecks);
+            console.log('Checks plugin creating decorations for', cappedList.length, 'of', allChecks.length, 'checks');
             
             // If no checks (could be empty due to toggle), return empty decoration set
-            if (list.length === 0) {
+            if (cappedList.length === 0) {
               return DecorationSet.empty;
             }
             const decos: Decoration[] = [];
 
-            for (const c of list) {
+            for (const c of cappedList) {
               const from = Math.max(0, c.pmFrom ?? 0);
               let to = Math.max(from, c.pmTo ?? from);
               

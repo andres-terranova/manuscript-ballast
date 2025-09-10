@@ -73,6 +73,10 @@ const ManuscriptWorkspace = () => {
   // Highlight toggles state
   const [showChecks, setShowChecks] = useState(true);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  
+  // Decoration caps state
+  const [maxVisibleChecks, setMaxVisibleChecks] = useState(200);
+  const [maxVisibleAI, setMaxVisibleAI] = useState(200);
 
   // Style Rules Management
   const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
@@ -652,8 +656,10 @@ const ManuscriptWorkspace = () => {
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
             onCreateSuggestion={createManualSuggestion}
-            getUISuggestions={getUISuggestions}
-            getChecks={getChecks}
+                    getUISuggestions={getUISuggestions}
+                    getChecks={getChecks}
+                    maxVisibleSuggestions={maxVisibleAI}
+                    maxVisibleChecks={maxVisibleChecks}
           />
         </div>
 
@@ -666,7 +672,13 @@ const ManuscriptWorkspace = () => {
                 <input
                   type="checkbox"
                   checked={showChecks}
-                  onChange={() => setShowChecks(!showChecks)}
+                  onChange={(e) => {
+                    setShowChecks(e.target.checked);
+                    const editor = getGlobalEditor();
+                    if (editor) {
+                      editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
+                    }
+                  }}
                   data-testid="toggle-checks"
                   className="rounded"
                 />
@@ -680,7 +692,13 @@ const ManuscriptWorkspace = () => {
                 <input
                   type="checkbox"
                   checked={showSuggestions}
-                  onChange={() => setShowSuggestions(!showSuggestions)}
+                  onChange={(e) => {
+                    setShowSuggestions(e.target.checked);
+                    const editor = getGlobalEditor();
+                    if (editor) {
+                      editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
+                    }
+                  }}
                   data-testid="toggle-suggestions"
                   className="rounded"
                 />
@@ -690,6 +708,44 @@ const ManuscriptWorkspace = () => {
                 </span>
               </label>
             </div>
+            
+            {/* Show More Controls */}
+            {(suggestions.length > maxVisibleAI || checks.length > maxVisibleChecks) && (
+              <div className="flex flex-col gap-1 mt-2 text-xs">
+                {suggestions.length > maxVisibleAI && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-xs px-2 justify-start"
+                    onClick={() => {
+                      setMaxVisibleAI(prev => prev + 200);
+                      const editor = getGlobalEditor();
+                      if (editor) {
+                        editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
+                      }
+                    }}
+                  >
+                    + Show {Math.min(200, suggestions.length - maxVisibleAI)} more AI suggestions ({maxVisibleAI}/{suggestions.length})
+                  </Button>
+                )}
+                {checks.length > maxVisibleChecks && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-xs px-2 justify-start"
+                    onClick={() => {
+                      setMaxVisibleChecks(prev => prev + 200);
+                      const editor = getGlobalEditor();
+                      if (editor) {
+                        editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
+                      }
+                    }}
+                  >
+                    + Show {Math.min(200, checks.length - maxVisibleChecks)} more checks ({maxVisibleChecks}/{checks.length})
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">

@@ -14,9 +14,19 @@ interface UseTiptapEditorOptions {
   onUpdate: (html: string, text: string) => void;
   getUISuggestions?: () => UISuggestion[];
   getChecks?: () => CheckItem[];
+  maxVisibleSuggestions?: number;
+  maxVisibleChecks?: number;
 }
 
-export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate, getUISuggestions, getChecks }: UseTiptapEditorOptions) => {
+export const useTiptapEditor = ({ 
+  contentHtml, 
+  readOnly, 
+  onUpdate, 
+  getUISuggestions, 
+  getChecks,
+  maxVisibleSuggestions = 200,
+  maxVisibleChecks = 200
+}: UseTiptapEditorOptions) => {
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   
   const debouncedUpdate = useCallback((html: string, text: string) => {
@@ -42,9 +52,15 @@ export const useTiptapEditor = ({ contentHtml, readOnly, onUpdate, getUISuggesti
         },
       }),
       // Add suggestions extension if getter is provided
-      ...(getUISuggestions ? [SuggestionsExtension.configure({ getUISuggestions })] : []),
+      ...(getUISuggestions ? [SuggestionsExtension.configure({ 
+        getUISuggestions,
+        maxVisibleSuggestions
+      })] : []),
       // Add checks extension if getter is provided
-      ...(getChecks ? [ChecksExtension.configure({ getChecks })] : []),
+      ...(getChecks ? [ChecksExtension.configure({ 
+        getChecks,
+        maxVisibleChecks
+      })] : []),
     ],
     content: contentHtml,
     editable: !readOnly,
