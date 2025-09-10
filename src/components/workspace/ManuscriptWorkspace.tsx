@@ -442,10 +442,7 @@ const ManuscriptWorkspace = () => {
       const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
       const { data, error } = await supabase.functions.invoke('suggest', {
-        body: { text, scope, rules },
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        body: { text, scope, rules }
       });
       
       clearTimeout(timeout);
