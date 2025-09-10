@@ -422,14 +422,37 @@ const ManuscriptWorkspace = () => {
     
     try {
       const text = getEditorPlainText();
+      
+      // Warn for very large documents
+      if (text.length > 100000) {
+        toast({
+          title: "Large document detected",
+          description: "This may take several minutes to process. Consider selecting a smaller section.",
+          variant: "default"
+        });
+      }
+      
       const scope = 
         aiScope === "Entire Document" ? "entire" :
         aiScope === "Current Section" ? "section" : "selection";
       const rules = activeStyleRules;
 
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+
       const { data, error } = await supabase.functions.invoke('suggest', {
-        body: { text, scope, rules }
+        body: { text, scope, rules },
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
+      
+      clearTimeout(timeout);
+      
+      if (controller.signal.aborted) {
+        throw new Error('Request timeout - document too large');
+      }
 
       if (error) {
         let msg = error.message || "Server error";
@@ -445,6 +468,9 @@ const ManuscriptWorkspace = () => {
         } else if (error.message?.includes('422') || error.message?.includes('invalid_response') || error.message?.includes('AI service temporarily unavailable')) {
           title = "AI processing error";
           msg = "The AI service encountered an error processing your text. Please try again or try a smaller section.";
+        } else if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout') || error.message?.includes('aborted')) {
+          title = "Request timeout";
+          msg = "The document is too large to process completely. Try selecting a smaller section or current section instead.";
         }
         
         toast({
@@ -471,11 +497,23 @@ const ManuscriptWorkspace = () => {
       toast({
         title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error('AI request failed:', e);
+      
+      let title = "AI request failed";
+      let msg = "Please try again.";
+      
+      if (e.message?.includes('aborted') || e.name === 'AbortError' || e.message?.includes('timeout')) {
+        title = "Request timeout";
+        msg = "The document is too large to process. Try selecting a smaller section.";
+      } else if (e.message?.includes('Failed to fetch')) {
+        title = "Network error";
+        msg = "Unable to connect to AI service. Please check your connection and try again.";
+      }
+      
       toast({
-        title: "AI request failed",
-        description: "Please try again.",
+        title,
+        description: msg,
         variant: "destructive"
       });
     } finally {
