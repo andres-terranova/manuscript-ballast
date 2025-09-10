@@ -442,6 +442,9 @@ const ManuscriptWorkspace = () => {
         } else if (error.message?.includes('429')) {
           title = "Rate limit exceeded";
           msg = "Please wait a moment before trying again.";
+        } else if (error.message?.includes('422') || error.message?.includes('invalid_response') || error.message?.includes('AI service temporarily unavailable')) {
+          title = "AI processing error";
+          msg = "The AI service encountered an error processing your text. Please try again or try a smaller section.";
         }
         
         toast({

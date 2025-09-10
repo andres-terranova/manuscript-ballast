@@ -105,20 +105,52 @@ async function generateSuggestions(text: string, scope: string, rules: string[])
   const model = openai(modelName, { apiKey: openaiApiKey });
   const prompt = buildPrompt(scope, rules, text);
 
-  try {
-    const result = await generateObject({
-      model,
-      schema: SuggestResponseZ,
-      system: SYSTEM_PROMPT,
-      prompt: prompt,
-      maxTokens: 4000,
-    });
+  const maxRetries = 2;
+  let lastError;
 
-    return result.object;
-  } catch (e) {
-    console.error('Failed to generate suggestions:', e);
-    throw new Error('Invalid response format from AI');
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const result = await generateObject({
+        model,
+        schema: SuggestResponseZ,
+        system: SYSTEM_PROMPT,
+        prompt: prompt,
+        maxTokens: 4000,
+      });
+
+      // Validate and sanitize the result
+      if (result.object?.suggestions) {
+        const sanitizedSuggestions = result.object.suggestions.filter(suggestion => {
+          return suggestion && 
+                 typeof suggestion.id === 'string' &&
+                 typeof suggestion.type === 'string' &&
+                 typeof suggestion.category === 'string' &&
+                 typeof suggestion.before === 'string' &&
+                 typeof suggestion.after === 'string' &&
+                 typeof suggestion.note === 'string' &&
+                 typeof suggestion.start === 'number' &&
+                 typeof suggestion.end === 'number';
+        });
+
+        return { suggestions: sanitizedSuggestions };
+      }
+
+      return { suggestions: [] };
+    } catch (e) {
+      lastError = e;
+      console.error(`Attempt ${attempt + 1} failed:`, e);
+      
+      if (attempt === maxRetries - 1) {
+        console.error('All retry attempts failed:', e);
+        throw new Error('AI service temporarily unavailable');
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
+
+  throw lastError;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
