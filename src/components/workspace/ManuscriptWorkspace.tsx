@@ -12,7 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
-import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionActor, createSuggestionId, sanitizeNote } from "@/lib/types";
+import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionActor } from "@/lib/types";
+import { createSuggestionId, sanitizeNote } from "@/lib/types";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { checksPluginKey } from "@/lib/checksPlugin";
 import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
@@ -324,13 +325,91 @@ const ManuscriptWorkspace = () => {
     }
   };
 
-  // Create basic suggestions function (removed - now using real API)
-  // This function has been removed since we're using the real /api/suggest endpoint
+  // Manual suggestion creation
+  const createManualSuggestion = useCallback((data: { mode: SuggestionType; after: string; note: string }) => {
+    const editor = getGlobalEditor();
+    if (!editor) return;
 
-  // Stub completion callback (now unused since we call API directly)
-  const onAIPassComplete = () => {
-    // This function is no longer used since handleRunAIPass calls the API directly
-  };
+    const { state } = editor;
+    const { from, to } = state.selection;
+    const before = state.doc.textBetween(from, to, "\n", "\n");
+    const id = createSuggestionId("manual");
+
+    // Validate payload
+    if (data.mode !== "insert" && from === to) {
+      toast({
+        title: "Select text to replace/delete.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if ((data.mode === "insert" || data.mode === "replace") && !data.after?.length) {
+      toast({
+        title: "Enter replacement text.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const suggestion: UISuggestion = {
+      id,
+      type: data.mode,
+      origin: "manual",
+      pmFrom: from,
+      pmTo: to,
+      before,
+      after: data.mode === "delete" ? "" : data.after,
+      category: "manual",
+      note: data.note || (data.mode === "insert" ? "Insert text" : data.mode === "delete" ? "Delete text" : "Replace text"),
+      actor: "Editor"
+    };
+
+    // Add to suggestions list
+    setSuggestions(prev => [...prev, suggestion]);
+    
+    // Refresh decorations
+    const tr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
+    editor.view.dispatch(tr);
+    
+    toast({
+      title: "Suggestion added."
+    });
+  }, [toast]);
+
+  // Position remapping for document changes
+  useEffect(() => {
+    const editor = getGlobalEditor();
+    if (!editor) return;
+
+    const originalDispatch = editor.view.dispatch;
+    
+    editor.view.dispatch = (tr: any) => {
+      originalDispatch(tr);
+      
+      // If document changed, remap suggestion positions
+      if (tr.docChanged && suggestions.length > 0) {
+        setSuggestions(prev => prev.map(s => {
+          const from = tr.mapping.map(s.pmFrom);
+          const to = tr.mapping.map(s.pmTo);
+          return { ...s, pmFrom: from, pmTo: Math.max(from, to) };
+        }));
+        
+        // Refresh decorations after remapping
+        setTimeout(() => {
+          const refreshTr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
+          editor.view.dispatch(refreshTr);
+        }, 0);
+      }
+    };
+
+    // Cleanup
+    return () => {
+      if (editor?.view) {
+        editor.view.dispatch = originalDispatch;
+      }
+    };
+  }, [suggestions.length]); // Re-run when suggestions count changes
 
   // Handle Run AI Pass
   const handleRunAIPass = async () => {
@@ -572,6 +651,7 @@ const ManuscriptWorkspace = () => {
             manuscript={{...manuscript, contentText}} 
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
+            onCreateSuggestion={createManualSuggestion}
             getUISuggestions={getUISuggestions}
             getChecks={getChecks}
           />
