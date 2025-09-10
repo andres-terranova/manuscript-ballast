@@ -1,22 +1,10 @@
-type SuggestionType = "insert" | "delete" | "replace";
-type SuggestionCategory = "grammar" | "spelling" | "style";
+import type { ServerSuggestion, UISuggestion } from "./types";
 
-type ServerSuggestion = {
-  id: string;
-  type: SuggestionType;
-  start: number; // UTF-16 index on editor.getText()
-  end: number;   // exclusive; start===end for insert
-  before: string;
-  after: string;
-  category: SuggestionCategory;
-  note: string;
-  location?: string;
-};
-
-export type UISuggestion = ServerSuggestion & { pmFrom: number; pmTo: number };
+// Re-export for backwards compatibility
+export type { UISuggestion } from "./types";
 
 /**
- * Maps plain text indices to ProseMirror positions
+ * Maps plain text indices to ProseMirror positions for server-originated suggestions
  */
 export function mapPlainTextToPM(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
   console.log('mapPlainTextToPM called with', items.length, 'suggestions');

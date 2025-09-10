@@ -4,23 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Check, X, Plus, Minus, Edit3 } from "lucide-react";
 import { useState, useMemo } from "react";
-
-type SuggestionType = "insert" | "delete" | "replace";
-type SuggestionCategory = "grammar" | "spelling" | "style";
-type ServerSuggestion = {
-  id: string;
-  type: SuggestionType;
-  start: number;
-  end: number;
-  before: string;
-  after: string;
-  category: SuggestionCategory;
-  note: string;
-  location?: string;
-};
+import type { UISuggestion, SuggestionType } from "@/lib/types";
 
 interface ChangeListProps {
-  suggestions: ServerSuggestion[];
+  suggestions: UISuggestion[];
   onAcceptSuggestion?: (suggestionId: string) => void;
   onRejectSuggestion?: (suggestionId: string) => void;
   busySuggestions?: Set<string>;
@@ -170,7 +157,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                       {getSuggestionIcon(suggestion.type)}
                     </div>
                     <Badge variant="secondary" className="text-xs">
-                      AI Tool
+                      {suggestion.actor === 'Tool' ? 'AI Tool' : 'Manual'}
                     </Badge>
                     <Badge variant="outline" className="text-xs">
                       {suggestion.category}
@@ -181,7 +168,9 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
               <CardContent className="pb-3">
                 <div className="space-y-2">
                   <div className="text-sm font-medium">{suggestion.note}</div>
-                  <div className="text-xs text-muted-foreground">{suggestion.location || 'Unknown location'}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {suggestion.origin === 'server' ? suggestion.location || 'Unknown location' : 'Manual edit'}
+                  </div>
                   
                   {suggestion.type === 'replace' && (
                     <div className="text-xs">

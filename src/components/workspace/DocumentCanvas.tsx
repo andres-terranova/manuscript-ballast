@@ -9,23 +9,9 @@ import { setGlobalEditor, textToHtml } from "@/lib/editorUtils";
 import type { UISuggestion } from "@/lib/suggestionMapper";
 import type { CheckItem } from "@/lib/styleValidator";
 
-type SuggestionType = "insert" | "delete" | "replace";
-type SuggestionCategory = "grammar" | "spelling" | "style";
-type ServerSuggestion = {
-  id: string;
-  type: SuggestionType;
-  start: number;
-  end: number;
-  before: string;
-  after: string;
-  category: SuggestionCategory;
-  note: string;
-  location?: string;
-};
-
 interface DocumentCanvasProps {
   manuscript: any;
-  suggestions?: ServerSuggestion[];
+  suggestions?: UISuggestion[];
   isReadOnly?: boolean;
   getUISuggestions?: () => UISuggestion[];
   getChecks?: () => CheckItem[];

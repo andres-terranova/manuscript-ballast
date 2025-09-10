@@ -256,45 +256,85 @@
   outline: none;
 }
 
-/* AI Suggestion decorations */
-.suggest-delete {
-  background-color: rgba(248, 113, 113, 0.3); /* red background */
-  border-bottom: 2px solid #dc2626;           /* bold red underline */
-  border-radius: 2px;
-  text-decoration: line-through;
-  text-decoration-color: #dc2626;
-  cursor: pointer;
-}
+  /* AI Suggestions */
+  .suggest-delete[data-actor="Tool"] {
+    background-color: rgba(248, 113, 113, 0.3);
+    border-bottom: 2px solid #dc2626;
+    border-radius: 2px;
+    text-decoration: line-through;
+    text-decoration-color: #dc2626;
+    cursor: pointer;
+  }
 
-.suggest-delete:hover {
-  background-color: rgba(248, 113, 113, 0.5); /* deeper red on hover */
-}
+  .suggest-delete[data-actor="Tool"]:hover {
+    background-color: rgba(248, 113, 113, 0.5);
+  }
 
-.suggest-replace {
-  background-color: rgba(147, 51, 234, 0.2); /* purple background */
-  border-bottom: 2px solid #7c3aed;          /* bold purple underline */
-  border-radius: 2px;
-  text-decoration: line-through;
-  text-decoration-color: #7c3aed;
-  cursor: pointer;
-}
+  .suggest-replace[data-actor="Tool"] {
+    background-color: rgba(147, 51, 234, 0.2);
+    border-bottom: 2px solid #7c3aed;
+    border-radius: 2px;
+    text-decoration: line-through;
+    text-decoration-color: #7c3aed;
+    cursor: pointer;
+  }
 
-.suggest-replace:hover {
-  background-color: rgba(147, 51, 234, 0.35); /* deeper purple on hover */
-}
+  .suggest-replace[data-actor="Tool"]:hover {
+    background-color: rgba(147, 51, 234, 0.35);
+  }
 
-.suggest-insert {
-  background-color: rgba(34, 197, 94, 0.2);  /* green background */
-  border-bottom: 2px solid #16a34a;          /* bold green underline */
-  border-radius: 2px;
-  text-decoration: underline;
-  text-decoration-color: #16a34a;
-  cursor: pointer;
-}
+  .suggest-insert[data-actor="Tool"] {
+    background-color: rgba(34, 197, 94, 0.2);
+    border-bottom: 2px solid #16a34a;
+    border-radius: 2px;
+    text-decoration: underline;
+    text-decoration-color: #16a34a;
+    cursor: pointer;
+  }
 
-.suggest-insert:hover {
-  background-color: rgba(34, 197, 94, 0.35); /* deeper green on hover */
-}
+  .suggest-insert[data-actor="Tool"]:hover {
+    background-color: rgba(34, 197, 94, 0.35);
+  }
+
+  /* Manual Editor Suggestions */
+  .suggest-delete[data-actor="Editor"] {
+    background-color: rgba(139, 92, 246, 0.18);
+    border-bottom: 2px solid #8b5cf6;
+    border-radius: 2px;
+    text-decoration: line-through;
+    text-decoration-color: #8b5cf6;
+    cursor: pointer;
+  }
+
+  .suggest-delete[data-actor="Editor"]:hover {
+    background-color: rgba(139, 92, 246, 0.3);
+  }
+
+  .suggest-replace[data-actor="Editor"] {
+    background-color: rgba(139, 92, 246, 0.18);
+    border-bottom: 2px solid #8b5cf6;
+    border-radius: 2px;
+    text-decoration: line-through;
+    text-decoration-color: #8b5cf6;
+    cursor: pointer;
+  }
+
+  .suggest-replace[data-actor="Editor"]:hover {
+    background-color: rgba(139, 92, 246, 0.3);
+  }
+
+  .suggest-insert[data-actor="Editor"] {
+    background-color: rgba(139, 92, 246, 0.18);
+    border-bottom: 2px solid #8b5cf6;
+    border-radius: 2px;
+    text-decoration: underline;
+    text-decoration-color: #8b5cf6;
+    cursor: pointer;
+  }
+
+  .suggest-insert[data-actor="Editor"]:hover {
+    background-color: rgba(139, 92, 246, 0.3);
+  }
 
 /* Style Check decorations */
 .check-highlight {

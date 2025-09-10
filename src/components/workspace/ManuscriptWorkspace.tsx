@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
+import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionActor, createSuggestionId, sanitizeNote } from "@/lib/types";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { checksPluginKey } from "@/lib/checksPlugin";
 import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
@@ -20,34 +21,7 @@ import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/style
 import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
 import { type CheckItem, runDeterministicChecks } from "@/lib/styleValidator";
 
-// Suggestion types
-type SuggestionType = "insert" | "delete" | "replace";
-type SuggestionCategory = "grammar" | "spelling" | "style";
-type SuggestionActor = "Tool" | "Editor" | "Author";
-
-type ServerSuggestion = {
-  id: string;
-  type: SuggestionType;
-  start: number;
-  end: number;
-  before: string;
-  after: string;
-  category: SuggestionCategory;
-  note: string;
-  location?: string;
-};
-
-type Suggestion = {
-  id: string;
-  type: SuggestionType;
-  actor: SuggestionActor;
-  start: number;
-  end: number;
-  before: string;
-  after: string;
-  summary: string;
-  location: string;
-};
+// Remove old type definitions - now using unified types from types.ts
 import { 
   ArrowLeft, 
   RotateCcw, 
@@ -86,9 +60,8 @@ const ManuscriptWorkspace = () => {
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
   const [aiChecks, setAiChecks] = useState({ contradictions: true, repetitions: true });
   
-  // Suggestions state
-  const [suggestions, setSuggestions] = useState<ServerSuggestion[]>([]);
-  const [uiSuggestions, setUISuggestions] = useState<UISuggestion[]>([]);
+  // Suggestions state - now using unified types
+  const [suggestions, setSuggestions] = useState<UISuggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
   
@@ -191,29 +164,29 @@ const ManuscriptWorkspace = () => {
   };
 
   // Use ref to hold current suggestions so plugin can always access them
-  const uiSuggestionsRef = useRef<UISuggestion[]>([]);
+  const suggestionsRef = useRef<UISuggestion[]>([]);
   
   // Update ref when suggestions change
   useEffect(() => {
-    uiSuggestionsRef.current = uiSuggestions;
-    console.log('Updated uiSuggestionsRef with', uiSuggestions.length, 'suggestions');
+    suggestionsRef.current = suggestions;
+    console.log('Updated suggestionsRef with', suggestions.length, 'suggestions');
     
     // Refresh plugin when suggestions change
-    if (uiSuggestions.length > 0) {
+    if (suggestions.length > 0) {
       const editor = getGlobalEditor();
       if (editor) {
-        console.log('Force refreshing plugin with', uiSuggestions.length, 'suggestions');
+        console.log('Force refreshing plugin with', suggestions.length, 'suggestions');
         editor.view.dispatch(
           editor.state.tr.setMeta(suggestionsPluginKey, "refresh")
         );
       }
     }
-  }, [uiSuggestions]);
+  }, [suggestions]);
 
   // Callback that always returns current suggestions from ref (with toggle respect)
   const getUISuggestions = useCallback(() => {
-    console.log('getUISuggestions called, returning', uiSuggestionsRef.current.length, 'suggestions from ref, showSuggestions:', showSuggestions);
-    return showSuggestions ? uiSuggestionsRef.current : [];
+    console.log('getUISuggestions called, returning', suggestionsRef.current.length, 'suggestions from ref, showSuggestions:', showSuggestions);
+    return showSuggestions ? suggestionsRef.current : [];
   }, [showSuggestions]); // Dependencies include toggle state
 
   // Callback that returns current checks from ref (with toggle respect)
@@ -253,7 +226,7 @@ const ManuscriptWorkspace = () => {
     const editor = getGlobalEditor();
     if (!editor) return;
 
-    const uiSuggestion = uiSuggestions.find(s => s.id === suggestionId);
+    const uiSuggestion = suggestions.find(s => s.id === suggestionId);
     if (!uiSuggestion || busySuggestions.has(suggestionId)) return;
 
     // Disable buttons for this card while processing
@@ -289,28 +262,24 @@ const ManuscriptWorkspace = () => {
       
       // Remove only the specific suggestion (find by ID + position for uniqueness)
       setSuggestions(prev => {
-        const filtered = prev.filter((x, index) => {
-          const uiMatch = uiSuggestions[index];
-          const shouldRemove = x.id === suggestionId && uiMatch?.pmFrom === uiSuggestion.pmFrom && uiMatch?.pmTo === uiSuggestion.pmTo;
-          return !shouldRemove;
-        });
+        const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
         console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
         return filtered;
       });
-      
-      setUISuggestions(prev => {
-        const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
-        console.log('Filtered UI suggestions from', prev.length, 'to', filtered.length);
-        return filtered;
-      });
 
-      // Re-map remaining suggestions' positions against the UPDATED doc
-      const remaining = suggestions.filter((x, index) => {
-        const uiMatch = uiSuggestions[index];
-        return !(x.id === suggestionId && uiMatch?.pmFrom === uiSuggestion.pmFrom && uiMatch?.pmTo === uiSuggestion.pmTo);
-      });
+      // Re-map remaining server suggestions' positions against the UPDATED doc
+      const remaining = suggestions.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
       console.log('Remapping', remaining.length, 'remaining suggestions');
-      mapAndRefreshSuggestions(remaining, setUISuggestions);
+      
+      // Only remap server-originated suggestions  
+      const serverSuggestions = remaining.filter((s): s is ServerSuggestion & { pmFrom: number; pmTo: number } => s.origin === 'server');
+      if (serverSuggestions.length > 0) {
+        const plainText = editor.getText();
+        const remapped = mapPlainTextToPM(editor, plainText, serverSuggestions);
+        // Merge with manual suggestions that don't need remapping
+        const manualSuggestions = remaining.filter(s => s.origin === 'manual');
+        setSuggestions([...remapped, ...manualSuggestions]);
+      }
 
       toast({
         title: "Change applied."
@@ -330,7 +299,7 @@ const ManuscriptWorkspace = () => {
     const editor = getGlobalEditor();
     if (!editor) return;
 
-    const uiSuggestion = uiSuggestions.find(s => s.id === suggestionId);
+    const uiSuggestion = suggestions.find(s => s.id === suggestionId);
     if (!uiSuggestion) return;
 
     setActionBusy(suggestionId, true);
@@ -339,18 +308,8 @@ const ManuscriptWorkspace = () => {
       
       // Remove only the specific suggestion (find by ID + position for uniqueness)
       setSuggestions(prev => {
-        const filtered = prev.filter((x, index) => {
-          const uiMatch = uiSuggestions[index];
-          const shouldRemove = x.id === suggestionId && uiMatch?.pmFrom === uiSuggestion.pmFrom && uiMatch?.pmTo === uiSuggestion.pmTo;
-          return !shouldRemove;
-        });
-        console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
-        return filtered;
-      });
-      
-      setUISuggestions(prev => {
         const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
-        console.log('Filtered UI suggestions from', prev.length, 'to', filtered.length);
+        console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
         return filtered;
       });
 
@@ -410,14 +369,18 @@ const ManuscriptWorkspace = () => {
         return;
       }
 
-      const serverSuggestions = data?.suggestions || [];
-      setSuggestions(Array.isArray(serverSuggestions) ? serverSuggestions : []);
+      // Map to server suggestions with origin field for AI suggestions
+      const serverSuggestions = (data?.suggestions || []).map((s: any) => ({
+        ...s,
+        origin: 'server' as const,
+        actor: 'Tool' as const
+      }));
       
       // Map suggestions to UI suggestions using the SAME text that was sent to AI
       const editor = getGlobalEditor();
       const mapped = mapPlainTextToPM(editor, text, serverSuggestions);
       console.log('About to set UI suggestions:', mapped.length);
-      setUISuggestions(mapped);
+      setSuggestions(mapped);
       
       toast({
         title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`
@@ -454,7 +417,6 @@ const ManuscriptWorkspace = () => {
 
     // Clear pending suggestions
     setSuggestions([]);
-    setUISuggestions([]);
 
     toast({
       title: "Marked as Reviewed — document is now read-only."

@@ -1,7 +1,8 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import type { UISuggestion } from "./suggestionMapper";
+import type { UISuggestion } from "./types";
+import { sanitizeNote } from "./types";
 
 export const suggestionsPluginKey = new PluginKey("aiSuggestions");
 
@@ -45,10 +46,11 @@ export const SuggestionsExtension = Extension.create({
                   el.id = `suggestion-span-${s.id}`;
                   el.dataset.suggestionId = s.id;
                   el.dataset.type = s.type;
+                  el.dataset.actor = s.actor;
                   el.setAttribute("data-testid", `suggestion-span-${s.id}`);
                   el.className = "suggest-insert";
                   el.textContent = `+${s.after}`;
-                  el.title = s.note;
+                  el.title = sanitizeNote(s.note);
                   return el;
                 }));
               } else {
@@ -64,17 +66,19 @@ export const SuggestionsExtension = Extension.create({
                   decos.push(Decoration.inline(newFrom, newTo, {
                     class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
                     "data-suggestion-id": s.id,
+                    "data-actor": s.actor,
                     id: `suggestion-span-${s.id}`,
                     "data-testid": `suggestion-span-${s.id}`,
-                    title: s.note
+                    title: sanitizeNote(s.note)
                   }));
                 } else {
                   decos.push(Decoration.inline(from, to, {
                     class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
                     "data-suggestion-id": s.id,
+                    "data-actor": s.actor,
                     id: `suggestion-span-${s.id}`,
                     "data-testid": `suggestion-span-${s.id}`,
-                    title: s.note
+                    title: sanitizeNote(s.note)
                   }));
                 }
               }
