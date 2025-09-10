@@ -4,6 +4,10 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { UISuggestion } from "./types";
 import { sanitizeNote } from "./types";
 
+// Debounced remapping function
+let remapTimeout: NodeJS.Timeout | null = null;
+const REMAP_DEBOUNCE_MS = 250;
+
 export const suggestionsPluginKey = new PluginKey("aiSuggestions");
 
 export const SuggestionsExtension = Extension.create({
@@ -25,68 +29,89 @@ export const SuggestionsExtension = Extension.create({
         state: {
           init: (_cfg, state) => DecorationSet.create(state.doc, []),
           apply(tr, oldSet, _oldState, newState) {
-            // Rebuild decorations when doc changes or a meta flag is present
-            const needsRefresh = tr.docChanged || tr.getMeta(suggestionsPluginKey) === "refresh";
-            console.log('Plugin apply called, needsRefresh:', needsRefresh, 'docChanged:', tr.docChanged, 'meta:', tr.getMeta(suggestionsPluginKey));
-            if (!needsRefresh) return oldSet;
+            const metaRefresh = tr.getMeta(suggestionsPluginKey);
+            const shouldRebuild = metaRefresh === "refresh";
             
-            const allSuggestions = getUISuggestions();
-            const cappedList = allSuggestions.slice(0, maxVisibleSuggestions);
-            console.log('Plugin creating decorations for', cappedList.length, 'of', allSuggestions.length, 'suggestions');
-            
-            // If no suggestions (could be empty due to toggle), return empty decoration set
-            if (cappedList.length === 0) {
-              return DecorationSet.empty;
-            }
-            const decos: Decoration[] = [];
-
-            for (const s of cappedList) {
-              if (s.type === "insert") {
-                // For insert suggestions, show a widget at the insertion point
-                decos.push(Decoration.widget(s.pmFrom, () => {
-                  const el = document.createElement("span");
-                  el.id = `suggestion-span-${s.id}`;
-                  el.dataset.suggestionId = s.id;
-                  el.dataset.type = s.type;
-                  el.dataset.actor = s.actor;
-                  el.setAttribute("data-testid", `suggestion-span-${s.id}`);
-                  el.className = "suggest-insert";
-                  el.textContent = `+${s.after}`;
-                  el.title = sanitizeNote(s.note);
-                  return el;
-                }));
-              } else {
-                // For delete/replace suggestions, show inline decoration over the range
-                const from = Math.max(0, s.pmFrom);
-                let to = Math.max(from, s.pmTo);
-                
-                // Expand single-char matches for better visibility
-                if (to - from < 2) {
-                  const expand = 2;
-                  const newFrom = Math.max(0, from - expand);
-                  const newTo = Math.min(newState.doc.content.size, to + expand);
-                  decos.push(Decoration.inline(newFrom, newTo, {
-                    class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
-                    "data-suggestion-id": s.id,
-                    "data-actor": s.actor,
-                    id: `suggestion-span-${s.id}`,
-                    "data-testid": `suggestion-span-${s.id}`,
-                    title: sanitizeNote(s.note)
+            // On explicit refresh: rebuild all decorations
+            if (shouldRebuild) {
+              console.log('Suggestions plugin rebuilding decorations on refresh');
+              
+              const allSuggestions = getUISuggestions();
+              const cappedList = allSuggestions.slice(0, maxVisibleSuggestions);
+              
+              if (cappedList.length === 0) {
+                return DecorationSet.empty;
+              }
+              
+              const decos: Decoration[] = [];
+              for (const s of cappedList) {
+                if (s.type === "insert") {
+                  decos.push(Decoration.widget(s.pmFrom, () => {
+                    const el = document.createElement("span");
+                    el.id = `suggestion-span-${s.id}`;
+                    el.dataset.suggestionId = s.id;
+                    el.dataset.type = s.type;
+                    el.dataset.actor = s.actor;
+                    el.setAttribute("data-testid", `suggestion-span-${s.id}`);
+                    el.className = "suggest-insert";
+                    el.textContent = `+${s.after}`;
+                    el.title = sanitizeNote(s.note);
+                    return el;
                   }));
                 } else {
-                  decos.push(Decoration.inline(from, to, {
-                    class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
-                    "data-suggestion-id": s.id,
-                    "data-actor": s.actor,
-                    id: `suggestion-span-${s.id}`,
-                    "data-testid": `suggestion-span-${s.id}`,
-                    title: sanitizeNote(s.note)
-                  }));
+                  const from = Math.max(0, s.pmFrom);
+                  let to = Math.max(from, s.pmTo);
+                  
+                  if (to - from < 2) {
+                    const expand = 2;
+                    const newFrom = Math.max(0, from - expand);
+                    const newTo = Math.min(newState.doc.content.size, to + expand);
+                    decos.push(Decoration.inline(newFrom, newTo, {
+                      class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
+                      "data-suggestion-id": s.id,
+                      "data-actor": s.actor,
+                      id: `suggestion-span-${s.id}`,
+                      "data-testid": `suggestion-span-${s.id}`,
+                      title: sanitizeNote(s.note)
+                    }));
+                  } else {
+                    decos.push(Decoration.inline(from, to, {
+                      class: s.type === "delete" ? "suggest-delete" : "suggest-replace",
+                      "data-suggestion-id": s.id,
+                      "data-actor": s.actor,
+                      id: `suggestion-span-${s.id}`,
+                      "data-testid": `suggestion-span-${s.id}`,
+                      title: sanitizeNote(s.note)
+                    }));
+                  }
                 }
               }
+              return DecorationSet.create(tr.doc, decos);
             }
             
-            return DecorationSet.create(tr.doc, decos);
+            // On doc changes: efficiently map existing decoration positions
+            if (tr.docChanged) {
+              const mappedSet = oldSet.map(tr.mapping, tr.doc);
+              
+              // Debounced remapping of suggestion positions
+              if (remapTimeout) {
+                clearTimeout(remapTimeout);
+              }
+              remapTimeout = setTimeout(() => {
+                const allSuggestions = getUISuggestions();
+                // Update pmFrom/pmTo positions based on document changes
+                allSuggestions.forEach(suggestion => {
+                  const newFrom = tr.mapping.map(suggestion.pmFrom, 1);
+                  const newTo = suggestion.pmTo ? tr.mapping.map(suggestion.pmTo, -1) : newFrom;
+                  suggestion.pmFrom = newFrom;
+                  suggestion.pmTo = newTo;
+                });
+              }, REMAP_DEBOUNCE_MS);
+              
+              return mappedSet;
+            }
+            
+            return oldSet;
           }
         },
         props: {

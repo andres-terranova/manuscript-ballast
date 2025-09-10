@@ -1,5 +1,6 @@
 import { Editor } from '@tiptap/core';
 import { suggestionsPluginKey } from './suggestionsPlugin';
+import { checksPluginKey } from './checksPlugin';
 import { mapPlainTextToPM, type UISuggestion } from './suggestionMapper';
 
 let globalEditor: Editor | null = null;
@@ -24,6 +25,14 @@ export function refreshSuggestions(): void {
   if (globalEditor?.view) {
     globalEditor.view.dispatch(
       globalEditor.state.tr.setMeta(suggestionsPluginKey, "refresh")
+    );
+  }
+}
+
+export function refreshChecks(): void {
+  if (globalEditor?.view) {
+    globalEditor.view.dispatch(
+      globalEditor.state.tr.setMeta(checksPluginKey, "refresh")
     );
   }
 }
