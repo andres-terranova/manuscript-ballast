@@ -55,7 +55,7 @@ export const SuggestionsExtension = Extension.create({
                     el.setAttribute("data-testid", `suggestion-span-${s.id}`);
                     el.className = "suggest-insert";
                     el.textContent = `+${s.after}`;
-                    el.title = sanitizeNote(s.note);
+                    el.title = s.note;
                     return el;
                   }));
                 } else {
@@ -72,7 +72,7 @@ export const SuggestionsExtension = Extension.create({
                       "data-actor": s.actor,
                       id: `suggestion-span-${s.id}`,
                       "data-testid": `suggestion-span-${s.id}`,
-                      title: sanitizeNote(s.note)
+                      title: s.note
                     }));
                   } else {
                     decos.push(Decoration.inline(from, to, {
@@ -81,7 +81,7 @@ export const SuggestionsExtension = Extension.create({
                       "data-actor": s.actor,
                       id: `suggestion-span-${s.id}`,
                       "data-testid": `suggestion-span-${s.id}`,
-                      title: sanitizeNote(s.note)
+                      title: s.note
                     }));
                   }
                 }

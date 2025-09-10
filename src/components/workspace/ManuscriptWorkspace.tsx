@@ -252,16 +252,16 @@ const ManuscriptWorkspace = () => {
         }
       }
 
-      // Apply the patch via TipTap transaction
-      withEditorTransaction(editor, tr => {
-        if (uiSuggestion.type === "insert") {
-          tr.insertText(uiSuggestion.after, uiSuggestion.pmFrom);
-        } else if (uiSuggestion.type === "delete") {
-          tr.delete(uiSuggestion.pmFrom, uiSuggestion.pmTo);
-        } else {
-          tr.insertText(uiSuggestion.after, uiSuggestion.pmFrom, uiSuggestion.pmTo); // replace
-        }
-      });
+      // Apply the patch via TipTap commands (more reliable than direct transactions)
+      if (uiSuggestion.type === "insert") {
+        editor.commands.insertContentAt(uiSuggestion.pmFrom, uiSuggestion.after);
+      } else if (uiSuggestion.type === "delete") {
+        editor.commands.deleteRange({ from: uiSuggestion.pmFrom, to: uiSuggestion.pmTo });
+      } else {
+        // Replace: delete range then insert new content
+        editor.commands.deleteRange({ from: uiSuggestion.pmFrom, to: uiSuggestion.pmTo });
+        editor.commands.insertContentAt(uiSuggestion.pmFrom, uiSuggestion.after);
+      }
 
       console.log('Accepting suggestion:', suggestionId, 'at positions', uiSuggestion.pmFrom, uiSuggestion.pmTo);
       
