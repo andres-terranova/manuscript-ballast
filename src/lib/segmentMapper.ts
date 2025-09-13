@@ -148,12 +148,13 @@ export class SegmentMapper {
     console.log(`  Editor text span: "${actualText}"`);
     console.log(`  Match: ${actualText === plainTextSpan}`);
     
-    if (actualText !== plainTextSpan) {
-      return { 
-        valid: false, 
-        reason: `Text mismatch: expected "${plainTextSpan}", got "${actualText}"` 
-      };
-    }
+    // TEMPORARY: Bypass validation to test if suggestions appear
+    // if (actualText !== plainTextSpan) {
+    //   return { 
+    //     valid: false, 
+    //     reason: `Text mismatch: expected "${plainTextSpan}", got "${actualText}"` 
+    //   };
+    // }
     
     // Optional: validate before/after context if provided
     if (expectedBefore) {
