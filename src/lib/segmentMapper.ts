@@ -75,34 +75,59 @@ export class SegmentMapper {
    * Map text index to ProseMirror position using binary search
    */
   textToPM(textIndex: number): number {
-    if (textIndex < 0) return 0;
+    console.log(`[textToPM] Input textIndex: ${textIndex}`);
+    console.log(`[textToPM] Available segments: ${this.segments.length}`);
+    
+    if (textIndex < 0) {
+      console.log(`[textToPM] Negative index, returning 0`);
+      return 0;
+    }
+    
+    // Log segment information for debugging
+    if (this.segments.length > 0) {
+      console.log(`[textToPM] First segment: textStart=${this.segments[0].textStart}, textEnd=${this.segments[0].textEnd}, pmStart=${this.segments[0].pmStart}, pmEnd=${this.segments[0].pmEnd}`);
+      const lastSegment = this.segments[this.segments.length - 1];
+      console.log(`[textToPM] Last segment: textStart=${lastSegment.textStart}, textEnd=${lastSegment.textEnd}, pmStart=${lastSegment.pmStart}, pmEnd=${lastSegment.pmEnd}`);
+    }
     
     // Binary search for the segment containing this text index
     let left = 0;
     let right = this.segments.length - 1;
+    console.log(`[textToPM] Starting binary search: left=${left}, right=${right}`);
     
     while (left <= right) {
       const mid = Math.floor((left + right) / 2);
       const segment = this.segments[mid];
+      console.log(`[textToPM] Binary search step: mid=${mid}, segment=[${segment.textStart}-${segment.textEnd}] -> [${segment.pmStart}-${segment.pmEnd}]`);
       
       if (textIndex < segment.textStart) {
+        console.log(`[textToPM] textIndex < segment.textStart, moving right boundary`);
         right = mid - 1;
       } else if (textIndex >= segment.textEnd) {
+        console.log(`[textToPM] textIndex >= segment.textEnd, moving left boundary`);
         left = mid + 1;
       } else {
         // Found the containing segment
-        return segment.pmStart + (textIndex - segment.textStart);
+        const pmPosition = segment.pmStart + (textIndex - segment.textStart);
+        console.log(`[textToPM] Found containing segment! pmPosition = ${segment.pmStart} + (${textIndex} - ${segment.textStart}) = ${pmPosition}`);
+        return pmPosition;
       }
     }
     
     // Fallback: use the closest segment
-    if (this.segments.length === 0) return 0;
+    console.log(`[textToPM] Binary search failed, using fallback logic`);
+    if (this.segments.length === 0) {
+      console.log(`[textToPM] No segments available, returning 0`);
+      return 0;
+    }
     
     if (textIndex >= this.segments[this.segments.length - 1].textEnd) {
       const lastSegment = this.segments[this.segments.length - 1];
+      console.log(`[textToPM] textIndex beyond last segment, returning pmEnd: ${lastSegment.pmEnd}`);
       return lastSegment.pmEnd;
     }
     
+    console.log(`[textToPM] Using first segment pmStart: ${this.segments[0].pmStart}`);
     return this.segments[0].pmStart;
   }
 
