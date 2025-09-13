@@ -10,55 +10,74 @@ export type CheckItem = {
   pmTo?: number;
 };
 
-// Minimal plaintext→PM mapper
-function mapPlainRangeToPM(editor: any, start: number, end: number): { pmFrom: number; pmTo: number } {
-  const { state } = editor;
-  const doc = state.doc;
-  const segs: Array<{ t0: number; t1: number; p0: number }> = [];
-  let t = 0;
-
-  doc.descendants((node: any, pos: number) => {
-    if (node.isText) {
-      const len = node.text?.length ?? 0;
-      if (len) segs.push({ t0: t, t1: t + len, p0: pos });
-      t += len;
-    }
-    return true;
-  });
-
-  function toPM(idx: number) {
-    let lo = 0, hi = segs.length - 1, k = -1;
-    while (lo <= hi) { 
-      const m = (lo + hi) >> 1, s = segs[m];
-      if (idx < s.t0) hi = m - 1; 
-      else if (idx >= s.t1) lo = m + 1; 
-      else { k = m; break; } 
-    }
-    if (k === -1) {
-      const last = segs[segs.length - 1];
-      return last ? last.p0 + (last.t1 - last.t0) : 0;
-    }
-    const s = segs[k];
-    return s.p0 + (idx - s.t0);
-  }
-
-  return { pmFrom: toPM(start), pmTo: toPM(end) };
-}
+// Phase 1: PM-native validator - emit PM ranges directly, no text mapping needed
+// This walks the PM doc and outputs PM positions natively
 
 export function runDeterministicChecks(editor: any, enabled: StyleRuleKey[]): CheckItem[] {
-  const text = editor?.getText?.() ?? "";
+  if (!editor?.state?.doc) return [];
+  
+  const { state } = editor;
+  const doc = state.doc;
   const out: CheckItem[] = [];
-  const push = (rule: StyleRuleKey, start: number, end: number, message: string) => {
-    out.push({ id: `${Date.now()}-${out.length}`, rule, start, end, message });
+  
+  // Phase 1: PM-native validator - walk the PM document directly
+  // This eliminates the text→PM mapping step entirely
+  
+  let globalTextOffset = 0;
+  
+  doc.descendants((node: any, pos: number) => {
+    if (!node.isText || !node.text) return true;
+    
+    const text = node.text;
+    const nodeStart = pos;
+    
+    // Apply rules to this text node
+    applyRulesToTextNode(text, globalTextOffset, nodeStart, enabled, out);
+    
+    globalTextOffset += text.length;
+    return true;
+  });
+  
+  return out;
+}
+
+function applyRulesToTextNode(
+  text: string, 
+  globalTextOffset: number, 
+  pmNodeStart: number, 
+  enabled: StyleRuleKey[], 
+  out: CheckItem[]
+): void {
+  
+  const push = (rule: StyleRuleKey, localStart: number, localEnd: number, message: string) => {
+    // Convert local node offsets to global PM positions
+    const pmFrom = pmNodeStart + localStart;
+    const pmTo = pmNodeStart + localEnd;
+    
+    out.push({ 
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+      rule, 
+      start: globalTextOffset + localStart,  // Keep for backward compatibility
+      end: globalTextOffset + localEnd,      // Keep for backward compatibility  
+      pmFrom,
+      pmTo,
+      message 
+    });
   };
 
-  // Helper to scan regex matches and push items
+  // Helper to scan regex matches within this text node
   function scanRegex(rule: StyleRuleKey, re: RegExp, msg: string) {
     if (!enabled.includes(rule)) return;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text))) {
-      const s = m.index, e = s + m[0].length;
-      push(rule, s, e, msg);
+    
+    // Reset regex state for this text node
+    re.lastIndex = 0;
+    
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text))) {
+      const start = match.index;
+      const end = start + match[0].length;
+      push(rule, start, end, msg);
+      
       if (!re.global) break;
     }
   }
@@ -103,10 +122,11 @@ export function runDeterministicChecks(editor: any, enabled: StyleRuleKey[]): Ch
   if (enabled.includes("serialComma")) {
     // naive: token, token and token   (avoid when items have spaces)
     const re = /\b([A-Za-z]+), ([A-Za-z]+) and ([A-Za-z]+)\b/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text))) {
-      const s = m.index, e = s + m[0].length;
-      push("serialComma", s, e, "Consider an Oxford comma before \"and\" in a simple list.");
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text))) {
+      const start = match.index;
+      const end = start + match[0].length;
+      push("serialComma", start, end, "Consider an Oxford comma before \"and\" in a simple list.");
     }
   }
 
@@ -128,29 +148,15 @@ export function runDeterministicChecks(editor: any, enabled: StyleRuleKey[]): Ch
     );
   }
 
-  // 9) titleCaseHeadings: detect headings that are all lower (Tip: best-effort)
+  // Note: titleCaseHeadings is more complex as it needs to analyze across nodes
+  // For Phase 1, we'll keep it simple and only check within individual text nodes
   if (enabled.includes("titleCaseHeadings")) {
-    // Very light heuristic: lines that look like a heading but are mostly lowercase words
-    const lines = text.split(/\n/);
-    let offset = 0;
-    for (const line of lines) {
-      const isHeadingLike = /^[A-Za-z].{0,100}$/.test(line) && line.split(" ").length <= 12;
-      const isMostlyLower = line === line.toLowerCase() && /[a-z]/.test(line);
-      if (isHeadingLike && isMostlyLower) {
-        push("titleCaseHeadings", offset, offset + line.length, "Use title case for headings.");
+    // Only flag if this entire node looks like a heading
+    if (text.length < 100 && text.split(" ").length <= 12 && /^[A-Za-z]/.test(text)) {
+      const isMostlyLower = text === text.toLowerCase() && /[a-z]/.test(text);
+      if (isMostlyLower) {
+        push("titleCaseHeadings", 0, text.length, "Use title case for headings.");
       }
-      offset += line.length + 1; // account for newline
     }
   }
-
-  // Map plain-text indices to PM positions for each check
-  for (const c of out) {
-    try {
-      const { pmFrom, pmTo } = mapPlainRangeToPM(editor, c.start, c.end);
-      c.pmFrom = pmFrom; 
-      c.pmTo = pmTo;
-    } catch {}
-  }
-
-  return out;
 }

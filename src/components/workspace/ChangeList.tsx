@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { UISuggestion, SuggestionType } from "@/lib/types";
 import { ChangeCard } from "./ChangeCard";
+import { MappingDiagnosticsBadge } from "@/components/ui/mapping-diagnostics-badge";
 
 interface ChangeListProps {
   suggestions: UISuggestion[];
@@ -16,7 +17,7 @@ interface ChangeListProps {
 export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set(), isReviewed = false }: ChangeListProps) => {
   const [typeFilter, setTypeFilter] = useState<"all" | "insert" | "delete" | "replace">("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 25; // Phase 1: reduce from 50 to 25 for better performance
 
   const filteredSuggestions = useMemo(() => {
     if (typeFilter === "all") return suggestions;
@@ -59,7 +60,10 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
   return (
     <div data-testid="changes-list" className="h-full flex flex-col">
       <div className="p-4 border-b border-border">
-        <h3 className="font-semibold text-foreground">Change List</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-foreground">Change List</h3>
+          <MappingDiagnosticsBadge />
+        </div>
         <p className="text-sm text-muted-foreground">
           Showing {visibleSuggestions.length} of {filteredSuggestions.length} filtered ({suggestions.length} total)
         </p>

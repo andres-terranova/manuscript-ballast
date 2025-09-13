@@ -3,10 +3,16 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { UISuggestion } from "./types";
 import { sanitizeNote } from "./types";
+import { mappingDiagnostics } from "./mappingDiagnostics";
 
-// Debounced remapping function
-let remapTimeout: NodeJS.Timeout | null = null;
-const REMAP_DEBOUNCE_MS = 250;
+// Plugin state: minimal position tracking only
+export type PluginSuggestion = {
+  id: string;
+  pmFrom: number;
+  pmTo: number;
+  type: UISuggestion['type'];
+  hidden?: boolean;
+};
 
 export const suggestionsPluginKey = new PluginKey("aiSuggestions");
 
@@ -16,7 +22,7 @@ export const SuggestionsExtension = Extension.create({
   addOptions() {
     return {
       getUISuggestions: () => [] as UISuggestion[],
-      maxVisibleSuggestions: 200,
+      maxVisibleSuggestions: 120, // Phase 1: cap at 120 for performance
     }
   },
 
@@ -27,20 +33,59 @@ export const SuggestionsExtension = Extension.create({
       new Plugin({
         key: suggestionsPluginKey,
         state: {
-          init: (_cfg, state) => DecorationSet.create(state.doc, []),
-          apply(tr, oldSet, _oldState, newState) {
+          init: (_cfg, state) => {
+            return {
+              decorations: DecorationSet.empty,
+              positions: [] as PluginSuggestion[]
+            };
+          },
+          apply(tr, pluginState, _oldState, newState) {
             const metaRefresh = tr.getMeta(suggestionsPluginKey);
             const shouldRebuild = metaRefresh === "refresh";
             
-            // On explicit refresh: rebuild all decorations
+            let newPositions = pluginState.positions;
+            
+            // Phase 1: StepMaps-based deterministic remapping
+            if (tr.docChanged && !shouldRebuild) {
+              const start = performance.now();
+              
+              // Remap positions using StepMaps - no debouncing!
+              newPositions = pluginState.positions.map(pos => ({
+                ...pos,
+                pmFrom: tr.mapping.map(pos.pmFrom, 1),
+                pmTo: tr.mapping.map(pos.pmTo, -1)
+              }));
+              
+              const timingMs = performance.now() - start;
+              mappingDiagnostics.logEvent({
+                type: 'remap',
+                success: true,
+                itemCount: newPositions.length,
+                timingMs
+              });
+            }
+            
+            // On explicit refresh: sync with external suggestions and rebuild
             if (shouldRebuild) {
+              const start = performance.now();
               console.log('Suggestions plugin rebuilding decorations on refresh');
               
               const allSuggestions = getUISuggestions();
               const cappedList = allSuggestions.slice(0, maxVisibleSuggestions);
               
+              // Update plugin positions from external state
+              newPositions = cappedList.map(s => ({
+                id: s.id,
+                pmFrom: s.pmFrom,
+                pmTo: s.pmTo,
+                type: s.type
+              }));
+              
               if (cappedList.length === 0) {
-                return DecorationSet.empty;
+                return {
+                  decorations: DecorationSet.empty,
+                  positions: []
+                };
               }
               
               const decos: Decoration[] = [];
@@ -55,12 +100,18 @@ export const SuggestionsExtension = Extension.create({
                     el.setAttribute("data-testid", `suggestion-span-${s.id}`);
                     el.className = "suggest-insert";
                     el.textContent = `+${s.after}`;
-                    el.title = s.note;
+                    el.title = sanitizeNote(s.note);
                     return el;
                   }));
                 } else {
                   const from = Math.max(0, s.pmFrom);
                   let to = Math.max(from, s.pmTo);
+                  
+                  // Validate positions are within document bounds
+                  if (to > newState.doc.content.size) {
+                    to = newState.doc.content.size;
+                  }
+                  if (from >= to) continue; // Skip invalid ranges
                   
                   if (to - from < 2) {
                     const expand = 2;
@@ -72,7 +123,7 @@ export const SuggestionsExtension = Extension.create({
                       "data-actor": s.actor,
                       id: `suggestion-span-${s.id}`,
                       "data-testid": `suggestion-span-${s.id}`,
-                      title: s.note
+                      title: sanitizeNote(s.note)
                     }));
                   } else {
                     decos.push(Decoration.inline(from, to, {
@@ -81,43 +132,49 @@ export const SuggestionsExtension = Extension.create({
                       "data-actor": s.actor,
                       id: `suggestion-span-${s.id}`,
                       "data-testid": `suggestion-span-${s.id}`,
-                      title: s.note
+                      title: sanitizeNote(s.note)
                     }));
                   }
                 }
               }
-              return DecorationSet.create(tr.doc, decos);
+              
+              const timingMs = performance.now() - start;
+              mappingDiagnostics.logEvent({
+                type: 'mapping',
+                success: true,
+                itemCount: cappedList.length,
+                timingMs
+              });
+              
+              return {
+                decorations: DecorationSet.create(tr.doc, decos),
+                positions: newPositions
+              };
             }
             
-            // On doc changes: efficiently map existing decoration positions
+            // No changes needed
             if (tr.docChanged) {
-              const mappedSet = oldSet.map(tr.mapping, tr.doc);
-              
-              // Debounced remapping of suggestion positions
-              if (remapTimeout) {
-                clearTimeout(remapTimeout);
-              }
-              remapTimeout = setTimeout(() => {
-                const allSuggestions = getUISuggestions();
-                // Update pmFrom/pmTo positions based on document changes
-                allSuggestions.forEach(suggestion => {
-                  const newFrom = tr.mapping.map(suggestion.pmFrom, 1);
-                  const newTo = suggestion.pmTo ? tr.mapping.map(suggestion.pmTo, -1) : newFrom;
-                  suggestion.pmFrom = newFrom;
-                  suggestion.pmTo = newTo;
-                });
-              }, REMAP_DEBOUNCE_MS);
-              
-              return mappedSet;
+              // Just return with remapped positions and mapped decorations
+              return {
+                decorations: pluginState.decorations.map(tr.mapping, tr.doc),
+                positions: newPositions
+              };
             }
             
-            return oldSet;
+            return pluginState;
           }
         },
         props: {
           decorations(state) {
-            return this.getState(state);
+            const pluginState = this.getState(state);
+            return pluginState?.decorations || DecorationSet.empty;
           }
+        },
+        
+        // Helper to get current plugin positions
+        getPositions(state: any): PluginSuggestion[] {
+          const pluginState = this.getState(state);
+          return pluginState?.positions || [];
         }
       })
     ];
