@@ -137,9 +137,16 @@ export class SegmentMapper {
       return { valid: false, reason: 'Invalid position range' };
     }
     
-    // Get actual text at mapped position
-    const actualText = this.editor.state.doc.textBetween(pmFrom, pmTo, '\n', '\n');
+    // CRITICAL FIX: Use consistent text extraction method
+    // The problem was using doc.textBetween() vs editor.getText() inconsistency
+    const editorText = this.editor.getText();
+    const actualText = editorText.substring(textStart, textEnd);
     const plainTextSpan = this.plainText.substring(textStart, textEnd);
+    
+    console.log(`[Validation Debug] Text comparison for ${textStart}-${textEnd}:`);
+    console.log(`  Plain text span: "${plainTextSpan}"`);
+    console.log(`  Editor text span: "${actualText}"`);
+    console.log(`  Match: ${actualText === plainTextSpan}`);
     
     if (actualText !== plainTextSpan) {
       return { 
