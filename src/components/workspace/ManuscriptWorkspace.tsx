@@ -38,11 +38,17 @@ import {
   Plus,
   ChevronDown,
   MoreHorizontal,
-  Loader2
+  Loader2,
+  FileText,
+  Clock,
+  CheckCircle,
+  XCircle,
+  RefreshCw
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
 import { ChecksList } from "./ChecksList";
+import { ProcessingStatus } from "./ProcessingStatus";
 import { supabase } from "@/integrations/supabase/client";
 
 const ManuscriptWorkspace = () => {
@@ -57,6 +63,7 @@ const ManuscriptWorkspace = () => {
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]); // For the sheet
+  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   
   // Run AI Settings state
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
@@ -718,6 +725,7 @@ const ManuscriptWorkspace = () => {
 
           {/* Right: Status badges and metadata */}
           <div className="flex items-center gap-2 lg:gap-4 flex-wrap lg:flex-nowrap flex-shrink-0">
+            <ProcessingStatus manuscript={manuscript} />
             <Badge className={getStatusBadgeVariant(manuscript.status)}>
               Round {manuscript.round}
             </Badge>

@@ -200,4 +200,26 @@ export class ManuscriptService {
   static async updateSuggestions(id: string, suggestions: SuggestionData[]): Promise<ManuscriptDB> {
     return this.updateManuscript(id, { suggestions });
   }
+
+  // Trigger DOCX processing for a manuscript
+  static async processDocx(manuscriptId: string, filePath: string): Promise<void> {
+    try {
+      const { data, error } = await supabase.functions.invoke('process-docx', {
+        body: { 
+          manuscriptId, 
+          filePath 
+        }
+      });
+
+      if (error) {
+        console.error('DOCX processing error:', error);
+        throw new Error(`Failed to process DOCX: ${error.message}`);
+      }
+
+      console.log('DOCX processing initiated:', data);
+    } catch (error) {
+      console.error('Error invoking DOCX processing:', error);
+      throw error;
+    }
+  }
 }

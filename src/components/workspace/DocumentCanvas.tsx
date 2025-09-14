@@ -8,6 +8,7 @@ import { useManuscripts } from "@/contexts/ManuscriptsContext";
 import { setGlobalEditor, textToHtml, getGlobalEditor } from "@/lib/editorUtils";
 import { SuggestContextMenu } from "./SuggestContextMenu";
 import { SuggestDialog } from "@/components/ui/suggest-dialog";
+import { ProcessingStatusCard } from "./ProcessingStatus";
 import type { UISuggestion } from "@/lib/suggestionMapper";
 import type { CheckItem } from "@/lib/styleValidator";
 import type { SuggestionType } from "@/lib/types";
@@ -122,6 +123,7 @@ export const DocumentCanvas = ({
           className="w-full max-w-4xl bg-document border border-card-border shadow-sm"
         >
           <div className="p-6 lg:p-12">
+            <ProcessingStatusCard manuscript={manuscript} />
             <div className="manuscript-content">
               <h1 className="text-2xl lg:text-3xl font-bold mb-6 lg:mb-8 text-center">{manuscript.title}</h1>
               

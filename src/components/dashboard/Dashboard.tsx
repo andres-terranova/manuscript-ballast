@@ -223,10 +223,21 @@ const Dashboard = () => {
       // Add manuscript to store
       addManuscript(frontendManuscript);
       
-      toast({
-        title: "DOCX Upload Complete",
-        description: `"${frontendManuscript.title}" is being processed. You can view its progress in the workspace.`,
-      });
+      // Start DOCX processing in the background
+      try {
+        await ManuscriptService.processDocx(newManuscript.id, filePath);
+        toast({
+          title: "DOCX Processing Started",
+          description: `"${frontendManuscript.title}" is being processed. You can view its progress in the workspace.`,
+        });
+      } catch (processingError) {
+        console.error('Failed to start DOCX processing:', processingError);
+        toast({
+          title: "Upload Complete",
+          description: `"${frontendManuscript.title}" uploaded successfully, but processing failed. You can retry from the workspace.`,
+          variant: "destructive"
+        });
+      }
       
       setShowUploadModal(false);
       setUploadStep(1);
