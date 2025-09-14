@@ -12,6 +12,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { markdownToHtml, htmlToPlainText, validateMarkdownFile, readFileAsText } from "@/lib/markdownUtils";
 import { updateEditorContent } from "@/lib/editorUtils";
+import { ManuscriptService } from "@/services/manuscriptService";
+import { dbToFrontend } from "@/types/manuscript";
 
 const Dashboard = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -20,6 +22,8 @@ const Dashboard = () => {
   const [uploadError, setUploadError] = useState<string>("");
   const [uploadWarning, setUploadWarning] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileType, setFileType] = useState<'markdown' | 'docx' | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loggedIn, logout } = useAuth();
@@ -104,17 +108,46 @@ const Dashboard = () => {
     }).format(new Date(isoDate));
   };
 
+  const validateFile = (file: File): { valid: boolean; error?: string; type?: 'markdown' | 'docx' } => {
+    const fileName = file.name.toLowerCase();
+    const fileSize = file.size;
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    
+    if (fileSize > maxSize) {
+      return { valid: false, error: "File size must be less than 20MB" };
+    }
+    
+    if (fileName.endsWith('.md') || fileName.endsWith('.markdown')) {
+      return { valid: true, type: 'markdown' };
+    } else if (fileName.endsWith('.docx')) {
+      return { valid: true, type: 'docx' };
+    } else {
+      return { valid: false, error: "Only Markdown (.md) and Word (.docx) files are supported" };
+    }
+  };
+
   const handleFileSelect = async (file: File) => {
     setUploadError("");
     setUploadWarning("");
     
     // Validate file
-    const validation = validateMarkdownFile(file);
+    const validation = validateFile(file);
     if (!validation.valid) {
       setUploadError(validation.error || "Invalid file");
       return;
     }
     
+    setSelectedFile(file);
+    setFileType(validation.type!);
+    
+    if (validation.type === 'markdown') {
+      await processMarkdownFile(file);
+    } else if (validation.type === 'docx') {
+      await processDocxFile(file);
+    }
+  };
+
+  const processMarkdownFile = async (file: File) => {
     setIsUploading(true);
     
     try {
@@ -132,44 +165,80 @@ const Dashboard = () => {
         setUploadWarning("Local image paths aren't supported yet; images may not display correctly.");
       }
       
-      // Create new manuscript
-      const newManuscript: Manuscript = {
-        id: `m${Date.now()}`,
-        title: file.name.replace('.md', ''),
-        owner: "A. Editor",
-        round: 1,
-        status: "In Review",
-        ballInCourt: "Editor",
-        updatedAt: new Date().toISOString(),
-        excerpt: plainText.substring(0, 100) + "...",
-        contentText: plainText,
-        contentHtml: htmlContent,
-        sourceMarkdown: markdownContent,
-        changes: [],
-        comments: [],
-        checks: [],
-        newContent: []
+      // Create new manuscript using ManuscriptService
+      const manuscriptData = {
+        title: file.name.replace(/\.(md|markdown)$/i, ''),
+        content_text: plainText,
+        content_html: htmlContent,
+        source_markdown: markdownContent,
+        style_rules: []
       };
+
+      const newManuscript = await ManuscriptService.createManuscript(manuscriptData);
+      const frontendManuscript = dbToFrontend(newManuscript);
       
       // Add manuscript to store
-      addManuscript(newManuscript);
+      addManuscript(frontendManuscript);
       
-      // Update TipTap editor content if we're currently editing this manuscript
-      updateEditorContent(htmlContent);
       toast({
         title: "Imported from Markdown",
-        description: `Successfully imported "${newManuscript.title}".`,
+        description: `Successfully imported "${frontendManuscript.title}".`,
       });
       
       setShowUploadModal(false);
       setUploadStep(1);
+      setSelectedFile(null);
+      setFileType(null);
       
       // Navigate to the new manuscript
-      navigate(`/manuscript/${newManuscript.id}`);
+      navigate(`/manuscript/${frontendManuscript.id}`);
       
     } catch (error) {
       console.error('Error processing markdown:', error);
       setUploadError("Failed to process markdown file. Please check the file format.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const processDocxFile = async (file: File) => {
+    setIsUploading(true);
+    
+    try {
+      // Upload DOCX file to storage
+      const filePath = await ManuscriptService.uploadDocxFile(file);
+      
+      // Create manuscript with DOCX metadata
+      const manuscriptData = {
+        title: file.name.replace(/\.docx$/i, ''),
+        docx_file_path: filePath,
+        original_filename: file.name,
+        file_size: file.size,
+        style_rules: []
+      };
+
+      const newManuscript = await ManuscriptService.createManuscript(manuscriptData);
+      const frontendManuscript = dbToFrontend(newManuscript);
+      
+      // Add manuscript to store
+      addManuscript(frontendManuscript);
+      
+      toast({
+        title: "DOCX Upload Complete",
+        description: `"${frontendManuscript.title}" is being processed. You can view its progress in the workspace.`,
+      });
+      
+      setShowUploadModal(false);
+      setUploadStep(1);
+      setSelectedFile(null);
+      setFileType(null);
+      
+      // Navigate to the new manuscript
+      navigate(`/manuscript/${frontendManuscript.id}`);
+      
+    } catch (error) {
+      console.error('Error processing DOCX:', error);
+      setUploadError("Failed to upload DOCX file. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -266,37 +335,56 @@ const Dashboard = () => {
                       >
                         <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">
-                          Drop your Markdown file here
+                          Drop your manuscript file here
                         </h3>
                         <p className="text-gray-600 mb-4">
-                          or click to browse .md files
+                          Supports Markdown (.md) and Word (.docx) files
                         </p>
                         <input
-                          id="md-upload-input"
+                          id="file-upload-input"
                           type="file"
-                          accept=".md"
+                          accept=".md,.markdown,.docx"
                           className="hidden"
                           onChange={handleFileInputChange}
                           disabled={isUploading}
                         />
                         <Button 
                           variant="outline"
-                          onClick={() => document.getElementById('md-upload-input')?.click()}
+                          onClick={() => document.getElementById('file-upload-input')?.click()}
                           disabled={isUploading}
                         >
-                          {isUploading ? "Processing..." : "Choose File"}
+                          {isUploading ? (
+                            fileType === 'docx' ? "Uploading DOCX..." : "Processing Markdown..."
+                          ) : "Choose File"}
                         </Button>
                       </div>
                       
                       {uploadError && (
-                        <div id="md-upload-error" className="text-red-600 text-sm bg-red-50 p-3 rounded">
+                        <div id="upload-error" className="text-red-600 text-sm bg-red-50 p-3 rounded">
                           {uploadError}
                         </div>
                       )}
                       
                       {uploadWarning && (
-                        <div id="md-upload-warning" className="text-amber-600 text-sm bg-amber-50 p-3 rounded">
+                        <div id="upload-warning" className="text-amber-600 text-sm bg-amber-50 p-3 rounded">
                           {uploadWarning}
+                        </div>
+                      )}
+
+                      {selectedFile && (
+                        <div className="bg-gray-50 p-3 rounded border">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium">{selectedFile.name}</span>
+                            <span className="text-xs text-gray-500">
+                              ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                            </span>
+                            {fileType && (
+                              <Badge variant="secondary" className="text-xs">
+                                {fileType.toUpperCase()}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
