@@ -39,16 +39,8 @@ export const DocumentCanvas = ({
   const [hasSelection, setHasSelection] = useState(false);
 
   // Initialize contentHtml from contentText if not present
+  // Generate contentHtml locally without triggering database updates to prevent infinite loop
   const contentHtml = manuscript.contentHtml || textToHtml(manuscript.contentText);
-  
-  // Update manuscript with contentHtml if it wasn't present
-  useEffect(() => {
-    if (!manuscript.contentHtml) {
-      updateManuscript(manuscript.id, { 
-        content_html: textToHtml(manuscript.contentText) 
-      });
-    }
-  }, [manuscript.id, manuscript.contentHtml, manuscript.contentText, updateManuscript]);
 
   const handleEditorUpdate = (html: string, text: string) => {
     updateManuscript(manuscript.id, {

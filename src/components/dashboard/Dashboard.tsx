@@ -190,8 +190,10 @@ const Dashboard = () => {
       setSelectedFile(null);
       setFileType(null);
       
-      // Navigate to the new manuscript
-      navigate(`/manuscript/${frontendManuscript.id}`);
+      // Add a small delay to ensure manuscript is in context before navigation
+      setTimeout(() => {
+        navigate(`/manuscript/${frontendManuscript.id}`);
+      }, 100);
       
     } catch (error) {
       console.error('Error processing markdown:', error);
@@ -244,8 +246,10 @@ const Dashboard = () => {
       setSelectedFile(null);
       setFileType(null);
       
-      // Navigate to the new manuscript
-      navigate(`/manuscript/${frontendManuscript.id}`);
+      // Add a small delay to ensure manuscript is in context before navigation
+      setTimeout(() => {
+        navigate(`/manuscript/${frontendManuscript.id}`);
+      }, 100);
       
     } catch (error) {
       console.error('Error processing DOCX:', error);

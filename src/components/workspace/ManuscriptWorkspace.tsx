@@ -55,9 +55,12 @@ const ManuscriptWorkspace = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getManuscriptById, updateManuscript } = useManuscripts();
+  const { getManuscriptById, updateManuscript, refreshManuscripts } = useManuscripts();
   const [manuscript, setManuscript] = useState<Manuscript | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
   const [activeTab, setActiveTab] = useState("changes");
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
@@ -611,21 +614,51 @@ const ManuscriptWorkspace = () => {
   };
 
   useEffect(() => {
-    if (!id) {
-      navigate("/dashboard");
-      return;
-    }
+    const loadManuscript = async () => {
+      if (!id) {
+        navigate("/dashboard");
+        return;
+      }
+      
+      setIsLoading(true);
+      
+      // Try to find manuscript in context first
+      let found = getManuscriptById(id);
+      
+      // If not found and we haven't exceeded retry limit, refresh manuscripts context
+      if (!found && retryCount < maxRetries) {
+        try {
+          // Force refresh manuscripts from database
+          await refreshManuscripts();
+          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay for context to update
+          found = getManuscriptById(id);
+          
+          if (!found) {
+            setRetryCount(prev => prev + 1);
+            return; // This will re-trigger the effect
+          }
+        } catch (error) {
+          console.error('Error refreshing manuscripts:', error);
+          setRetryCount(prev => prev + 1);
+          return;
+        }
+      }
+      
+      if (!found) {
+        setNotFound(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      setManuscript(found);
+      setContentText(found.contentText);
+      setNotFound(false);
+      setIsLoading(false);
+      setRetryCount(0); // Reset retry count on success
+    };
     
-    const found = getManuscriptById(id);
-    if (!found) {
-      setNotFound(true);
-      return;
-    }
-    
-    setManuscript(found);
-    setContentText(found.contentText);
-    setNotFound(false);
-  }, [id, navigate, getManuscriptById]);
+    loadManuscript();
+  }, [id, navigate, getManuscriptById, retryCount, refreshManuscripts]);
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
@@ -642,11 +675,27 @@ const ManuscriptWorkspace = () => {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-muted-foreground">
+            {retryCount > 0 ? `Loading manuscript... (${retryCount}/${maxRetries})` : 'Loading manuscript...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (notFound) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4">Manuscript not found</h1>
+          <p className="text-muted-foreground mb-4">
+            The manuscript you're looking for doesn't exist or couldn't be loaded.
+          </p>
           <Button onClick={() => navigate("/dashboard")}>
             Back to Dashboard
           </Button>
@@ -656,7 +705,14 @@ const ManuscriptWorkspace = () => {
   }
 
   if (!manuscript) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Preparing manuscript...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

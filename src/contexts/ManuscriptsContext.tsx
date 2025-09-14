@@ -269,10 +269,13 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       setManuscripts(prev => [frontendManuscript, ...prev]);
       
-      toast({
-        title: "Success",
-        description: "Manuscript created successfully",
-      });
+      // Only show success toast for non-DOCX uploads or when processing succeeds
+      if (!inputWithDefaults.docx_file_path) {
+        toast({
+          title: "Success",
+          description: "Manuscript created successfully",
+        });
+      }
       
       return frontendManuscript;
     } catch (err) {
