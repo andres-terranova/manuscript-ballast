@@ -37,11 +37,6 @@ export class ManuscriptService {
   
   // Create a new manuscript
   static async createManuscript(input: ManuscriptCreateInput): Promise<ManuscriptDB> {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) {
-      throw new Error('User not authenticated');
-    }
-    
     // Calculate word count and excerpt if content provided
     const wordCount = input.content_text ? this.calculateWordCount(input.content_text) : 0;
     const characterCount = input.content_text ? input.content_text.length : 0;
@@ -49,7 +44,7 @@ export class ManuscriptService {
     
     const manuscriptData = {
       title: input.title,
-      owner_id: user.user.id,
+      owner_id: null, // MVP doesn't need user association
       status: 'in_progress' as const,
       ball_in_court: 'editor' as const,
       content_text: input.content_text || null,
@@ -123,13 +118,8 @@ export class ManuscriptService {
   
   // Upload DOCX file to storage
   static async uploadDocxFile(file: File): Promise<string> {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) {
-      throw new Error('User not authenticated');
-    }
-    
     const fileExt = file.name.split('.').pop();
-    const fileName = `${user.user.id}/${Date.now()}.${fileExt}`;
+    const fileName = `mvp-uploads/${Date.now()}.${fileExt}`;
     
     const { data, error } = await supabase.storage
       .from('manuscripts')

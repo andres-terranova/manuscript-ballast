@@ -1,10 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { User } from '@supabase/supabase-js';
+
+interface MockUser {
+  id: string;
+  email: string;
+}
 
 interface AuthContextType {
   loggedIn: boolean;
-  user: User | null;
+  user: MockUser | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
@@ -18,64 +21,44 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<MockUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoggedIn(!!session?.user);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      setLoggedIn(!!session?.user);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    // Check localStorage for authentication status
+    const isAuthenticated = localStorage.getItem("ballast_authenticated");
+    const userEmail = localStorage.getItem("ballast_user_email");
+    
+    if (isAuthenticated === "true" && userEmail) {
+      setUser({ id: "mock-user-id", email: userEmail });
+      setLoggedIn(true);
+    }
+    setLoading(false);
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error('Login error:', error);
-        return false;
-      }
-
-      setUser(data.user);
+    setLoading(true);
+    
+    // Mock authentication - accept demo credentials
+    if (email === "demo@ballast.com" && password === "demo123") {
+      const mockUser = { id: "mock-user-id", email };
+      setUser(mockUser);
       setLoggedIn(true);
-      return true;
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
-    } finally {
+      localStorage.setItem("ballast_authenticated", "true");
+      localStorage.setItem("ballast_user_email", email);
       setLoading(false);
+      return true;
     }
+    
+    setLoading(false);
+    return false;
   };
 
-  const logout = async () => {
-    try {
-      setLoading(true);
-      await supabase.auth.signOut();
-      setUser(null);
-      setLoggedIn(false);
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      setLoading(false);
-    }
+  const logout = () => {
+    setUser(null);
+    setLoggedIn(false);
+    localStorage.removeItem("ballast_authenticated");
+    localStorage.removeItem("ballast_user_email");
   };
 
   return (

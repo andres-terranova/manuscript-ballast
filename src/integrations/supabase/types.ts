@@ -27,7 +27,7 @@ export type Database = {
           file_size: number | null
           id: string
           original_filename: string | null
-          owner_id: string
+          owner_id: string | null
           processing_error: string | null
           processing_status: string | null
           source_markdown: string | null
@@ -50,7 +50,7 @@ export type Database = {
           file_size?: number | null
           id?: string
           original_filename?: string | null
-          owner_id: string
+          owner_id?: string | null
           processing_error?: string | null
           processing_status?: string | null
           source_markdown?: string | null
@@ -73,7 +73,7 @@ export type Database = {
           file_size?: number | null
           id?: string
           original_filename?: string | null
-          owner_id?: string
+          owner_id?: string | null
           processing_error?: string | null
           processing_status?: string | null
           source_markdown?: string | null
