@@ -95,8 +95,7 @@ const ManuscriptWorkspace = () => {
     if (!manuscript) return;
     
     updateManuscript(manuscript.id, {
-      styleRules: tempStyleRules,
-      updatedAt: new Date().toISOString()
+      style_rules: tempStyleRules
     });
     
     // Update local state
@@ -584,9 +583,8 @@ const ManuscriptWorkspace = () => {
     if (!manuscript || manuscript.status === "Reviewed") return;
 
     updateManuscript(manuscript.id, {
-      status: "Reviewed",
-      ballInCourt: "None",
-      updatedAt: new Date().toISOString()
+      status: "reviewed",
+      ball_in_court: "editor"
     });
 
     // Update local state

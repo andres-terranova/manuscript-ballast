@@ -44,16 +44,15 @@ export const DocumentCanvas = ({
   useEffect(() => {
     if (!manuscript.contentHtml) {
       updateManuscript(manuscript.id, { 
-        contentHtml: textToHtml(manuscript.contentText) 
+        content_html: textToHtml(manuscript.contentText) 
       });
     }
   }, [manuscript.id, manuscript.contentHtml, manuscript.contentText, updateManuscript]);
 
   const handleEditorUpdate = (html: string, text: string) => {
     updateManuscript(manuscript.id, {
-      contentHtml: html,
-      contentText: text,
-      updatedAt: new Date().toISOString()
+      content_html: html,
+      content_text: text
     });
   };
 
