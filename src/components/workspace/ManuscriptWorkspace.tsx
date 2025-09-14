@@ -511,8 +511,9 @@ const ManuscriptWorkspace = () => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
+      // Use manuscriptId for DOCX-aware processing to ensure consistent text extraction
       const { data, error } = await supabase.functions.invoke('suggest', {
-        body: { text, scope, rules }
+        body: { manuscriptId: manuscript.id, scope, rules }
       });
       
       clearTimeout(timeout);
