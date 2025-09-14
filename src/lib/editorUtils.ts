@@ -57,7 +57,8 @@ export async function mapAndRefreshSuggestions(serverSuggestions: any[], setUISu
   console.log('mapAndRefreshSuggestions called with', serverSuggestions.length, 'server suggestions');
   if (!globalEditor) return;
   
-  const currentText = await getEditorPlainText();
+  // Use editor's actual text for position mapping (not DOCX text)
+  const currentText = globalEditor.getText();
   console.log('Current editor text length:', currentText.length);
   const mapped = mapPlainTextToPM(globalEditor, currentText, serverSuggestions);
   setUISuggestions(mapped);
