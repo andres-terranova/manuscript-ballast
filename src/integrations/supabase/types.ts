@@ -14,7 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      manuscripts: {
+        Row: {
+          ball_in_court: string
+          character_count: number | null
+          comments: Json | null
+          content_html: string | null
+          content_text: string | null
+          created_at: string
+          docx_file_path: string | null
+          excerpt: string | null
+          file_size: number | null
+          id: string
+          original_filename: string | null
+          owner_id: string
+          processing_error: string | null
+          processing_status: string | null
+          source_markdown: string | null
+          status: string
+          style_rules: Json | null
+          suggestions: Json | null
+          title: string
+          updated_at: string
+          word_count: number | null
+        }
+        Insert: {
+          ball_in_court?: string
+          character_count?: number | null
+          comments?: Json | null
+          content_html?: string | null
+          content_text?: string | null
+          created_at?: string
+          docx_file_path?: string | null
+          excerpt?: string | null
+          file_size?: number | null
+          id?: string
+          original_filename?: string | null
+          owner_id: string
+          processing_error?: string | null
+          processing_status?: string | null
+          source_markdown?: string | null
+          status?: string
+          style_rules?: Json | null
+          suggestions?: Json | null
+          title: string
+          updated_at?: string
+          word_count?: number | null
+        }
+        Update: {
+          ball_in_court?: string
+          character_count?: number | null
+          comments?: Json | null
+          content_html?: string | null
+          content_text?: string | null
+          created_at?: string
+          docx_file_path?: string | null
+          excerpt?: string | null
+          file_size?: number | null
+          id?: string
+          original_filename?: string | null
+          owner_id?: string
+          processing_error?: string | null
+          processing_status?: string | null
+          source_markdown?: string | null
+          status?: string
+          style_rules?: Json | null
+          suggestions?: Json | null
+          title?: string
+          updated_at?: string
+          word_count?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
