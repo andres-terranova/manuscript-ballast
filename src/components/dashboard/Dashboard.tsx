@@ -219,15 +219,12 @@ const Dashboard = () => {
         style_rules: []
       };
 
-      const newManuscript = await ManuscriptService.createManuscript(manuscriptData);
-      const frontendManuscript = dbToFrontend(newManuscript);
-      
-      // Add manuscript to store
-      addManuscript(frontendManuscript);
+      // Create manuscript through context (which handles database creation)
+      const frontendManuscript = await addManuscript(manuscriptData);
       
       // Start DOCX processing in the background
       try {
-        await ManuscriptService.processDocx(newManuscript.id, filePath);
+        await ManuscriptService.processDocx(frontendManuscript.id, filePath);
         toast({
           title: "DOCX Processing Started",
           description: `"${frontendManuscript.title}" is being processed. You can view its progress in the workspace.`,
