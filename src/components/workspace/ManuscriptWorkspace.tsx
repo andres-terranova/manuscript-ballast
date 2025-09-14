@@ -17,6 +17,7 @@ import { createSuggestionId, sanitizeNote } from "@/lib/types";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { checksPluginKey } from "@/lib/checksPlugin";
 import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions, setCurrentDocxFilePath } from "@/lib/editorUtils";
+import { extractTextFromDocx, clearTextCache } from "@/lib/unifiedTextExtraction";
 import { useToast } from "@/hooks/use-toast";
 import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
 import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
@@ -623,6 +624,10 @@ const ManuscriptWorkspace = () => {
       
       setIsLoading(true);
       
+      // Clear text cache when switching manuscripts
+      clearTextCache();
+      console.log('Cleared text cache for new manuscript');
+      
       // Try to find manuscript in context first
       let found = getManuscriptById(id);
       
@@ -652,12 +657,22 @@ const ManuscriptWorkspace = () => {
       }
       
       setManuscript(found);
-      setContentText(found.contentText);
       
-      // Set current DOCX file path for unified text extraction
+      // Extract content from DOCX if available for consistency with AI
       if (found.docxFilePath) {
         setCurrentDocxFilePath(found.docxFilePath);
         console.log('Set DOCX file path for unified text extraction:', found.docxFilePath);
+        
+        try {
+          const extractedText = await extractTextFromDocx(found.docxFilePath);
+          console.log('Extracted text from DOCX for editor consistency:', extractedText.length, 'characters');
+          setContentText(extractedText);
+        } catch (error) {
+          console.error('Failed to extract text from DOCX, using stored content:', error);
+          setContentText(found.contentText);
+        }
+      } else {
+        setContentText(found.contentText);
       }
       
       setNotFound(false);
