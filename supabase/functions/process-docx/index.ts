@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.2'
+import mammoth from 'https://esm.sh/mammoth@1.10.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -118,8 +119,7 @@ Deno.serve(async (req) => {
 })
 
 /**
- * Process DOCX content - Enhanced version with improved structure
- * TODO: Integrate mammoth.js for proper DOCX parsing in Deno environment
+ * Process DOCX content using mammoth.js
  */
 async function processDocxContent(arrayBuffer: ArrayBuffer): Promise<{ 
   plainText: string; 
@@ -128,89 +128,21 @@ async function processDocxContent(arrayBuffer: ArrayBuffer): Promise<{
   characterCount: number; 
 }> {
   try {
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const fileSizeKB = (uint8Array.length / 1024).toFixed(2);
+    console.log('Processing DOCX with mammoth.js...');
     
-    // Enhanced placeholder content that simulates real DOCX extraction
-    const plainText = `Sample Business Proposal
-
-Executive Summary
-
-This document represents a comprehensive business proposal that has been successfully uploaded and processed through the Ballast manuscript editing system.
-
-Introduction
-
-The uploaded DOCX file has been received and processed. The document contains structured content including headings, paragraphs, and formatting that would typically be preserved during the conversion process.
-
-Key Features Demonstrated:
-- Proper document structure with headings
-- Multiple paragraphs with varied content
-- Formatted text elements
-- Professional document layout
-
-Technical Details
-
-File Processing Information:
-- Original file size: ${fileSizeKB} KB
-- Processing status: Successfully completed
-- Content extraction: Functional
-- Format preservation: Maintained
-
-Next Steps
-
-This processed document is now ready for AI-powered editing suggestions. The system will analyze the content for:
-1. Grammar and spelling corrections
-2. Style improvements
-3. Consistency checks
-4. Professional language enhancement
-
-The document processing pipeline is working correctly and ready for the next phase of implementation.
-
-Conclusion
-
-The DOCX processing infrastructure is successfully handling file uploads and content extraction. This foundation enables accurate position mapping and AI processing.`;
-
-    const html = `<div class="docx-content">
-      <h1>Sample Business Proposal</h1>
-      
-      <h2>Executive Summary</h2>
-      <p>This document represents a comprehensive business proposal that has been successfully uploaded and processed through the Ballast manuscript editing system.</p>
-      
-      <h2>Introduction</h2>
-      <p>The uploaded DOCX file has been received and processed. The document contains structured content including headings, paragraphs, and formatting that would typically be preserved during the conversion process.</p>
-      
-      <h3>Key Features Demonstrated:</h3>
-      <ul>
-        <li>Proper document structure with headings</li>
-        <li>Multiple paragraphs with varied content</li>
-        <li>Formatted text elements</li>
-        <li>Professional document layout</li>
-      </ul>
-      
-      <h2>Technical Details</h2>
-      <p><strong>File Processing Information:</strong></p>
-      <ul>
-        <li>Original file size: ${fileSizeKB} KB</li>
-        <li>Processing status: Successfully completed</li>
-        <li>Content extraction: Functional</li>
-        <li>Format preservation: Maintained</li>
-      </ul>
-      
-      <h2>Next Steps</h2>
-      <p>This processed document is now ready for AI-powered editing suggestions. The system will analyze the content for:</p>
-      <ol>
-        <li>Grammar and spelling corrections</li>
-        <li>Style improvements</li>
-        <li>Consistency checks</li>
-        <li>Professional language enhancement</li>
-      </ol>
-      
-      <p>The document processing pipeline is working correctly and ready for the next phase of implementation.</p>
-      
-      <h2>Conclusion</h2>
-      <p>The DOCX processing infrastructure is successfully handling file uploads and content extraction. This foundation enables accurate position mapping and AI processing.</p>
-    </div>`;
-
+    // Convert DOCX to HTML using mammoth
+    const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+    const html = htmlResult.value;
+    
+    // Extract plain text using mammoth
+    const textResult = await mammoth.extractRawText({ arrayBuffer });
+    const plainText = textResult.value;
+    
+    // Log any conversion messages/warnings
+    if (htmlResult.messages.length > 0) {
+      console.log('Mammoth conversion messages:', htmlResult.messages);
+    }
+    
     // Calculate statistics
     const wordCount = plainText.trim().split(/\s+/).filter(word => word.length > 0).length;
     const characterCount = plainText.length;
@@ -224,7 +156,7 @@ The DOCX processing infrastructure is successfully handling file uploads and con
       characterCount
     };
   } catch (error) {
-    console.error('Content processing error:', error);
+    console.error('Mammoth processing error:', error);
     throw new Error(`Failed to process DOCX content: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
