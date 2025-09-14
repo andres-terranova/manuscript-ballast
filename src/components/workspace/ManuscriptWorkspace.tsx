@@ -183,20 +183,21 @@ const ManuscriptWorkspace = () => {
   // Use ref to hold current suggestions so plugin can always access them
   const suggestionsRef = useRef<UISuggestion[]>([]);
   
-  // Update ref when suggestions change
+  // Update ref when suggestions change and force plugin refresh
   useEffect(() => {
+    console.log('Updating suggestionsRef with', suggestions.length, 'suggestions');
     suggestionsRef.current = suggestions;
-    console.log('Updated suggestionsRef with', suggestions.length, 'suggestions');
     
-    // Refresh plugin when suggestions change
-    if (suggestions.length > 0) {
-      const editor = getGlobalEditor();
-      if (editor) {
-        console.log('Force refreshing plugin with', suggestions.length, 'suggestions');
+    // Always refresh plugin when suggestions change (even if empty to clear decorations)
+    const editor = getGlobalEditor();
+    if (editor?.view) {
+      console.log('Force refreshing plugin with', suggestions.length, 'suggestions');
+      // Use setTimeout to ensure ref update happens before plugin reads it
+      setTimeout(() => {
         editor.view.dispatch(
           editor.state.tr.setMeta(suggestionsPluginKey, "refresh")
         );
-      }
+      }, 0);
     }
   }, [suggestions]);
 
