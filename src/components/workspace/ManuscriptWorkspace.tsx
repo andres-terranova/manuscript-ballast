@@ -16,7 +16,7 @@ import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionAc
 import { createSuggestionId, sanitizeNote } from "@/lib/types";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { checksPluginKey } from "@/lib/checksPlugin";
-import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
+import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions, setCurrentDocxFilePath } from "@/lib/editorUtils";
 import { useToast } from "@/hooks/use-toast";
 import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
 import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
@@ -491,7 +491,7 @@ const ManuscriptWorkspace = () => {
     setShowToolRunning(true);
     
     try {
-      const text = getEditorPlainText();
+      const text = await getEditorPlainText();
       
       // Warn for very large documents
       if (text.length > 100000) {
@@ -653,6 +653,13 @@ const ManuscriptWorkspace = () => {
       
       setManuscript(found);
       setContentText(found.contentText);
+      
+      // Set current DOCX file path for unified text extraction
+      if (found.docxFilePath) {
+        setCurrentDocxFilePath(found.docxFilePath);
+        console.log('Set DOCX file path for unified text extraction:', found.docxFilePath);
+      }
+      
       setNotFound(false);
       setIsLoading(false);
       setRetryCount(0); // Reset retry count on success
