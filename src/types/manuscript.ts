@@ -11,10 +11,10 @@ export interface ManuscriptDB {
   content_html: string | null;
   source_markdown: string | null;
   
-  // DOCX support
-  docx_file_path: string | null;
-  original_filename: string | null;
-  file_size: number | null;
+  // DOCX support (required - DOCX-first model)
+  docx_file_path: string;
+  original_filename: string;
+  file_size: number;
   processing_status: 'pending' | 'processing' | 'completed' | 'failed';
   processing_error: string | null;
   
@@ -48,12 +48,12 @@ export interface Manuscript {
   sourceMarkdown?: string;
   styleRules?: string[];
   
-  // Processing status for DOCX
-  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  // DOCX processing (required - DOCX-first model)
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
   processingError?: string;
-  docxFilePath?: string;
-  originalFilename?: string;
-  fileSize?: number;
+  docxFilePath: string;
+  originalFilename: string;
+  fileSize: number;
   
   // Derived data
   changes?: ChangeData[];
@@ -108,12 +108,12 @@ export interface NewContentData {
 // Manuscript creation/update types
 export interface ManuscriptCreateInput {
   title: string;
+  docx_file_path: string;
+  original_filename: string;
+  file_size: number;
   content_text?: string;
   content_html?: string;
   source_markdown?: string;
-  docx_file_path?: string;
-  original_filename?: string;
-  file_size?: number;
   style_rules?: string[];
   excerpt?: string;
 }
@@ -151,12 +151,12 @@ export function dbToFrontend(dbManuscript: ManuscriptDB): Manuscript {
     sourceMarkdown: dbManuscript.source_markdown || undefined,
     styleRules: dbManuscript.style_rules,
     
-    // DOCX fields
+    // DOCX fields (guaranteed to exist in DOCX-first model)
     processingStatus: dbManuscript.processing_status,
     processingError: dbManuscript.processing_error || undefined,
-    docxFilePath: dbManuscript.docx_file_path || undefined,
-    originalFilename: dbManuscript.original_filename || undefined,
-    fileSize: dbManuscript.file_size || undefined,
+    docxFilePath: dbManuscript.docx_file_path,
+    originalFilename: dbManuscript.original_filename,
+    fileSize: dbManuscript.file_size,
     
     // Convert suggestions to changes for backward compatibility
     changes: dbManuscript.suggestions.map(s => ({

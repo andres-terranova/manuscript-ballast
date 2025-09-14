@@ -165,20 +165,20 @@ const Dashboard = () => {
         setUploadWarning("Local image paths aren't supported yet; images may not display correctly.");
       }
       
-      // Create new manuscript using ManuscriptService
+      // Create new manuscript using ManuscriptService with placeholder DOCX fields
       const manuscriptData = {
         title: file.name.replace(/\.(md|markdown)$/i, ''),
+        docx_file_path: `imported/${file.name}.docx`, // Placeholder for imported markdown
+        original_filename: `${file.name}.docx`,
+        file_size: file.size,
         content_text: plainText,
         content_html: htmlContent,
         source_markdown: markdownContent,
         style_rules: []
       };
 
-      const newManuscript = await ManuscriptService.createManuscript(manuscriptData);
-      const frontendManuscript = dbToFrontend(newManuscript);
-      
-      // Add manuscript to store
-      addManuscript(frontendManuscript);
+      // Create manuscript through context
+      const frontendManuscript = await addManuscript(manuscriptData);
       
       toast({
         title: "Imported from Markdown",
