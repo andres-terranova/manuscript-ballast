@@ -16,7 +16,7 @@ import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionAc
 import { createSuggestionId, sanitizeNote } from "@/lib/types";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { checksPluginKey } from "@/lib/checksPlugin";
-import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions, setCurrentDocxFilePath } from "@/lib/editorUtils";
+import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions, setCurrentDocxFilePath, textToHtml } from "@/lib/editorUtils";
 import { extractTextFromDocx, clearTextCache } from "@/lib/unifiedTextExtraction";
 import { useToast } from "@/hooks/use-toast";
 import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
@@ -666,7 +666,11 @@ const ManuscriptWorkspace = () => {
         try {
           const extractedText = await extractTextFromDocx(found.docxFilePath);
           console.log('Extracted text from DOCX for editor consistency:', extractedText.length, 'characters');
-          setContentText(extractedText);
+          
+          // Convert plain text to HTML for proper editor display
+          const htmlContent = textToHtml(extractedText);
+          console.log('Converted plain text to HTML for editor');
+          setContentText(htmlContent);
         } catch (error) {
           console.error('Failed to extract text from DOCX, using stored content:', error);
           setContentText(found.contentText);
