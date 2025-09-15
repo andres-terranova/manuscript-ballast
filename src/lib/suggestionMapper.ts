@@ -34,8 +34,49 @@ function mapWithSegmentMapper(editor: any, plain: string, items: ServerSuggestio
   // Content verification
   if (plain !== editorText) {
     console.warn('[Segment Mapper] Text mismatch detected');
-    console.log('Plain preview:', plain.substring(0, 100));
-    console.log('Editor preview:', editorText.substring(0, 100));
+    console.log('=== DETAILED TEXT COMPARISON ===');
+    console.log('Plain text length:', plain.length);
+    console.log('Editor text length:', editorText.length);
+    console.log('Length difference:', plain.length - editorText.length);
+    
+    // Log first and last 500 characters
+    console.log('--- PLAIN TEXT (first 500 chars) ---');
+    console.log(JSON.stringify(plain.substring(0, 500)));
+    console.log('--- EDITOR TEXT (first 500 chars) ---');
+    console.log(JSON.stringify(editorText.substring(0, 500)));
+    
+    console.log('--- PLAIN TEXT (last 500 chars) ---');
+    console.log(JSON.stringify(plain.substring(Math.max(0, plain.length - 500))));
+    console.log('--- EDITOR TEXT (last 500 chars) ---');
+    console.log(JSON.stringify(editorText.substring(Math.max(0, editorText.length - 500))));
+    
+    // Find first difference
+    const minLength = Math.min(plain.length, editorText.length);
+    let firstDiffIndex = -1;
+    for (let i = 0; i < minLength; i++) {
+      if (plain[i] !== editorText[i]) {
+        firstDiffIndex = i;
+        break;
+      }
+    }
+    
+    if (firstDiffIndex >= 0) {
+      console.log('--- FIRST DIFFERENCE AT INDEX', firstDiffIndex, '---');
+      const start = Math.max(0, firstDiffIndex - 50);
+      const end = Math.min(minLength, firstDiffIndex + 50);
+      console.log('Plain around diff:', JSON.stringify(plain.substring(start, end)));
+      console.log('Editor around diff:', JSON.stringify(editorText.substring(start, end)));
+      console.log('Plain char at diff:', JSON.stringify(plain[firstDiffIndex]));
+      console.log('Editor char at diff:', JSON.stringify(editorText[firstDiffIndex]));
+    } else if (plain.length !== editorText.length) {
+      console.log('--- TEXTS MATCH UP TO LENGTH', minLength, 'BUT LENGTHS DIFFER ---');
+      if (plain.length > editorText.length) {
+        console.log('Extra chars in plain:', JSON.stringify(plain.substring(editorText.length)));
+      } else {
+        console.log('Extra chars in editor:', JSON.stringify(editorText.substring(plain.length)));
+      }
+    }
+    console.log('=== END DETAILED TEXT COMPARISON ===');
     
     mappingDiagnostics.logEvent({
       type: 'validation',
