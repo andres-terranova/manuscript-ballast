@@ -16,8 +16,7 @@ import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionAc
 import { createSuggestionId, sanitizeNote } from "@/lib/types";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { checksPluginKey } from "@/lib/checksPlugin";
-import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions, setCurrentDocxFilePath, textToHtml } from "@/lib/editorUtils";
-import { extractTextFromDocx, clearTextCache } from "@/lib/unifiedTextExtraction";
+import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
 import { useToast } from "@/hooks/use-toast";
 import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
 import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
@@ -60,6 +59,8 @@ const ManuscriptWorkspace = () => {
   const [manuscript, setManuscript] = useState<Manuscript | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
   const [activeTab, setActiveTab] = useState("changes");
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
@@ -181,34 +182,33 @@ const ManuscriptWorkspace = () => {
   // Use ref to hold current suggestions so plugin can always access them
   const suggestionsRef = useRef<UISuggestion[]>([]);
   
-  // Update ref when suggestions change and force plugin refresh (synchronous)
+  // Update ref when suggestions change
   useEffect(() => {
-    console.log('[ManuscriptWorkspace] Updating suggestionsRef with', suggestions.length, 'suggestions');
     suggestionsRef.current = suggestions;
+    console.log('Updated suggestionsRef with', suggestions.length, 'suggestions');
     
-    // Always refresh plugin when suggestions change (even if empty to clear decorations)
-    const editor = getGlobalEditor();
-    if (editor?.view) {
-      console.log('[ManuscriptWorkspace] Force refreshing suggestions plugin with', suggestions.length, 'suggestions');
-      // Synchronous refresh - no setTimeout needed since ref is already updated
-      editor.view.dispatch(
-        editor.state.tr.setMeta(suggestionsPluginKey, "refresh")
-      );
+    // Refresh plugin when suggestions change
+    if (suggestions.length > 0) {
+      const editor = getGlobalEditor();
+      if (editor) {
+        console.log('Force refreshing plugin with', suggestions.length, 'suggestions');
+        editor.view.dispatch(
+          editor.state.tr.setMeta(suggestionsPluginKey, "refresh")
+        );
+      }
     }
   }, [suggestions]);
 
   // Callback that always returns current suggestions from ref (with toggle respect)
   const getUISuggestions = useCallback(() => {
-    const result = showSuggestions ? suggestionsRef.current : [];
-    console.log('[ManuscriptWorkspace] getUISuggestions called, returning', result.length, 'suggestions from ref, showSuggestions:', showSuggestions);
-    return result;
+    console.log('getUISuggestions called, returning', suggestionsRef.current.length, 'suggestions from ref, showSuggestions:', showSuggestions);
+    return showSuggestions ? suggestionsRef.current : [];
   }, [showSuggestions]); // Dependencies include toggle state
 
   // Callback that returns current checks from ref (with toggle respect)
   const getChecks = useCallback(() => {
-    const result = showChecks ? checksRef.current : [];
-    console.log('[ManuscriptWorkspace] getChecks called, returning', result.length, 'checks from ref, showChecks:', showChecks);
-    return result;
+    console.log('getChecks called, returning', checksRef.current.length, 'checks from ref, showChecks:', showChecks);
+    return showChecks ? checksRef.current : [];
   }, [showChecks]); // Dependencies include toggle state
 
   // TipTap Transaction Helper Functions
@@ -491,7 +491,7 @@ const ManuscriptWorkspace = () => {
     setShowToolRunning(true);
     
     try {
-      const text = await getEditorPlainText();
+      const text = getEditorPlainText();
       
       // Warn for very large documents
       if (text.length > 100000) {
@@ -511,9 +511,8 @@ const ManuscriptWorkspace = () => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-      // Use manuscriptId for DOCX-aware processing to ensure consistent text extraction
       const { data, error } = await supabase.functions.invoke('suggest', {
-        body: { manuscriptId: manuscript.id, scope, rules }
+        body: { text, scope, rules }
       });
       
       clearTimeout(timeout);
@@ -623,12 +622,27 @@ const ManuscriptWorkspace = () => {
       
       setIsLoading(true);
       
-      // Clear text cache when switching manuscripts
-      clearTextCache();
-      console.log('Cleared text cache for new manuscript');
+      // Try to find manuscript in context first
+      let found = getManuscriptById(id);
       
-      // Simple manuscript loading - no retry logic to prevent infinite loops
-      const found = getManuscriptById(id);
+      // If not found and we haven't exceeded retry limit, refresh manuscripts context
+      if (!found && retryCount < maxRetries) {
+        try {
+          // Force refresh manuscripts from database
+          await refreshManuscripts();
+          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay for context to update
+          found = getManuscriptById(id);
+          
+          if (!found) {
+            setRetryCount(prev => prev + 1);
+            return; // This will re-trigger the effect
+          }
+        } catch (error) {
+          console.error('Error refreshing manuscripts:', error);
+          setRetryCount(prev => prev + 1);
+          return;
+        }
+      }
       
       if (!found) {
         setNotFound(true);
@@ -637,34 +651,14 @@ const ManuscriptWorkspace = () => {
       }
       
       setManuscript(found);
-      
-      // Extract content from DOCX if available for consistency with AI
-      if (found.docxFilePath) {
-        setCurrentDocxFilePath(found.docxFilePath);
-        console.log('Set DOCX file path for unified text extraction:', found.docxFilePath);
-        
-        try {
-          const extractedText = await extractTextFromDocx(found.docxFilePath);
-          console.log('Extracted text from DOCX for editor consistency:', extractedText.length, 'characters');
-          
-          // Convert plain text to HTML for proper editor display
-          const htmlContent = textToHtml(extractedText);
-          console.log('Converted plain text to HTML for editor');
-          setContentText(htmlContent);
-        } catch (error) {
-          console.error('Failed to extract text from DOCX, using stored content:', error);
-          setContentText(found.contentText);
-        }
-      } else {
-        setContentText(found.contentText);
-      }
-      
+      setContentText(found.contentText);
       setNotFound(false);
       setIsLoading(false);
+      setRetryCount(0); // Reset retry count on success
     };
     
     loadManuscript();
-  }, [id, navigate, getManuscriptById]); // Simplified dependencies - no retry logic
+  }, [id, navigate, getManuscriptById, retryCount, refreshManuscripts]);
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
@@ -686,7 +680,9 @@ const ManuscriptWorkspace = () => {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading manuscript...</p>
+          <p className="text-muted-foreground">
+            {retryCount > 0 ? `Loading manuscript... (${retryCount}/${maxRetries})` : 'Loading manuscript...'}
+          </p>
         </div>
       </div>
     );

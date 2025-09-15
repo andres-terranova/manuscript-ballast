@@ -1,13 +1,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Vercel AI SDK imports
 import { generateObject } from "https://esm.sh/ai@5.0.38";
 import { openai } from "https://esm.sh/@ai-sdk/openai@2.0.27";
-
-// Mammoth for DOCX processing (same as client-side)
-import mammoth from "https://esm.sh/mammoth@1.10.0";
 
 // Zod schemas (exact as specified)
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
@@ -163,43 +159,6 @@ async function generateSuggestions(text: string, scope: string, rules: string[])
   throw lastError;
 }
 
-async function extractTextFromManuscript(manuscriptId: string): Promise<string> {
-  // Initialize Supabase client
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  
-  // Get manuscript record
-  const { data: manuscript, error: fetchError } = await supabase
-    .from('manuscripts')
-    .select('docx_file_path')
-    .eq('id', manuscriptId)
-    .single();
-    
-  if (fetchError || !manuscript?.docx_file_path) {
-    throw new Error(`Manuscript not found or missing DOCX file: ${fetchError?.message}`);
-  }
-  
-  // Download DOCX file from storage
-  const { data: fileData, error: downloadError } = await supabase.storage
-    .from('manuscripts')
-    .download(manuscript.docx_file_path);
-    
-  if (downloadError || !fileData) {
-    throw new Error(`Failed to download DOCX file: ${downloadError?.message}`);
-  }
-  
-  // Convert to ArrayBuffer and extract text using mammoth (same as client-side)
-  const arrayBuffer = await fileData.arrayBuffer();
-  const result = await mammoth.extractRawText({ arrayBuffer });
-  
-  if (result.messages && result.messages.length > 0) {
-    console.warn('DOCX text extraction warnings:', result.messages);
-  }
-  
-  return result.value;
-}
-
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
@@ -245,23 +204,10 @@ serve(async (req) => {
       });
     }
 
-    const { text, manuscriptId, scope = 'entire', rules = [] } = body;
-    
-    // Get text from either direct input or DOCX file
-    let processText: string;
-    if (manuscriptId) {
-      processText = await extractTextFromManuscript(manuscriptId);
-    } else if (text) {
-      processText = text;
-    } else {
-      return new Response(JSON.stringify({ error: 'Either text or manuscriptId is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const { text, scope = 'entire', rules = [] } = body;
 
     // Validate input
-    if (!processText || typeof processText !== 'string' || processText.trim() === '') {
+    if (!text || typeof text !== 'string' || text.trim() === '') {
       return new Response(JSON.stringify({ error: 'Text is required and cannot be empty' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -269,8 +215,8 @@ serve(async (req) => {
     }
 
     // Chunk text if needed
-    const chunks = chunkText(processText);
-    console.log(`Processing ${processText.length} characters in ${chunks.length} chunks`);
+    const chunks = chunkText(text);
+    console.log(`Processing ${text.length} characters in ${chunks.length} chunks`);
 
     let allSuggestions: any[] = [];
     let currentOffset = 0;
@@ -305,7 +251,7 @@ serve(async (req) => {
     }
 
     const elapsedMs = Date.now() - startTime;
-    console.log(`Completed in ${elapsedMs}ms: ${processText.length} chars, ${chunks.length} chunks, ${allSuggestions.length} suggestions`);
+    console.log(`Completed in ${elapsedMs}ms: ${text.length} chars, ${chunks.length} chunks, ${allSuggestions.length} suggestions`);
 
     return new Response(JSON.stringify({ suggestions: allSuggestions }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

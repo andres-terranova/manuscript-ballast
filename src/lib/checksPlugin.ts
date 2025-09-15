@@ -33,14 +33,12 @@ export const ChecksExtension = Extension.create({
             
             // On explicit refresh: rebuild all decorations
             if (shouldRebuild) {
-              console.log('[ChecksPlugin] Rebuilding decorations on refresh');
+              console.log('Checks plugin rebuilding decorations on refresh');
               
               const allChecks = getChecks();
-              console.log('[ChecksPlugin] Retrieved', allChecks.length, 'checks from getChecks');
               const cappedList = allChecks.slice(0, maxVisibleChecks);
               
               if (cappedList.length === 0) {
-                console.log('[ChecksPlugin] No checks to display, clearing decorations');
                 return DecorationSet.empty;
               }
               
@@ -85,7 +83,6 @@ export const ChecksExtension = Extension.create({
                   }));
                 }
               }
-              console.log('[ChecksPlugin] Created', decos.length, 'check decorations');
               return DecorationSet.create(tr.doc, decos);
             }
             

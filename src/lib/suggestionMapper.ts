@@ -22,10 +22,9 @@ export function mapPlainTextToPM(editor: any, plain: string, items: ServerSugges
 
 /**
  * Phase 1: New unified segment mapper with diagnostics and validation
- * Now enhanced for DOCX-aware processing consistency
  */
 function mapWithSegmentMapper(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
-  console.log('[Enhanced DOCX-aware] Using new segment mapper for', items.length, 'suggestions');
+  console.log('Using new segment mapper for', items.length, 'suggestions');
   
   if (!editor?.state?.doc) return [];
   
