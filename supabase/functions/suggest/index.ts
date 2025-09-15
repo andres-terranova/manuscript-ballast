@@ -121,7 +121,7 @@ async function generateSuggestions(text: string, scope: string, rules: string[])
         schema: SuggestResponseZ,
         system: SYSTEM_PROMPT,
         prompt: prompt,
-        maxTokens: 4000,
+        max_completion_tokens: 4000,
       });
 
       // Validate and sanitize the result
