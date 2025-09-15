@@ -50,10 +50,27 @@ export class SegmentMapper {
     const { doc } = this.editor.state;
     const segments: TextSegment[] = [];
     let textIndex = 0;
+    
+    // Get the actual editor text for comparison
+    const editorText = this.editor.getText();
+    console.log('=== SEGMENT BUILDING DIAGNOSTICS ===');
+    console.log('Expected editor text length:', editorText.length);
+    console.log('Expected plain text length:', this.plainText.length);
+    console.log('Editor text preview:', JSON.stringify(editorText.substring(0, 100)));
+    console.log('Plain text preview:', JSON.stringify(this.plainText.substring(0, 100)));
+    
+    let processedChars = '';
+    let nodeCount = 0;
 
     doc.descendants((node: any, pos: number) => {
+      nodeCount++;
+      console.log(`Node ${nodeCount}: type="${node.type.name}", isText=${node.isText}, pos=${pos}, size=${node.nodeSize}`);
+      
       if (node.isText && node.text) {
         const textLength = node.text.length;
+        console.log(`  Text node content: ${JSON.stringify(node.text)} (length: ${textLength})`);
+        console.log(`  Adding segment: textStart=${textIndex}, textEnd=${textIndex + textLength}, pmStart=${pos}, pmEnd=${pos + textLength}`);
+        
         if (textLength > 0) {
           segments.push({
             textStart: textIndex,
@@ -61,11 +78,50 @@ export class SegmentMapper {
             pmStart: pos,
             pmEnd: pos + textLength
           });
+          processedChars += node.text;
           textIndex += textLength;
         }
+      } else {
+        console.log(`  Non-text node: type="${node.type.name}", content="${node.textContent || ''}"${node.textContent ? ` (length: ${node.textContent.length})` : ''}`);
       }
       return true;
     });
+
+    console.log('--- SEGMENT BUILDING SUMMARY ---');
+    console.log('Total nodes processed:', nodeCount);
+    console.log('Text segments created:', segments.length);
+    console.log('Total characters in segments:', textIndex);
+    console.log('Processed characters preview:', JSON.stringify(processedChars.substring(0, 100)));
+    console.log('Characters missing:', editorText.length - textIndex);
+    
+    if (editorText.length !== textIndex) {
+      console.log('--- MISSING CHARACTERS ANALYSIS ---');
+      console.log('Editor text full:', JSON.stringify(editorText));
+      console.log('Processed chars full:', JSON.stringify(processedChars));
+      
+      // Find first difference
+      const minLength = Math.min(editorText.length, processedChars.length);
+      let firstDiff = -1;
+      for (let i = 0; i < minLength; i++) {
+        if (editorText[i] !== processedChars[i]) {
+          firstDiff = i;
+          break;
+        }
+      }
+      
+      if (firstDiff >= 0) {
+        console.log('First difference at index:', firstDiff);
+        console.log('Editor char:', JSON.stringify(editorText[firstDiff]));
+        console.log('Processed char:', JSON.stringify(processedChars[firstDiff]));
+      } else {
+        console.log('Texts match up to processed length, missing chars are at the end');
+        if (editorText.length > processedChars.length) {
+          console.log('Missing characters:', JSON.stringify(editorText.substring(processedChars.length)));
+        }
+      }
+    }
+    
+    console.log('=== END SEGMENT BUILDING DIAGNOSTICS ===');
 
     this.segments = segments;
     console.log(`Built ${segments.length} segments for ${textIndex} characters`);
