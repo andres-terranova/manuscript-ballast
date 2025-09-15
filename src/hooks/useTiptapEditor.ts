@@ -41,15 +41,18 @@ export const useTiptapEditor = ({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Placeholder.configure({
-        placeholder: 'Start editing…',
+      StarterKit.configure({
+        // Disable Link from StarterKit to avoid duplicate (Link is included in v3)
+        link: false,
       }),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
           class: 'text-blue-600 underline',
         },
+      }),
+      Placeholder.configure({
+        placeholder: 'Start editing…',
       }),
       // Add suggestions extension if getter is provided
       ...(getUISuggestions ? [SuggestionsExtension.configure({ 

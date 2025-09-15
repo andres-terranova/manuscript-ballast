@@ -60,8 +60,6 @@ const ManuscriptWorkspace = () => {
   const [manuscript, setManuscript] = useState<Manuscript | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 3;
   const [activeTab, setActiveTab] = useState("changes");
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
@@ -629,27 +627,8 @@ const ManuscriptWorkspace = () => {
       clearTextCache();
       console.log('Cleared text cache for new manuscript');
       
-      // Try to find manuscript in context first
-      let found = getManuscriptById(id);
-      
-      // If not found and we haven't exceeded retry limit, refresh manuscripts context
-      if (!found && retryCount < maxRetries) {
-        try {
-          // Force refresh manuscripts from database
-          await refreshManuscripts();
-          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay for context to update
-          found = getManuscriptById(id);
-          
-          if (!found) {
-            setRetryCount(prev => prev + 1);
-            return; // This will re-trigger the effect
-          }
-        } catch (error) {
-          console.error('Error refreshing manuscripts:', error);
-          setRetryCount(prev => prev + 1);
-          return;
-        }
-      }
+      // Simple manuscript loading - no retry logic to prevent infinite loops
+      const found = getManuscriptById(id);
       
       if (!found) {
         setNotFound(true);
@@ -682,11 +661,10 @@ const ManuscriptWorkspace = () => {
       
       setNotFound(false);
       setIsLoading(false);
-      setRetryCount(0); // Reset retry count on success
     };
     
     loadManuscript();
-  }, [id, navigate, getManuscriptById, retryCount]); // Removed refreshManuscripts to prevent cascading re-renders
+  }, [id, navigate, getManuscriptById]); // Simplified dependencies - no retry logic
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
@@ -708,9 +686,7 @@ const ManuscriptWorkspace = () => {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-muted-foreground">
-            {retryCount > 0 ? `Loading manuscript... (${retryCount}/${maxRetries})` : 'Loading manuscript...'}
-          </p>
+          <p className="text-muted-foreground">Loading manuscript...</p>
         </div>
       </div>
     );
