@@ -68,9 +68,10 @@ export const SuggestionsExtension = Extension.create({
             // On explicit refresh: sync with external suggestions and rebuild
             if (shouldRebuild) {
               const start = performance.now();
-              console.log('Suggestions plugin rebuilding decorations on refresh');
+              console.log('[SuggestionsPlugin] Rebuilding decorations on refresh');
               
               const allSuggestions = getUISuggestions();
+              console.log('[SuggestionsPlugin] Retrieved', allSuggestions.length, 'suggestions from getUISuggestions');
               const cappedList = allSuggestions.slice(0, maxVisibleSuggestions);
               
               // Update plugin positions from external state
@@ -82,6 +83,7 @@ export const SuggestionsExtension = Extension.create({
               }));
               
               if (cappedList.length === 0) {
+                console.log('[SuggestionsPlugin] No suggestions to display, clearing decorations');
                 return {
                   decorations: DecorationSet.empty,
                   positions: []
@@ -139,6 +141,7 @@ export const SuggestionsExtension = Extension.create({
               }
               
               const timingMs = performance.now() - start;
+              console.log('[SuggestionsPlugin] Created', decos.length, 'decorations in', timingMs.toFixed(2), 'ms');
               mappingDiagnostics.logEvent({
                 type: 'mapping',
                 success: true,

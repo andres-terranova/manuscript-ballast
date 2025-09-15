@@ -183,34 +183,34 @@ const ManuscriptWorkspace = () => {
   // Use ref to hold current suggestions so plugin can always access them
   const suggestionsRef = useRef<UISuggestion[]>([]);
   
-  // Update ref when suggestions change and force plugin refresh
+  // Update ref when suggestions change and force plugin refresh (synchronous)
   useEffect(() => {
-    console.log('Updating suggestionsRef with', suggestions.length, 'suggestions');
+    console.log('[ManuscriptWorkspace] Updating suggestionsRef with', suggestions.length, 'suggestions');
     suggestionsRef.current = suggestions;
     
     // Always refresh plugin when suggestions change (even if empty to clear decorations)
     const editor = getGlobalEditor();
     if (editor?.view) {
-      console.log('Force refreshing plugin with', suggestions.length, 'suggestions');
-      // Use setTimeout to ensure ref update happens before plugin reads it
-      setTimeout(() => {
-        editor.view.dispatch(
-          editor.state.tr.setMeta(suggestionsPluginKey, "refresh")
-        );
-      }, 0);
+      console.log('[ManuscriptWorkspace] Force refreshing suggestions plugin with', suggestions.length, 'suggestions');
+      // Synchronous refresh - no setTimeout needed since ref is already updated
+      editor.view.dispatch(
+        editor.state.tr.setMeta(suggestionsPluginKey, "refresh")
+      );
     }
   }, [suggestions]);
 
   // Callback that always returns current suggestions from ref (with toggle respect)
   const getUISuggestions = useCallback(() => {
-    console.log('getUISuggestions called, returning', suggestionsRef.current.length, 'suggestions from ref, showSuggestions:', showSuggestions);
-    return showSuggestions ? suggestionsRef.current : [];
+    const result = showSuggestions ? suggestionsRef.current : [];
+    console.log('[ManuscriptWorkspace] getUISuggestions called, returning', result.length, 'suggestions from ref, showSuggestions:', showSuggestions);
+    return result;
   }, [showSuggestions]); // Dependencies include toggle state
 
   // Callback that returns current checks from ref (with toggle respect)
   const getChecks = useCallback(() => {
-    console.log('getChecks called, returning', checksRef.current.length, 'checks from ref, showChecks:', showChecks);
-    return showChecks ? checksRef.current : [];
+    const result = showChecks ? checksRef.current : [];
+    console.log('[ManuscriptWorkspace] getChecks called, returning', result.length, 'checks from ref, showChecks:', showChecks);
+    return result;
   }, [showChecks]); // Dependencies include toggle state
 
   // TipTap Transaction Helper Functions
@@ -686,7 +686,7 @@ const ManuscriptWorkspace = () => {
     };
     
     loadManuscript();
-  }, [id, navigate, getManuscriptById, retryCount, refreshManuscripts]);
+  }, [id, navigate, getManuscriptById, retryCount]); // Removed refreshManuscripts to prevent cascading re-renders
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
