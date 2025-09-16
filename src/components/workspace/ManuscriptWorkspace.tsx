@@ -58,6 +58,8 @@ const ManuscriptWorkspace = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { getManuscriptById, updateManuscript, refreshManuscripts } = useManuscripts();
+  const isMobile = useIsMobile();
+  
   const [manuscript, setManuscript] = useState<Manuscript | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,8 +72,6 @@ const ManuscriptWorkspace = () => {
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]); // For the sheet
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
-  
-  const isMobile = useIsMobile();
   
   // Run AI Settings state
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
