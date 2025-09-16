@@ -43,12 +43,14 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  PanelRightOpen
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
 import { ChecksList } from "./ChecksList";
 import { ProcessingStatus } from "./ProcessingStatus";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 
 const ManuscriptWorkspace = () => {
@@ -65,8 +67,11 @@ const ManuscriptWorkspace = () => {
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
+  const [showRightPanel, setShowRightPanel] = useState(false);
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]); // For the sheet
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
+  
+  const isMobile = useIsMobile();
   
   // Run AI Settings state
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
@@ -748,11 +753,17 @@ const ManuscriptWorkspace = () => {
                   <Settings2 className="mr-2 h-4 w-4" />
                   <span className="hidden xl:inline">Style Rules</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowRunAIModal(true)}>
+                 <Button variant="outline" size="sm" onClick={() => setShowRunAIModal(true)}>
                   <Play className="mr-2 h-4 w-4" />
                   <span className="hidden sm:inline">Run AI Pass</span>
                 </Button>
               </>
+            )}
+            {isMobile && (
+              <Button variant="outline" size="sm" onClick={() => setShowRightPanel(true)}>
+                <PanelRightOpen className="mr-2 h-4 w-4" />
+                Panel
+              </Button>
             )}
             <Button 
               variant="secondary" 
@@ -824,217 +835,439 @@ const ManuscriptWorkspace = () => {
           />
         </div>
 
-        {/* Right Sidebar */}
-        <div id="right-sidebar" className="w-full lg:w-80 bg-muted border-t lg:border-t-0 lg:border-l border-border overflow-hidden flex-shrink-0">
-          {/* Highlight Legend */}
-          <div className="p-3 border-b bg-background">
-            <div className="flex items-center gap-4 text-sm" data-testid="highlight-legend">
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showChecks}
-                  onChange={(e) => {
-                    setShowChecks(e.target.checked);
-                    const editor = getGlobalEditor();
-                    if (editor) {
-                      editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
-                    }
-                  }}
-                  data-testid="toggle-checks"
-                  className="rounded"
-                />
-                <span className="flex items-center gap-1">
-                  <span className="inline-block w-3 h-3 bg-yellow-300 border border-yellow-600 rounded-sm"></span>
-                  Checks
-                </span>
-              </label>
-
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showSuggestions}
-                  onChange={(e) => {
-                    setShowSuggestions(e.target.checked);
-                    const editor = getGlobalEditor();
-                    if (editor) {
-                      editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
-                    }
-                  }}
-                  data-testid="toggle-suggestions"
-                  className="rounded"
-                />
-                <span className="flex items-center gap-1">
-                  <span className="inline-block w-3 h-3 bg-blue-300 border border-blue-600 rounded-sm"></span>
-                  AI Suggestions
-                </span>
-              </label>
-            </div>
-            
-            {/* Show More Controls */}
-            {(suggestions.length > maxVisibleAI || checks.length > maxVisibleChecks) && (
-              <div className="flex flex-col gap-1 mt-2 text-xs">
-                {suggestions.length > maxVisibleAI && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 text-xs px-2 justify-start"
-                    onClick={() => {
-                      setMaxVisibleAI(prev => prev + 200);
-                      const editor = getGlobalEditor();
-                      if (editor) {
-                        editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
-                      }
-                    }}
-                  >
-                    + Show {Math.min(200, suggestions.length - maxVisibleAI)} more AI suggestions ({maxVisibleAI}/{suggestions.length})
-                  </Button>
-                )}
-                {checks.length > maxVisibleChecks && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 text-xs px-2 justify-start"
-                    onClick={() => {
-                      setMaxVisibleChecks(prev => prev + 200);
+        {/* Right Sidebar - Desktop */}
+        {!isMobile && (
+          <div id="right-sidebar" className="w-80 bg-muted border-l border-border overflow-hidden flex-shrink-0">
+            {/* Highlight Legend */}
+            <div className="p-3 border-b bg-background">
+              <div className="flex items-center gap-4 text-sm" data-testid="highlight-legend">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showChecks}
+                    onChange={(e) => {
+                      setShowChecks(e.target.checked);
                       const editor = getGlobalEditor();
                       if (editor) {
                         editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
                       }
                     }}
-                  >
-                    + Show {Math.min(200, checks.length - maxVisibleChecks)} more checks ({maxVisibleChecks}/{checks.length})
-                  </Button>
+                    data-testid="toggle-checks"
+                    className="rounded"
+                  />
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 bg-yellow-300 border border-yellow-600 rounded-sm"></span>
+                    Checks
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showSuggestions}
+                    onChange={(e) => {
+                      setShowSuggestions(e.target.checked);
+                      const editor = getGlobalEditor();
+                      if (editor) {
+                        editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
+                      }
+                    }}
+                    data-testid="toggle-suggestions"
+                    className="rounded"
+                  />
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 bg-blue-300 border border-blue-600 rounded-sm"></span>
+                    AI Suggestions
+                  </span>
+                </label>
+              </div>
+              
+              {/* Show More Controls */}
+              {(suggestions.length > maxVisibleAI || checks.length > maxVisibleChecks) && (
+                <div className="flex flex-col gap-1 mt-2 text-xs">
+                  {suggestions.length > maxVisibleAI && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-xs px-2 justify-start"
+                      onClick={() => {
+                        setMaxVisibleAI(prev => prev + 200);
+                        const editor = getGlobalEditor();
+                        if (editor) {
+                          editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
+                        }
+                      }}
+                    >
+                      + Show {Math.min(200, suggestions.length - maxVisibleAI)} more AI suggestions ({maxVisibleAI}/{suggestions.length})
+                    </Button>
+                  )}
+                  {checks.length > maxVisibleChecks && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-xs px-2 justify-start"
+                      onClick={() => {
+                        setMaxVisibleChecks(prev => prev + 200);
+                        const editor = getGlobalEditor();
+                        if (editor) {
+                          editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
+                        }
+                      }}
+                    >
+                      + Show {Math.min(200, checks.length - maxVisibleChecks)} more checks ({maxVisibleChecks}/{checks.length})
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+              {/* Tab List */}
+              <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
+                <TabsTrigger value="changes" className="text-xs px-2">
+                  Changes {suggestions.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                      {suggestions.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
+                <TabsTrigger value="checks" className="text-xs px-2">
+                  Checks {checks.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                      {checks.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
+              </TabsList>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
+                <TabsContent value="changes" className="h-full mt-0">
+                  <ChangeList 
+                    suggestions={isReviewed ? [] : suggestions}
+                    onAcceptSuggestion={handleAcceptSuggestion}
+                    onRejectSuggestion={handleRejectSuggestion}
+                    busySuggestions={busySuggestions}
+                    isReviewed={isReviewed}
+                  />
+                </TabsContent>
+
+                <TabsContent value="comments" className="h-full mt-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                      {manuscript.comments?.map((comment) => (
+                        <div key={comment.id} className="bg-card border border-card-border rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                              <User className="h-3 w-3" />
+                            </div>
+                            <span className="text-sm font-medium">{comment.author}</span>
+                            <span className="text-xs text-muted-foreground">2h ago</span>
+                          </div>
+                          <p className="text-sm mb-2">{comment.text}</p>
+                          <p className="text-xs text-muted-foreground mb-3">{comment.location}</p>
+                          {comment.replies?.map((reply) => (
+                            <div key={reply.id} className="ml-4 mt-2 p-2 bg-muted rounded">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-medium">{reply.author}</span>
+                              </div>
+                              <p className="text-xs">{reply.text}</p>
+                            </div>
+                          ))}
+                          <div className="flex gap-2 mt-3">
+                            <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
+                          </div>
+                        </div>
+                      )) || [1, 2].map((i) => (
+                        <div key={i} className="bg-card border border-card-border rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                              <User className="h-3 w-3" />
+                            </div>
+                            <span className="text-sm font-medium">Editor</span>
+                            <span className="text-xs text-muted-foreground">2h ago</span>
+                          </div>
+                          <p className="text-sm mb-2">This section needs clarification.</p>
+                          <p className="text-xs text-muted-foreground mb-3">Line {5 + i}</p>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="checks" className="h-full mt-0">
+                  <ChecksList 
+                    checks={isReviewed ? [] : checks}
+                    onAcceptCheck={handleAcceptCheck}
+                    onRejectCheck={handleRejectCheck}
+                    busyChecks={busyChecks}
+                    isReviewed={isReviewed}
+                    onRunChecks={handleRunChecks}
+                  />
+                </TabsContent>
+
+                <TabsContent value="new-content" className="h-full mt-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                      {manuscript.newContent?.map((content) => (
+                        <div key={content.id} className="bg-card border border-card-border rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{content.snippet}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {content.location}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )) || [1, 2].map((i) => (
+                        <div key={i} className="bg-card border border-card-border rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">New paragraph added</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                After line {12 + i}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
+        )}
+
+        {/* Right Sidebar - Mobile Sheet */}
+        {isMobile && (
+          <Sheet open={showRightPanel} onOpenChange={setShowRightPanel}>
+            <SheetContent side="right" className="w-full sm:w-96">
+              <SheetHeader>
+                <SheetTitle>Editor Panel</SheetTitle>
+              </SheetHeader>
+              
+              {/* Highlight Legend */}
+              <div className="p-3 border-b bg-background mt-4">
+                <div className="flex flex-col gap-3 text-sm" data-testid="highlight-legend">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showChecks}
+                      onChange={(e) => {
+                        setShowChecks(e.target.checked);
+                        const editor = getGlobalEditor();
+                        if (editor) {
+                          editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
+                        }
+                      }}
+                      data-testid="toggle-checks"
+                      className="rounded"
+                    />
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block w-3 h-3 bg-yellow-300 border border-yellow-600 rounded-sm"></span>
+                      Checks
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showSuggestions}
+                      onChange={(e) => {
+                        setShowSuggestions(e.target.checked);
+                        const editor = getGlobalEditor();
+                        if (editor) {
+                          editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
+                        }
+                      }}
+                      data-testid="toggle-suggestions"
+                      className="rounded"
+                    />
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block w-3 h-3 bg-blue-300 border border-blue-600 rounded-sm"></span>
+                      AI Suggestions
+                    </span>
+                  </label>
+                </div>
+                
+                {/* Show More Controls */}
+                {(suggestions.length > maxVisibleAI || checks.length > maxVisibleChecks) && (
+                  <div className="flex flex-col gap-2 mt-3 text-xs">
+                    {suggestions.length > maxVisibleAI && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs px-3 justify-start"
+                        onClick={() => {
+                          setMaxVisibleAI(prev => prev + 200);
+                          const editor = getGlobalEditor();
+                          if (editor) {
+                            editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
+                          }
+                        }}
+                      >
+                        + Show {Math.min(200, suggestions.length - maxVisibleAI)} more AI suggestions ({maxVisibleAI}/{suggestions.length})
+                      </Button>
+                    )}
+                    {checks.length > maxVisibleChecks && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs px-3 justify-start"
+                        onClick={() => {
+                          setMaxVisibleChecks(prev => prev + 200);
+                          const editor = getGlobalEditor();
+                          if (editor) {
+                            editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
+                          }
+                        }}
+                      >
+                        + Show {Math.min(200, checks.length - maxVisibleChecks)} more checks ({maxVisibleChecks}/{checks.length})
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            {/* Tab List */}
-            <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
-              <TabsTrigger value="changes" className="text-xs px-2">
-                Changes {suggestions.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
-                    {suggestions.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
-              <TabsTrigger value="checks" className="text-xs px-2">
-                Checks {checks.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
-                    {checks.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
-            </TabsList>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col mt-4">
+                {/* Tab List */}
+                <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
+                  <TabsTrigger value="changes" className="text-xs px-1">
+                    Changes {suggestions.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                        {suggestions.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="comments" className="text-xs px-1">Comments</TabsTrigger>
+                  <TabsTrigger value="checks" className="text-xs px-1">
+                    Checks {checks.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                        {checks.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
+                </TabsList>
 
-            {/* Tab Content */}
-            <div className="flex-1 overflow-hidden">
-              <TabsContent value="changes" className="h-full mt-0">
-                <ChangeList 
-                  suggestions={isReviewed ? [] : suggestions}
-                  onAcceptSuggestion={handleAcceptSuggestion}
-                  onRejectSuggestion={handleRejectSuggestion}
-                  busySuggestions={busySuggestions}
-                  isReviewed={isReviewed}
-                />
-              </TabsContent>
+                {/* Tab Content */}
+                <div className="flex-1 overflow-hidden">
+                  <TabsContent value="changes" className="h-full mt-0">
+                    <ChangeList 
+                      suggestions={isReviewed ? [] : suggestions}
+                      onAcceptSuggestion={handleAcceptSuggestion}
+                      onRejectSuggestion={handleRejectSuggestion}
+                      busySuggestions={busySuggestions}
+                      isReviewed={isReviewed}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="comments" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    {manuscript.comments?.map((comment) => (
-                      <div key={comment.id} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                            <User className="h-3 w-3" />
-                          </div>
-                          <span className="text-sm font-medium">{comment.author}</span>
-                          <span className="text-xs text-muted-foreground">2h ago</span>
-                        </div>
-                        <p className="text-sm mb-2">{comment.text}</p>
-                        <p className="text-xs text-muted-foreground mb-3">{comment.location}</p>
-                        {comment.replies?.map((reply) => (
-                          <div key={reply.id} className="ml-4 mt-2 p-2 bg-muted rounded">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-medium">{reply.author}</span>
+                  <TabsContent value="comments" className="h-full mt-0">
+                    <ScrollArea className="h-full">
+                      <div className="p-4 space-y-4">
+                        {manuscript.comments?.map((comment) => (
+                          <div key={comment.id} className="bg-card border border-card-border rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                                <User className="h-3 w-3" />
+                              </div>
+                              <span className="text-sm font-medium">{comment.author}</span>
+                              <span className="text-xs text-muted-foreground">2h ago</span>
                             </div>
-                            <p className="text-xs">{reply.text}</p>
+                            <p className="text-sm mb-2">{comment.text}</p>
+                            <p className="text-xs text-muted-foreground mb-3">{comment.location}</p>
+                            {comment.replies?.map((reply) => (
+                              <div key={reply.id} className="ml-4 mt-2 p-2 bg-muted rounded">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-medium">{reply.author}</span>
+                                </div>
+                                <p className="text-xs">{reply.text}</p>
+                              </div>
+                            ))}
+                            <div className="flex gap-2 mt-3">
+                              <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
+                            </div>
+                          </div>
+                        )) || [1, 2].map((i) => (
+                          <div key={i} className="bg-card border border-card-border rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                                <User className="h-3 w-3" />
+                              </div>
+                              <span className="text-sm font-medium">Editor</span>
+                              <span className="text-xs text-muted-foreground">2h ago</span>
+                            </div>
+                            <p className="text-sm mb-2">This section needs clarification.</p>
+                            <p className="text-xs text-muted-foreground mb-3">Line {5 + i}</p>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
+                            </div>
                           </div>
                         ))}
-                        <div className="flex gap-2 mt-3">
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
-                        </div>
                       </div>
-                    )) || [1, 2].map((i) => (
-                      <div key={i} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                            <User className="h-3 w-3" />
-                          </div>
-                          <span className="text-sm font-medium">Editor</span>
-                          <span className="text-xs text-muted-foreground">2h ago</span>
-                        </div>
-                        <p className="text-sm mb-2">This section needs clarification.</p>
-                        <p className="text-xs text-muted-foreground mb-3">Line {5 + i}</p>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
+                    </ScrollArea>
+                  </TabsContent>
 
-              <TabsContent value="checks" className="h-full mt-0">
-                <ChecksList 
-                  checks={isReviewed ? [] : checks}
-                  onAcceptCheck={handleAcceptCheck}
-                  onRejectCheck={handleRejectCheck}
-                  busyChecks={busyChecks}
-                  isReviewed={isReviewed}
-                  onRunChecks={handleRunChecks}
-                />
-              </TabsContent>
+                  <TabsContent value="checks" className="h-full mt-0">
+                    <ChecksList 
+                      checks={isReviewed ? [] : checks}
+                      onAcceptCheck={handleAcceptCheck}
+                      onRejectCheck={handleRejectCheck}
+                      busyChecks={busyChecks}
+                      isReviewed={isReviewed}
+                      onRunChecks={handleRunChecks}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="new-content" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    {manuscript.newContent?.map((content) => (
-                      <div key={content.id} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{content.snippet}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {content.location}
-                            </p>
+                  <TabsContent value="new-content" className="h-full mt-0">
+                    <ScrollArea className="h-full">
+                      <div className="p-4 space-y-4">
+                        {manuscript.newContent?.map((content) => (
+                          <div key={content.id} className="bg-card border border-card-border rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{content.snippet}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {content.location}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    )) || [1, 2].map((i) => (
-                      <div key={i} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">New paragraph added</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              After line {12 + i}
-                            </p>
+                        )) || [1, 2].map((i) => (
+                          <div key={i} className="bg-card border border-card-border rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">New paragraph added</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  After line {12 + i}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-            </div>
-          </Tabs>
-        </div>
+                    </ScrollArea>
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
       {/* Run AI Settings Modal */}
