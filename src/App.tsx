@@ -9,6 +9,7 @@ import Login from "@/components/auth/Login";
 import PasswordReset from "@/components/auth/PasswordReset";
 import Dashboard from "@/components/dashboard/Dashboard";
 import ManuscriptWorkspace from "@/components/workspace/ManuscriptWorkspace";
+import ExperimentalEditor from "@/components/experimental/ExperimentalEditor";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -28,6 +29,7 @@ const App = () => (
               <Route path="/reset" element={<PasswordReset />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/manuscript/:id" element={<ManuscriptWorkspace />} />
+              <Route path="/editor-experimental/:id" element={<ExperimentalEditor />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
