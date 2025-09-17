@@ -39,24 +39,36 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
     }
   },
 
+  // Add the required schema modifications for suggestion marks
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['textStyle'],
+        attributes: {
+          suggestionId: {
+            default: null,
+            parseHTML: element => element.getAttribute('data-suggestion-id'),
+            renderHTML: attributes => {
+              if (!attributes.suggestionId) {
+                return {}
+              }
+              return {
+                'data-suggestion-id': attributes.suggestionId,
+              }
+            },
+          },
+        },
+      },
+    ]
+  },
+
   addProseMirrorPlugins() {
-    const options = this.options
-
-    // Convert our UISuggestion format to Dave Fowler's format
-    const convertSuggestions = (suggestions: UISuggestion[]) => {
-      return suggestions.map(s => ({
-        id: s.id,
-        type: s.type,
-        from: s.pmFrom,
-        to: s.pmTo,
-        text: s.after || '',
-        note: s.note,
-        actor: s.actor,
-        category: s.category
-      }))
-    }
-
-    const plugin = suggestionModePlugin()
+    // Configure the plugin with proper settings
+    const plugin = suggestionModePlugin({
+      username: 'Editor',
+      inSuggestionMode: true
+    })
+    
     this.storage.plugin = plugin
 
     return [plugin]
@@ -67,22 +79,21 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
       addSuggestionMarks: (suggestions: UISuggestion[]) => ({ editor }) => {
         this.storage.suggestions = suggestions
         
-        // Convert to Dave Fowler's format
+        // Convert to Dave Fowler's format and add marks using the plugin's state
         const convertedSuggestions = suggestions.map(s => ({
           id: s.id,
-          type: s.type,
+          type: s.type === 'replace' ? 'delete' : s.type, // Map replace to delete for the plugin
           from: s.pmFrom,
           to: s.pmTo,
           text: s.after || '',
           note: s.note,
-          actor: s.actor,
-          category: s.category
+          actor: s.actor || 'Editor',
+          category: s.category || 'manual'
         }))
 
-        // Use prosemirror-suggestion-mode plugin commands
+        // Use the plugin's transaction approach to add suggestion marks
         if (editor.view && editor.view.state) {
           try {
-            // Dispatch transaction to add suggestion marks
             const tr = editor.view.state.tr.setMeta('addSuggestionMarks', convertedSuggestions)
             editor.view.dispatch(tr)
           } catch (error) {
@@ -98,7 +109,7 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
         if (!suggestion) return false
 
         try {
-          // Use prosemirror-suggestion-mode plugin commands  
+          // Use the plugin's transaction approach to apply a suggestion
           if (editor.view && editor.view.state) {
             const tr = editor.view.state.tr.setMeta('applySuggestion', suggestionId)
             editor.view.dispatch(tr)
@@ -117,7 +128,7 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
 
       acceptAllSuggestions: () => ({ editor }) => {
         try {
-          // Use prosemirror-suggestion-mode plugin commands
+          // Use the plugin's transaction approach to accept all suggestions
           if (editor.view && editor.view.state) {
             const tr = editor.view.state.tr.setMeta('acceptAllSuggestions', true)
             editor.view.dispatch(tr)
@@ -133,7 +144,7 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
 
       clearAllSuggestions: () => ({ editor }) => {
         try {
-          // Use prosemirror-suggestion-mode plugin commands
+          // Use the plugin's transaction approach to clear all suggestions
           if (editor.view && editor.view.state) {
             const tr = editor.view.state.tr.setMeta('clearAllSuggestions', true)
             editor.view.dispatch(tr)

@@ -1,5 +1,52 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap');
 
+/* Dave Fowler's prosemirror-suggestion-mode CSS */
+.suggestion_insert {
+  background-color: hsl(120, 50%, 85%);
+  color: hsl(120, 50%, 20%);
+  text-decoration: underline;
+  text-decoration-color: hsl(120, 50%, 60%);
+}
+
+.suggestion_delete {
+  background-color: hsl(0, 50%, 85%);
+  color: hsl(0, 50%, 20%);
+  text-decoration: line-through;
+  text-decoration-color: hsl(0, 50%, 60%);
+}
+
+.suggestion_insert:hover,
+.suggestion_delete:hover {
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+/* Tooltip styles for suggestion hover menus */
+.suggestion-tooltip {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.1);
+  z-index: 1000;
+}
+
+.suggestion-tooltip button {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: 0 2px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.suggestion-tooltip button:hover {
+  background: hsl(var(--primary) / 0.8);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
