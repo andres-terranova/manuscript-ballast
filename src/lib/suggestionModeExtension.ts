@@ -1,6 +1,5 @@
 import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { suggestionModePlugin } from 'prosemirror-suggestion-mode'
 import type { UISuggestion } from '@/lib/types'
 
 export interface SuggestionModeOptions {
@@ -8,8 +7,6 @@ export interface SuggestionModeOptions {
   onSuggestionApplied?: (suggestionId: string) => void
   onSuggestionRejected?: (suggestionId: string) => void
 }
-
-export const suggestionModePluginKey = new PluginKey('suggestionMode')
 
 // Custom command interface for TipTap extensions
 declare module '@tiptap/core' {
@@ -23,7 +20,7 @@ declare module '@tiptap/core' {
   }
 }
 
-// Create a simplified suggestion mode extension using TipTap patterns
+// Create a TipTap extension wrapping Dave Fowler's prosemirror-suggestion-mode plugin
 export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
   name: 'suggestionMode',
 
@@ -38,85 +35,61 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
   addStorage() {
     return {
       suggestions: [] as UISuggestion[],
+      plugin: null as any,
     }
   },
 
   addProseMirrorPlugins() {
     const options = this.options
 
-    return [
-      new Plugin({
-        key: suggestionModePluginKey,
-        state: {
-          init() {
-            return {
-              suggestions: [] as UISuggestion[],
-              decorationSet: DecorationSet.empty,
-            }
-          },
-          apply(tr, pluginState, oldState, newState) {
-            let { suggestions, decorationSet } = pluginState
+    // Convert our UISuggestion format to Dave Fowler's format
+    const convertSuggestions = (suggestions: UISuggestion[]) => {
+      return suggestions.map(s => ({
+        id: s.id,
+        type: s.type,
+        from: s.pmFrom,
+        to: s.pmTo,
+        text: s.after || '',
+        note: s.note,
+        actor: s.actor,
+        category: s.category
+      }))
+    }
 
-            // Check for refresh meta
-            const meta = tr.getMeta(suggestionModePluginKey)
-            if (meta === 'refresh') {
-              const currentSuggestions = options.getSuggestions?.() || []
-              suggestions = currentSuggestions
-              
-              // Create decorations for suggestions
-              const decorations: Decoration[] = []
-              
-              currentSuggestions.forEach(suggestion => {
-                const className = `suggestion-${suggestion.type} suggestion-${suggestion.category}`
-                
-                if (suggestion.type === 'insert') {
-                  decorations.push(
-                    Decoration.widget(suggestion.pmFrom, () => {
-                      const span = document.createElement('span')
-                      span.className = `${className} bg-green-200 dark:bg-green-800 px-1 rounded`
-                      span.innerHTML = `<ins>${suggestion.after}</ins>`
-                      span.title = suggestion.note
-                      return span
-                    })
-                  )
-                } else {
-                  decorations.push(
-                    Decoration.inline(suggestion.pmFrom, suggestion.pmTo, {
-                      class: className + (suggestion.type === 'delete' 
-                        ? ' bg-red-200 dark:bg-red-800 line-through' 
-                        : ' bg-blue-200 dark:bg-blue-800'),
-                      title: suggestion.note,
-                    })
-                  )
-                }
-              })
-              
-              decorationSet = DecorationSet.create(newState.doc, decorations)
-            }
+    const plugin = suggestionModePlugin()
+    this.storage.plugin = plugin
 
-            // Map decorations through document changes
-            if (tr.docChanged) {
-              decorationSet = decorationSet.map(tr.mapping, tr.doc)
-            }
-
-            return { suggestions, decorationSet }
-          },
-        },
-        props: {
-          decorations(state) {
-            return suggestionModePluginKey.getState(state)?.decorationSet
-          },
-        },
-      }),
-    ]
+    return [plugin]
   },
 
   addCommands() {
     return {
       addSuggestionMarks: (suggestions: UISuggestion[]) => ({ editor }) => {
         this.storage.suggestions = suggestions
-        const tr = editor.state.tr.setMeta(suggestionModePluginKey, 'refresh')
-        editor.view.dispatch(tr)
+        
+        // Convert to Dave Fowler's format
+        const convertedSuggestions = suggestions.map(s => ({
+          id: s.id,
+          type: s.type,
+          from: s.pmFrom,
+          to: s.pmTo,
+          text: s.after || '',
+          note: s.note,
+          actor: s.actor,
+          category: s.category
+        }))
+
+        // Use prosemirror-suggestion-mode plugin commands
+        if (editor.view && editor.view.state) {
+          try {
+            // Dispatch transaction to add suggestion marks
+            const tr = editor.view.state.tr.setMeta('addSuggestionMarks', convertedSuggestions)
+            editor.view.dispatch(tr)
+          } catch (error) {
+            console.error('Error adding suggestion marks:', error)
+          }
+        }
+        
         return true
       },
 
@@ -125,22 +98,15 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
         if (!suggestion) return false
 
         try {
-          if (suggestion.type === 'insert') {
-            editor.commands.insertContentAt(suggestion.pmFrom, suggestion.after)
-          } else if (suggestion.type === 'delete') {
-            editor.commands.deleteRange({ from: suggestion.pmFrom, to: suggestion.pmTo })
-          } else {
-            editor.commands.deleteRange({ from: suggestion.pmFrom, to: suggestion.pmTo })
-            editor.commands.insertContentAt(suggestion.pmFrom, suggestion.after)
+          // Use prosemirror-suggestion-mode plugin commands  
+          if (editor.view && editor.view.state) {
+            const tr = editor.view.state.tr.setMeta('applySuggestion', suggestionId)
+            editor.view.dispatch(tr)
+            
+            // Remove from our storage after successful application
+            this.storage.suggestions = this.storage.suggestions.filter((s: UISuggestion) => s.id !== suggestionId)
+            this.options.onSuggestionApplied?.(suggestionId)
           }
-
-          // Remove the applied suggestion
-          this.storage.suggestions = this.storage.suggestions.filter((s: UISuggestion) => s.id !== suggestionId)
-          this.options.onSuggestionApplied?.(suggestionId)
-          
-          // Refresh decorations
-          const tr = editor.state.tr.setMeta(suggestionModePluginKey, 'refresh')
-          editor.view.dispatch(tr)
           
           return true
         } catch (error) {
@@ -150,37 +116,35 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
       },
 
       acceptAllSuggestions: () => ({ editor }) => {
-        const suggestions = [...this.storage.suggestions]
-        
-        // Apply suggestions in reverse order to maintain positions
-        suggestions.reverse().forEach((suggestion: UISuggestion) => {
-          try {
-            if (suggestion.type === 'insert') {
-              editor.commands.insertContentAt(suggestion.pmFrom, suggestion.after)
-            } else if (suggestion.type === 'delete') {
-              editor.commands.deleteRange({ from: suggestion.pmFrom, to: suggestion.pmTo })
-            } else {
-              editor.commands.deleteRange({ from: suggestion.pmFrom, to: suggestion.pmTo })
-              editor.commands.insertContentAt(suggestion.pmFrom, suggestion.after)
-            }
-          } catch (error) {
-            console.error('Error applying suggestion:', error)
+        try {
+          // Use prosemirror-suggestion-mode plugin commands
+          if (editor.view && editor.view.state) {
+            const tr = editor.view.state.tr.setMeta('acceptAllSuggestions', true)
+            editor.view.dispatch(tr)
           }
-        })
-
-        // Clear all suggestions
-        this.storage.suggestions = []
-        const tr = editor.state.tr.setMeta(suggestionModePluginKey, 'refresh')
-        editor.view.dispatch(tr)
-        
-        return true
+          
+          this.storage.suggestions = []
+          return true
+        } catch (error) {
+          console.error('Error accepting all suggestions:', error)
+          return false
+        }
       },
 
       clearAllSuggestions: () => ({ editor }) => {
-        this.storage.suggestions = []
-        const tr = editor.state.tr.setMeta(suggestionModePluginKey, 'refresh')
-        editor.view.dispatch(tr)
-        return true
+        try {
+          // Use prosemirror-suggestion-mode plugin commands
+          if (editor.view && editor.view.state) {
+            const tr = editor.view.state.tr.setMeta('clearAllSuggestions', true)
+            editor.view.dispatch(tr)
+          }
+          
+          this.storage.suggestions = []
+          return true
+        } catch (error) {
+          console.error('Error clearing suggestions:', error)
+          return false
+        }
       },
     }
   },
@@ -188,10 +152,18 @@ export const SuggestionModeExtension = Extension.create<SuggestionModeOptions>({
 
 // Helper functions to work with the plugin
 export function getSuggestionModePlugin(editor: any) {
-  return suggestionModePluginKey.getState(editor.state);
+  const extension = editor.extensionManager.extensions.find((ext: any) => ext.name === 'suggestionMode')
+  return extension?.storage.plugin
 }
 
 export function refreshSuggestionMode(editor: any) {
-  const tr = editor.state.tr.setMeta(suggestionModePluginKey, { type: 'refresh' });
-  editor.view.dispatch(tr);
+  // Dave Fowler's plugin handles its own refreshing
+  const plugin = getSuggestionModePlugin(editor)
+  if (plugin && editor.view.state) {
+    try {
+      plugin.spec.refresh?.(editor.view)
+    } catch (error) {
+      console.error('Error refreshing suggestion mode:', error)
+    }
+  }
 }
