@@ -3,6 +3,7 @@ import { EditorContent } from '@tiptap/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useExperimentalEditor } from '@/hooks/useExperimentalEditor';
+import { applyUISuggestion } from '@/lib/suggestionUtils';
 import type { Manuscript } from '@/contexts/ManuscriptsContext';
 import type { UISuggestion } from '@/lib/types';
 
@@ -42,8 +43,10 @@ export const ExperimentalDocumentCanvas = ({
   // Update suggestions when they change
   useEffect(() => {
     if (editor && suggestions.length > 0) {
-      // Apply suggestion marks
-      editor.commands.addSuggestionMarks(suggestions);
+      // Apply suggestion marks using the prosemirror-suggestion-mode plugin
+      suggestions.forEach(suggestion => {
+        applyUISuggestion(editor, suggestion);
+      });
     }
   }, [editor, suggestions]);
 
