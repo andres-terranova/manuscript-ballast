@@ -11,7 +11,6 @@ import Dashboard from "@/components/dashboard/Dashboard";
 import ManuscriptWorkspace from "@/components/workspace/ManuscriptWorkspace";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import ExperimentalEditorPage from "@/components/experimental/ExperimentalEditorPage";
 
 const queryClient = new QueryClient();
 
@@ -29,7 +28,6 @@ const App = () => (
               <Route path="/reset" element={<PasswordReset />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/manuscript/:id" element={<ManuscriptWorkspace />} />
-              <Route path="/experimental-editor" element={<ExperimentalEditorPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

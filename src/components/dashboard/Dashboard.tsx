@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock, FlaskConical } from "lucide-react";
+import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
@@ -296,14 +296,6 @@ const Dashboard = () => {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate("/experimental-editor")}
-              className="hidden md:flex items-center gap-2 text-sm"
-            >
-              <FlaskConical className="h-4 w-4" />
-              Experimental Editor
-            </Button>
             <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
               <DialogTrigger asChild>
                 <Button className="bg-black text-white hover:bg-gray-800">
