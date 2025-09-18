@@ -47,6 +47,31 @@
   background: hsl(var(--primary) / 0.8);
 }
 
+/* Fallback CSS for suggestion marks if prosemirror-suggestion-mode CSS doesn't load */
+span.suggestion-insert, 
+span.pm-suggestion-insert, 
+span.prosemirror-suggestion-insert {
+  background-color: hsl(var(--success-light));
+  color: hsl(var(--success-dark));
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+span.suggestion-delete, 
+span.pm-suggestion-delete, 
+span.prosemirror-suggestion-delete {
+  background-color: hsl(var(--destructive-light));
+  color: hsl(var(--destructive-dark));
+  text-decoration: line-through;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+@import 'prosemirror-suggestion-mode/style/suggestion-mode.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -103,7 +128,14 @@
     --accent-foreground: 220 13% 18%;
 
     --destructive: 0 84% 60%;
+    --destructive-light: 0 93% 94%;
+    --destructive-dark: 0 74% 42%;
     --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-light: 142 76% 94%;
+    --success-dark: 142 76% 30%;
+    --success-foreground: 355 25% 97%;
 
     --border: 220 13% 91%;
     --input: 220 13% 96%;

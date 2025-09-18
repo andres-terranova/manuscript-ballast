@@ -3,7 +3,8 @@ import { useCallback, useRef } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
-import { SuggestionModeExtension } from '@/lib/suggestionModeExtension';
+import { SuggestionInsert, SuggestionDelete } from '@/lib/tiptapMarks';
+import { suggestionModePlugin } from 'prosemirror-suggestion-mode';
 import type { UISuggestion } from '@/lib/types';
 
 interface UseExperimentalEditorOptions {
@@ -47,11 +48,8 @@ export const useExperimentalEditor = ({
           class: 'text-blue-600 underline',
         },
       }),
-      SuggestionModeExtension.configure({
-        getSuggestions,
-        onSuggestionApplied,
-        onSuggestionRejected,
-      }),
+      SuggestionInsert,
+      SuggestionDelete,
     ],
     content: contentHtml,
     editable: !readOnly,
@@ -59,6 +57,18 @@ export const useExperimentalEditor = ({
       const html = editor.getHTML();
       const text = editor.getText();
       debouncedUpdate(html, text);
+    },
+    onCreate: ({ editor }) => {
+      try {
+        const pmPlugins = editor.view.state.plugins.slice();
+        pmPlugins.push(suggestionModePlugin({ 
+          username: "Editor", 
+          data: { source: "ai" } 
+        }));
+        editor.view.updateState(editor.view.state.reconfigure({ plugins: pmPlugins }));
+      } catch (e) {
+        console.warn("Failed to attach suggestion-mode plugin", e);
+      }
     },
     immediatelyRender: false,
   });

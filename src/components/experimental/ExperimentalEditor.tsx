@@ -24,6 +24,7 @@ import { ExperimentalDocumentCanvas } from "./ExperimentalDocumentCanvas";
 import { ExperimentalSuggestionsList } from "./ExperimentalSuggestionsList";
 import type { UISuggestion, ServerSuggestion } from "@/lib/types";
 import { mapPlainTextToPM } from "@/lib/suggestionMapper";
+import { applyUISuggestion, acceptAllEditorSuggestions, rejectAllEditorSuggestions } from '@/lib/suggestionUtils';
 
 const ExperimentalEditor = () => {
   const { id } = useParams<{ id: string }>();
@@ -134,9 +135,11 @@ const ExperimentalEditor = () => {
       
       setSuggestions(mapped);
       
-      // Apply suggestion marks to editor
+      // Apply suggestion marks to editor using the plugin API
       if (mapped.length > 0) {
-        editorRef.current.commands.addSuggestionMarks(mapped);
+        mapped.forEach(suggestion => {
+          applyUISuggestion(editorRef.current, suggestion, "AI Assistant");
+        });
       }
       
       toast({
@@ -157,7 +160,7 @@ const ExperimentalEditor = () => {
   const handleAcceptAll = () => {
     if (!editorRef.current) return;
     
-    editorRef.current.commands.acceptAllSuggestions();
+    acceptAllEditorSuggestions(editorRef.current);
     setSuggestions([]);
     toast({
       title: "All changes applied."
@@ -168,7 +171,7 @@ const ExperimentalEditor = () => {
   const handleClearAll = () => {
     if (!editorRef.current) return;
     
-    editorRef.current.commands.clearAllSuggestions();
+    rejectAllEditorSuggestions(editorRef.current);
     setSuggestions([]);
     toast({
       title: "All suggestions cleared."
