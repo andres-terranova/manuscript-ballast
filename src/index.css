@@ -367,3 +367,40 @@
 .check-numericRangeEnDash {
   text-decoration-color: hsl(var(--check-primary));
 }
+
+/* Tiptap Pro AI Suggestion Styles */
+.tiptap-ai-suggestion {
+  border-bottom: 2px solid var(--tiptap-ai-suggestion-color, #DC143C);
+  margin-bottom: -2px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tiptap-ai-suggestion--selected {
+  background-color: var(--tiptap-ai-suggestion-background-color, #FFE6E6);
+  transition: background-color 0.3s ease;
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+.tiptap-ai-suggestion--spell-check {
+  --tiptap-ai-suggestion-color: #DC143C;
+  --tiptap-ai-suggestion-background-color: #FFE6E6;
+}
+
+.tiptap-ai-suggestion--grammar {
+  --tiptap-ai-suggestion-color: #FF8C00;
+  --tiptap-ai-suggestion-background-color: #FFF5E6;
+}
+
+.tiptap-ai-suggestion--clarity {
+  --tiptap-ai-suggestion-color: #4169E1;
+  --tiptap-ai-suggestion-background-color: #E6F0FF;
+}
+
+.tiptap-ai-suggestion--tone {
+  --tiptap-ai-suggestion-color: #32CD32;
+  --tiptap-ai-suggestion-background-color: #E6FFE6;
+}
