@@ -22,7 +22,7 @@ export class ProseMirrorPositionMapper {
    * Map plain text range to ProseMirror positions
    * Uses ProseMirror's native document traversal and position resolution
    */
-  mapTextRange(start: number, end: number): PositionMappingResult {
+  mapTextRange(start: number, end: number, expectedText?: string): PositionMappingResult {
     if (!this.editor?.state?.doc) {
       return { pmFrom: 0, pmTo: 0, valid: false, reason: 'No editor document' };
     }
@@ -44,6 +44,7 @@ export class ProseMirrorPositionMapper {
 
     // Validate ProseMirror positions
     if (pmFrom === null || pmTo === null) {
+      console.log(`[Position Mapper] Failed to map positions: start=${start}, end=${end}`);
       return { pmFrom: 0, pmTo: 0, valid: false, reason: 'Failed to map text indices' };
     }
 
@@ -66,6 +67,16 @@ export class ProseMirrorPositionMapper {
         return { pmFrom: 0, pmTo: 0, valid: false, reason: 'Positions not in text content' };
       }
 
+      // Validate that the text at these positions matches expected text (if provided)
+      if (expectedText) {
+        const actualText = this.extractTextAtPositions(pmFrom, pmTo);
+        if (actualText !== expectedText) {
+          console.log(`[Position Mapper] Text mismatch at positions ${pmFrom}-${pmTo}: expected "${expectedText}", got "${actualText}"`);
+          return { pmFrom: 0, pmTo: 0, valid: false, reason: `Text mismatch: expected "${expectedText}", got "${actualText}"` };
+        }
+        console.log(`[Position Mapper] ✓ Text match confirmed: "${expectedText}" at positions ${pmFrom}-${pmTo}`);
+      }
+
     } catch (error) {
       return { pmFrom: 0, pmTo: 0, valid: false, reason: `Position resolution failed: ${error.message}` };
     }
@@ -75,7 +86,7 @@ export class ProseMirrorPositionMapper {
 
   /**
    * Convert text index to ProseMirror position using native document traversal
-   * Walks through the document accumulating character counts until target index
+   * Precisely walks through the document accumulating character counts until exact target index
    */
   private textIndexToPosition(textIndex: number): number | null {
     if (textIndex === 0) return 1; // Start of document content
@@ -84,6 +95,8 @@ export class ProseMirrorPositionMapper {
     let currentTextIndex = 0;
     let foundPosition: number | null = null;
 
+    console.log(`[Position Mapper] Looking for text index ${textIndex}`);
+
     // Walk through document using ProseMirror's native traversal
     doc.descendants((node: any, pos: number) => {
       if (foundPosition !== null) return false; // Stop traversal when found
@@ -91,10 +104,18 @@ export class ProseMirrorPositionMapper {
       if (node.isText && node.text) {
         const textLength = node.text.length;
         
-        if (currentTextIndex <= textIndex && textIndex < currentTextIndex + textLength) {
-          // Target index is within this text node
+        // Check if target index is exactly at the current position
+        if (currentTextIndex === textIndex) {
+          foundPosition = pos;
+          console.log(`[Position Mapper] Found exact match at text boundary: textIndex=${textIndex}, pmPos=${pos}`);
+          return false;
+        }
+        
+        // Check if target index is within this text node
+        if (currentTextIndex < textIndex && textIndex <= currentTextIndex + textLength) {
           const offsetInNode = textIndex - currentTextIndex;
           foundPosition = pos + offsetInNode;
+          console.log(`[Position Mapper] Found in text node: textIndex=${textIndex}, pmPos=${foundPosition}, nodeText="${node.text}", offset=${offsetInNode}`);
           return false; // Stop traversal
         }
         
@@ -103,6 +124,7 @@ export class ProseMirrorPositionMapper {
         // Add newline for block boundaries (matching editor.getText() behavior)
         if (currentTextIndex === textIndex) {
           foundPosition = pos;
+          console.log(`[Position Mapper] Found at block boundary: textIndex=${textIndex}, pmPos=${pos}`);
           return false;
         }
         currentTextIndex += 1; // Account for newline between blocks
@@ -111,7 +133,40 @@ export class ProseMirrorPositionMapper {
       return true; // Continue traversal
     });
 
+    if (foundPosition === null) {
+      console.log(`[Position Mapper] Failed to find position for text index ${textIndex}, currentTextIndex=${currentTextIndex}`);
+    }
+
     return foundPosition;
+  }
+
+  /**
+   * Extract the actual text content at the given ProseMirror positions
+   * Used for validation that mapped positions contain expected text
+   */
+  private extractTextAtPositions(pmFrom: number, pmTo: number): string {
+    const { doc } = this.editor.state;
+    
+    try {
+      // Extract text slice from the document
+      const slice = doc.slice(pmFrom, pmTo);
+      let extractedText = '';
+      
+      // Walk through the slice and accumulate text
+      slice.content.descendants((node: any) => {
+        if (node.isText && node.text) {
+          extractedText += node.text;
+        } else if (node.isBlock && extractedText.length > 0) {
+          extractedText += '\n';
+        }
+        return true;
+      });
+      
+      return extractedText;
+    } catch (error) {
+      console.error('Error extracting text at positions:', error);
+      return '';
+    }
   }
 
   /**
