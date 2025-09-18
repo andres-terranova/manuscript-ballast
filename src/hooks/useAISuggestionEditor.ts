@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import { supabase } from '@/integrations/supabase/client';
+import { useContentAI } from './useContentAI';
 
 interface UseAISuggestionEditorOptions {
   contentHtml: string;
@@ -22,6 +23,7 @@ export const useAISuggestionEditor = ({
 }: UseAISuggestionEditorOptions) => {
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   const suggestionsTimeoutRef = useRef<NodeJS.Timeout>();
+  const { config: contentAIConfig, ensureValidToken } = useContentAI();
   
   const debouncedUpdate = useCallback((html: string, text: string) => {
     if (updateTimeoutRef.current) {
@@ -75,12 +77,10 @@ export const useAISuggestionEditor = ({
           class: 'text-blue-600 underline',
         },
       }),
-      // Add AI Suggestion extension with OpenAI configuration (commented until package installs)
-      // ...(openAIKey ? [AiSuggestion.configure({
-      //   openai: {
-      //     apiKey: openAIKey,
-      //   },
-      // })] : []),
+      // Try to use Content AI if available, otherwise fall back to OpenAI suggestions
+      ...(contentAIConfig ? [] : []), // Will add official extension once package installs
+      // Fallback to custom OpenAI implementation if no Content AI
+      // ...(openAIKey && !contentAIConfig ? [] : []),
     ],
     content: contentHtml,
     editable: !readOnly,
