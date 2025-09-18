@@ -255,13 +255,16 @@ Return ONLY JSON: {"suggestions": [{"textToReplace": "text", "textReplacement": 
             console.log(`Applying suggestion ${index + 1}:`, {
               textToReplace: suggestion.textToReplace,
               textReplacement: suggestion.textReplacement,
-              reason: suggestion.reason
+              reason: suggestion.reason,
+              textBefore: suggestion.textBefore?.slice(-10),
+              textAfter: suggestion.textAfter?.slice(0, 10)
             });
             
             // Get HTML before applying this suggestion
             const htmlBefore = editorInstance.getHTML();
             
-            applySuggestion(editorInstance.view, suggestion, "AI Assistant");
+            // Use exact GPT recommendation: pass (editor as any).view
+            applySuggestion((editorInstance as any).view, suggestion, "AI Assistant");
             
             // Get HTML after applying this suggestion
             const htmlAfter = editorInstance.getHTML();
@@ -464,7 +467,42 @@ Return ONLY JSON: {"suggestions": [{"textToReplace": "text", "textReplacement": 
                         checked={suggestionModeOn} 
                         onCheckedChange={setSuggestionModeOn} 
                       />
+                      <span className={`text-xs px-2 py-0.5 rounded ml-2 ${
+                        suggestionModeOn ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {suggestionModeOn ? 'ON' : 'OFF'}
+                      </span>
                     </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        if (editorInstance) {
+                          const debugInfo = [
+                            `Editor ready: ${!!editorInstance}`,
+                            `View available: ${!!editorInstance.view}`,
+                            `Schema marks: ${Object.keys(editorInstance.view.state.schema.marks).join(', ')}`,
+                            `Plugin count: ${editorInstance.view.state.plugins.length}`,
+                            `Suggestion mode: ${suggestionModeOn ? 'ON' : 'OFF'}`,
+                            `HTML length: ${editorInstance.getHTML().length}`,
+                            `Contains suggestions: ${editorInstance.getHTML().includes('suggestion-') || editorInstance.getHTML().includes('data-suggestion')}`
+                          ];
+                          
+                          setTestOutput(debugInfo.join('\n'));
+                          
+                          toast({
+                            title: "Manual Test Instructions",
+                            description: suggestionModeOn 
+                              ? "Type in the editor - you should see green inserts and red deletes"
+                              : "Turn ON Suggestion Mode first, then type to see tracked changes"
+                          });
+                        }
+                      }}
+                    >
+                      Test Manual
+                    </Button>
+                    
                     <Button onClick={runAIPass} disabled={isRunning}>
                       {isRunning ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -89,25 +89,28 @@ export function ExperimentalTiptapEditor({
     },
     onCreate: ({ editor }) => {
       try {
-        // Add the prosemirror-suggestion-mode plugin
-        const currentPlugins = editor.view.state.plugins.slice();
-        const suggestionPlugin = suggestionModePlugin({ 
+        // Add the prosemirror-suggestion-mode plugin using GPT's recommended approach
+        const pmPlugins = editor.view.state.plugins.slice();
+        pmPlugins.push(suggestionModePlugin({ 
           username: "Current User", 
           data: { source: "user" } 
-        });
-        currentPlugins.push(suggestionPlugin);
+        }));
         
-        const newState = editor.view.state.reconfigure({ plugins: currentPlugins });
-        editor.view.updateState(newState);
+        editor.view.updateState(
+          editor.view.state.reconfigure({ plugins: pmPlugins })
+        );
         
         console.log("prosemirror-suggestion-mode plugin attached successfully");
+        
+        // Debug editor state after plugin attachment
+        debugEditorState(editor, "AFTER_PLUGIN_ATTACHMENT");
         
         // Notify parent that editor is ready
         if (onEditorReady) {
           onEditorReady(editor);
         }
       } catch (error) {
-        console.warn("Failed to attach prosemirror-suggestion-mode plugin:", error);
+        console.error("Failed to attach prosemirror-suggestion-mode plugin:", error);
       }
     },
     editorProps: {
@@ -129,10 +132,15 @@ export function ExperimentalTiptapEditor({
   useEffect(() => {
     if (editor) {
       try {
-        setSuggestionMode(editor.view, suggestionMode);
+        setSuggestionMode((editor as any).view, suggestionMode);
         console.log("Suggestion mode set to:", suggestionMode);
+        
+        // Debug state after toggling suggestion mode
+        if (suggestionMode) {
+          debugEditorState(editor, "SUGGESTION_MODE_ON");
+        }
       } catch (error) {
-        console.warn("Failed to set suggestion mode:", error);
+        console.error("Failed to set suggestion mode:", error);
       }
     }
   }, [editor, suggestionMode]);
@@ -140,20 +148,20 @@ export function ExperimentalTiptapEditor({
   const handleAcceptAll = () => {
     if (!editor) return;
     try {
-      acceptAllSuggestions(editor.view.state, editor.view.dispatch);
+      acceptAllSuggestions((editor as any).view.state, (editor as any).view.dispatch);
       console.log("All suggestions accepted");
     } catch (error) {
-      console.warn("Failed to accept all suggestions:", error);
+      console.error("Failed to accept all suggestions:", error);
     }
   };
 
   const handleRejectAll = () => {
     if (!editor) return;
     try {
-      rejectAllSuggestions(editor.view.state, editor.view.dispatch);
+      rejectAllSuggestions((editor as any).view.state, (editor as any).view.dispatch);
       console.log("All suggestions rejected");
     } catch (error) {
-      console.warn("Failed to reject all suggestions:", error);
+      console.error("Failed to reject all suggestions:", error);
     }
   };
 
