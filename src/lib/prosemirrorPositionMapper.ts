@@ -97,44 +97,51 @@ export class ProseMirrorPositionMapper {
 
     console.log(`[Position Mapper] Looking for text index ${textIndex}`);
 
-    // Walk through document using ProseMirror's native traversal
+    // Walk through document character by character to find exact position
+    let pmPosition = 1; // Start after opening doc tag
+
     doc.descendants((node: any, pos: number) => {
       if (foundPosition !== null) return false; // Stop traversal when found
 
       if (node.isText && node.text) {
-        const textLength = node.text.length;
-        
-        // Check if target index is exactly at the current position
-        if (currentTextIndex === textIndex) {
-          foundPosition = pos;
-          console.log(`[Position Mapper] Found exact match at text boundary: textIndex=${textIndex}, pmPos=${pos}`);
-          return false;
+        // Check each character in this text node
+        for (let i = 0; i < node.text.length; i++) {
+          if (currentTextIndex === textIndex) {
+            foundPosition = pmPosition;
+            console.log(`[Position Mapper] Found exact position: textIndex=${textIndex}, pmPos=${pmPosition}, char="${node.text[i] || 'EOF'}"`);
+            return false;
+          }
+          currentTextIndex++;
+          pmPosition++;
         }
-        
-        // Check if target index is within this text node
-        if (currentTextIndex < textIndex && textIndex <= currentTextIndex + textLength) {
-          const offsetInNode = textIndex - currentTextIndex;
-          foundPosition = pos + offsetInNode;
-          console.log(`[Position Mapper] Found in text node: textIndex=${textIndex}, pmPos=${foundPosition}, nodeText="${node.text}", offset=${offsetInNode}`);
-          return false; // Stop traversal
+      } else if (node.isBlock) {
+        // Handle block boundaries - add newline character to match getText() behavior
+        if (currentTextIndex > 0) { // Don't add newline before first block
+          if (currentTextIndex === textIndex) {
+            foundPosition = pmPosition;
+            console.log(`[Position Mapper] Found at block boundary: textIndex=${textIndex}, pmPos=${pmPosition}`);
+            return false;
+          }
+          currentTextIndex++; // Account for newline character
         }
-        
-        currentTextIndex += textLength;
-      } else if (node.isBlock && currentTextIndex > 0) {
-        // Add newline for block boundaries (matching editor.getText() behavior)
-        if (currentTextIndex === textIndex) {
-          foundPosition = pos;
-          console.log(`[Position Mapper] Found at block boundary: textIndex=${textIndex}, pmPos=${pos}`);
-          return false;
-        }
-        currentTextIndex += 1; // Account for newline between blocks
+        // Move past the block opening tag
+        pmPosition = pos + 1;
+      } else {
+        // For other node types, move past them
+        pmPosition = pos + node.nodeSize;
       }
 
       return true; // Continue traversal
     });
 
+    // Check if we're looking for the very end of the text
+    if (currentTextIndex === textIndex && foundPosition === null) {
+      foundPosition = pmPosition;
+      console.log(`[Position Mapper] Found at end of document: textIndex=${textIndex}, pmPos=${pmPosition}`);
+    }
+
     if (foundPosition === null) {
-      console.log(`[Position Mapper] Failed to find position for text index ${textIndex}, currentTextIndex=${currentTextIndex}`);
+      console.log(`[Position Mapper] Failed to find position for text index ${textIndex}, currentTextIndex=${currentTextIndex}, pmPosition=${pmPosition}`);
     }
 
     return foundPosition;
