@@ -3,5 +3,8 @@ project_id = "etybjqtfkclugpahsgcj"
 [functions.suggest]
 verify_jwt = false
 
+[functions.suggest-experimental]
+verify_jwt = false
+
 [functions.process-docx]
 verify_jwt = false

@@ -1,0 +1,2 @@
+-- Create the suggest-experimental edge function configuration
+-- This will be handled by the edge function creation

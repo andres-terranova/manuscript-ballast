@@ -81,7 +81,7 @@ export function ExperimentalTiptapEditor({
   useEffect(() => {
     if (editor && content !== lastContentRef.current) {
       lastContentRef.current = content;
-      editor.commands.setContent(content, false);
+      editor.commands.setContent(content, { emitUpdate: false });
     }
   }, [editor, content]);
 
