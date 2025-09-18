@@ -51,3 +51,24 @@ export function rejectAllEditorSuggestions(editor: any): boolean {
     return false;
   }
 }
+
+export function applyContextBasedSuggestion(editor: any, suggestion: UISuggestion, username: string = "Editor"): boolean {
+  if (!editor?.view) return false;
+  
+  try {
+    // Use context-based approach like the working prototype
+    const contextSuggestion = {
+      textToReplace: suggestion.before,
+      textReplacement: suggestion.after,
+      reason: suggestion.note,
+      textBefore: (suggestion as any).textBefore || '',
+      textAfter: (suggestion as any).textAfter || ''
+    };
+    
+    applySuggestion(editor.view, contextSuggestion, username);
+    return true;
+  } catch (error) {
+    console.error('Error applying context-based suggestion:', error);
+    return false;
+  }
+}

@@ -23,8 +23,7 @@ import {
 import { ExperimentalDocumentCanvas } from "./ExperimentalDocumentCanvas";
 import { ExperimentalSuggestionsList } from "./ExperimentalSuggestionsList";
 import type { UISuggestion, ServerSuggestion } from "@/lib/types";
-import { mapPlainTextToPM } from "@/lib/suggestionMapper";
-import { applyUISuggestion, acceptAllEditorSuggestions, rejectAllEditorSuggestions } from '@/lib/suggestionUtils';
+import { applyContextBasedSuggestion, acceptAllEditorSuggestions, rejectAllEditorSuggestions } from '@/lib/suggestionUtils';
 
 const ExperimentalEditor = () => {
   const { id } = useParams<{ id: string }>();
@@ -129,24 +128,30 @@ const ExperimentalEditor = () => {
         return;
       }
 
-      // Map server suggestions to UI suggestions
+      // Convert server suggestions to UI suggestions with context
       const serverSuggestions: ServerSuggestion[] = data.suggestions || [];
-      const mapped = mapPlainTextToPM(editorRef.current, editorText, serverSuggestions);
+      const uiSuggestions: UISuggestion[] = serverSuggestions.map(serverSuggestion => ({
+        ...serverSuggestion,
+        origin: "server" as const,
+        actor: "Tool" as const,
+        pmFrom: 0, // Not used with context-based approach
+        pmTo: 0    // Not used with context-based approach
+      }));
       
-      // Apply suggestions to the editor once when they're generated
-      if (editorRef.current && mapped.length > 0) {
-        console.log('Applying', mapped.length, 'suggestions to editor');
-        mapped.forEach((suggestion, index) => {
+      // Apply suggestions to the editor using context-based approach
+      if (editorRef.current && uiSuggestions.length > 0) {
+        console.log('Applying', uiSuggestions.length, 'suggestions to editor');
+        uiSuggestions.forEach((suggestion, index) => {
           console.log(`Applying suggestion ${index + 1}:`, suggestion.before, '->', suggestion.after);
-          applyUISuggestion(editorRef.current, suggestion, "AI Assistant");
+          applyContextBasedSuggestion(editorRef.current, suggestion, "AI Assistant");
         });
       }
       
       // Set suggestions state for UI display
-      setSuggestions(mapped);
+      setSuggestions(uiSuggestions);
       
       toast({
-        title: `Generated ${mapped.length} suggestions`,
+        title: `Generated ${uiSuggestions.length} suggestions`,
       });
     } catch (error) {
       console.error('Error running AI:', error);

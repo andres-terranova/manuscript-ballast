@@ -20,7 +20,9 @@ export const SuggestionZ = z.object({
   after: z.string(),
   category: SuggestionCategory,
   note: z.string(),
-  location: z.string().optional()
+  location: z.string().optional(),
+  textBefore: z.string(),
+  textAfter: z.string()
 });
 
 export const SuggestResponseZ = z.object({
@@ -229,12 +231,25 @@ serve(async (req) => {
           30000 // 30 second timeout per chunk for faster response
         );
 
-        // Shift indices by current offset
-        const shiftedSuggestions = result.suggestions.map((suggestion: any) => ({
-          ...suggestion,
-          start: suggestion.start + currentOffset,
-          end: suggestion.end + currentOffset,
-        }));
+        // Shift indices by current offset and add context
+        const shiftedSuggestions = result.suggestions.map((suggestion: any) => {
+          const adjustedStart = suggestion.start + currentOffset;
+          const adjustedEnd = suggestion.end + currentOffset;
+          
+          // Extract context windows (30 chars before/after)
+          const contextStart = Math.max(0, adjustedStart - 30);
+          const contextEnd = Math.min(text.length, adjustedEnd + 30);
+          const textBefore = text.slice(contextStart, adjustedStart);
+          const textAfter = text.slice(adjustedEnd, contextEnd);
+          
+          return {
+            ...suggestion,
+            start: adjustedStart,
+            end: adjustedEnd,
+            textBefore,
+            textAfter
+          };
+        });
 
         allSuggestions.push(...shiftedSuggestions);
         currentOffset += chunk.length + (chunks.length > 1 ? 2 : 0); // Account for paragraph breaks
