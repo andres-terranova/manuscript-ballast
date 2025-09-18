@@ -21,8 +21,6 @@ export type ServerSuggestion = BaseSuggestion & {
   before: string;
   after: string;
   location?: string;
-  textBefore?: string;
-  textAfter?: string;
 };
 
 // Manual suggestions (user-created) - created directly with PM positions

@@ -46,18 +46,15 @@ function mapWithProseMirrorNative(editor: any, plain: string, items: ServerSugge
     const unmappedItems: Array<{ id: string; reason: string }> = [];
     
     for (const suggestion of items) {
-      const mappingResult = mapper.mapTextRange(suggestion.start, suggestion.end, suggestion.before);
+      const mappingResult = mapper.mapTextRange(suggestion.start, suggestion.end);
       
       if (!mappingResult.valid) {
         unmappedItems.push({ 
           id: suggestion.id, 
           reason: mappingResult.reason || 'unknown mapping error'
         });
-        console.log(`[PM Native Mapper] Failed to map suggestion "${suggestion.before}" -> "${suggestion.after}": ${mappingResult.reason}`);
         continue;
       }
-      
-      console.log(`[PM Native Mapper] ✓ Successfully mapped "${suggestion.before}" at positions ${mappingResult.pmFrom}-${mappingResult.pmTo}`);
       
       results.push({ 
         ...suggestion, 
