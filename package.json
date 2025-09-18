@@ -47,6 +47,7 @@
     "@tiptap/extension-placeholder": "^3.4.1",
     "@tiptap/react": "^3.4.1",
     "@tiptap/starter-kit": "^3.4.1",
+    "@tiptap-pro/extension-ai-suggestion": "^3.0.0-beta.39",
     "ai": "^5.0.38",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
