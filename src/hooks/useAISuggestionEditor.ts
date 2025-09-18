@@ -3,7 +3,6 @@ import { useCallback, useRef } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
-// This will work once the package is installed
 // import { AiSuggestion } from '@tiptap-pro/extension-ai-suggestion';
 
 interface UseAISuggestionEditorOptions {
@@ -43,13 +42,12 @@ export const useAISuggestionEditor = ({
           class: 'text-blue-600 underline',
         },
       }),
-      // Add AI Suggestion extension once package is installed
-      // AiSuggestion.configure({
-      //   // Configuration will go here
+      // Add AI Suggestion extension with OpenAI configuration (commented until package installs)
+      // ...(openAIKey ? [AiSuggestion.configure({
       //   openai: {
       //     apiKey: openAIKey,
       //   },
-      // }),
+      // })] : []),
     ],
     content: contentHtml,
     editable: !readOnly,
