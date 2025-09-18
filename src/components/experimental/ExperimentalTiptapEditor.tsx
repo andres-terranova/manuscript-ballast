@@ -3,15 +3,15 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
-import { SuggestionInsert } from "./marks/SuggestionInsert";
-import { SuggestionDelete } from "./marks/SuggestionDelete";
-import { SuggestionModeExtension } from "./extensions/SuggestionModeExtension";
+import { Extension, Mark } from "@tiptap/core";
 import "prosemirror-suggestion-mode/style/suggestion-mode.css";
 import {
   setSuggestionMode,
   acceptAllSuggestions,
   rejectAllSuggestions,
   applySuggestion,
+  addSuggestionMarks,
+  suggestionModePlugin,
 } from "prosemirror-suggestion-mode";
 
 interface ExperimentalTiptapEditorProps {
@@ -72,11 +72,79 @@ export function ExperimentalTiptapEditor({
     console.log(`=== END DEBUG ${context} ===`);
   };
 
+  // Create Tiptap marks that wrap the prosemirror-suggestion-mode marks
+  const SuggestionInsertMark = Mark.create({
+    name: 'suggestion_insert',
+    
+    addAttributes() {
+      return {
+        username: { default: null },
+        data: { default: null },
+      };
+    },
+
+    parseHTML() {
+      return [
+        { tag: 'span.suggestion-insert' },
+        { tag: 'span[data-suggestion="insert"]' },
+      ];
+    },
+
+    renderHTML({ HTMLAttributes }) {
+      return ['span', { 
+        ...HTMLAttributes,
+        class: 'suggestion-insert',
+        'data-suggestion': 'insert'
+      }, 0];
+    },
+  });
+
+  const SuggestionDeleteMark = Mark.create({
+    name: 'suggestion_delete',
+    
+    addAttributes() {
+      return {
+        username: { default: null },
+        data: { default: null },
+      };
+    },
+
+    parseHTML() {
+      return [
+        { tag: 'span.suggestion-delete' },
+        { tag: 'span[data-suggestion="delete"]' },
+      ];
+    },
+
+    renderHTML({ HTMLAttributes }) {
+      return ['span', { 
+        ...HTMLAttributes,
+        class: 'suggestion-delete',
+        'data-suggestion': 'delete'
+      }, 0];
+    },
+  });
+
+  // Create a custom extension to add prosemirror-suggestion-mode plugin
+  const SuggestionModeExtension = Extension.create({
+    name: 'suggestionMode',
+    
+    addProseMirrorPlugins() {
+      return [
+        suggestionModePlugin({
+          username: "AI Assistant",
+          data: { source: "ai" },
+          inSuggestionMode: false,
+        }),
+      ];
+    },
+  });
+
   const editor = useEditor({
     extensions: [
       StarterKit,
-      SuggestionInsert,
-      SuggestionDelete,
+      SuggestionInsertMark,
+      SuggestionDeleteMark,
       SuggestionModeExtension,
     ],
     content: content,
@@ -158,12 +226,12 @@ export function ExperimentalTiptapEditor({
     const div = document.createElement("div");
     div.innerHTML = editor.getHTML();
     
-    return Array.from(div.querySelectorAll("span.suggestion-insert, span.suggestion-delete, mark[data-suggestion]"))
+    return Array.from(div.querySelectorAll("span.suggestion-insert, span.suggestion-delete, span[data-suggestion]"))
       .map((element, index) => ({
         id: String(index),
         excerpt: element.textContent || "",
-        type: element.classList.contains("suggestion-delete") ? "delete" : "insert",
-        reason: element.getAttribute("title") || undefined,
+        type: element.classList.contains("suggestion-delete") || element.getAttribute("data-suggestion") === "delete" ? "delete" : "insert",
+        reason: element.getAttribute("title") || element.getAttribute("data-reason") || undefined,
       }));
   };
 
