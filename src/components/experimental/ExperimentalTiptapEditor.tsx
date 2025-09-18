@@ -18,7 +18,7 @@ interface ExperimentalTiptapEditorProps {
   content: string;
   suggestionMode: boolean;
   onContentChange: (html: string) => void;
-  onRunAI?: () => Promise<any>;
+  onEditorReady?: (editor: any) => void;
 }
 
 type AISuggestion = {
@@ -33,7 +33,7 @@ export function ExperimentalTiptapEditor({
   content, 
   suggestionMode, 
   onContentChange,
-  onRunAI 
+  onEditorReady 
 }: ExperimentalTiptapEditorProps) {
   const lastContentRef = useRef<string>("");
 
@@ -66,6 +66,11 @@ export function ExperimentalTiptapEditor({
         editor.view.updateState(newState);
         
         console.log("prosemirror-suggestion-mode plugin attached successfully");
+        
+        // Notify parent that editor is ready
+        if (onEditorReady) {
+          onEditorReady(editor);
+        }
       } catch (error) {
         console.warn("Failed to attach prosemirror-suggestion-mode plugin:", error);
       }
@@ -117,29 +122,6 @@ export function ExperimentalTiptapEditor({
     }
   };
 
-  // Apply AI suggestions using prosemirror-suggestion-mode
-  const applyAISuggestions = async () => {
-    if (!editor || !onRunAI) return;
-    
-    try {
-      const suggestions = await onRunAI();
-      if (!suggestions || !Array.isArray(suggestions)) return;
-
-      console.log("Applying suggestions:", suggestions);
-
-      // Apply each suggestion using the prosemirror-suggestion-mode library
-      suggestions.forEach((suggestion: AISuggestion) => {
-        try {
-          applySuggestion(editor.view, suggestion, "AI Assistant");
-        } catch (error) {
-          console.warn("Failed to apply suggestion:", suggestion, error);
-        }
-      });
-
-    } catch (error) {
-      console.error("Failed to apply AI suggestions:", error);
-    }
-  };
 
   const getSuggestionsList = () => {
     if (!editor) return [];

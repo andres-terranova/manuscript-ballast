@@ -107,6 +107,7 @@ export default function ExperimentalEditorPage() {
   );
   const [isRunning, setIsRunning] = useState(false);
   const [editorContent, setEditorContent] = useState("");
+  const [editorInstance, setEditorInstance] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -231,21 +232,40 @@ Return ONLY JSON: {"suggestions": [{"textToReplace": "text", "textReplacement": 
     }
 
     // Apply suggestions to editor if we have them
-    if (suggestions.length > 0) {
-      // This will be handled by the ExperimentalTiptapEditor component
-      console.log("Generated suggestions:", suggestions);
+    if (suggestions.length > 0 && editorInstance?.view) {
+      console.log("Applying suggestions:", suggestions);
       
-      const next = new Map(manuscripts);
-      const m = next.get(selected.id)!;
-      m.status = "AI Suggested";
-      m.updatedAt = nowISO();
-      next.set(m.id, m);
-      setManuscripts(next);
-      
-      toast({ 
-        title: "AI suggestions generated", 
-        description: `${suggestions.length} suggestions applied.` 
-      });
+      // Import applySuggestion dynamically to apply each suggestion
+      try {
+        const { applySuggestion } = await import("prosemirror-suggestion-mode");
+        
+        suggestions.forEach((suggestion: ExperimentalSuggestion) => {
+          try {
+            applySuggestion(editorInstance.view, suggestion, "AI Assistant");
+          } catch (error) {
+            console.warn("Failed to apply suggestion:", suggestion, error);
+          }
+        });
+        
+        const next = new Map(manuscripts);
+        const m = next.get(selected.id)!;
+        m.status = "AI Suggested";
+        m.updatedAt = nowISO();
+        next.set(m.id, m);
+        setManuscripts(next);
+        
+        toast({ 
+          title: "AI suggestions applied", 
+          description: `${suggestions.length} suggestions applied to editor.` 
+        });
+      } catch (error) {
+        console.error("Failed to apply suggestions:", error);
+        toast({ 
+          title: "Application failed", 
+          description: "Could not apply suggestions to editor.",
+          variant: "destructive"
+        });
+      }
     }
     
     setIsRunning(false);
@@ -428,7 +448,7 @@ Return ONLY JSON: {"suggestions": [{"textToReplace": "text", "textReplacement": 
                       next.set(manuscript.id, manuscript);
                       setManuscripts(next);
                     }}
-                    onRunAI={runAIPass}
+                    onEditorReady={setEditorInstance}
                   />
                   <p className="mt-4 text-xs text-muted-foreground italic">
                     Suggestion Mode: When ON, your edits are recorded as suggestions (highlighted). 
