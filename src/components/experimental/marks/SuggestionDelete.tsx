@@ -26,7 +26,7 @@ export const SuggestionDelete = Mark.create({
   renderHTML({ HTMLAttributes }) {
     const classes = [
       HTMLAttributes.class,
-      "suggestion-delete",
+      "suggest-delete",
       "pm-suggestion-delete",
       "prosemirror-suggestion-delete", 
       "suggestion",
@@ -45,6 +45,7 @@ export const SuggestionDelete = Mark.create({
       ...HTMLAttributes,
       class: classes,
       'data-suggestion': 'delete',
+      'data-actor': 'Tool',
       title: (HTMLAttributes as any)?.reason || undefined,
     };
 

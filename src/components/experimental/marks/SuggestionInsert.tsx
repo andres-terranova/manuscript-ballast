@@ -26,7 +26,7 @@ export const SuggestionInsert = Mark.create({
   renderHTML({ HTMLAttributes }) {
     const classes = [
       HTMLAttributes.class,
-      "suggestion-insert",
+      "suggest-insert",
       "pm-suggestion-insert", 
       "prosemirror-suggestion-insert",
       "suggestion",
@@ -45,6 +45,7 @@ export const SuggestionInsert = Mark.create({
       ...HTMLAttributes,
       class: classes,
       'data-suggestion': 'insert',
+      'data-actor': 'Tool',
       title: (HTMLAttributes as any)?.reason || undefined,
     };
 
