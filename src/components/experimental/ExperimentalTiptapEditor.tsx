@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 import { SuggestionInsert } from "./marks/SuggestionInsert";
 import { SuggestionDelete } from "./marks/SuggestionDelete";
+import { SuggestionModeExtension } from "./extensions/SuggestionModeExtension";
 import "prosemirror-suggestion-mode/style/suggestion-mode.css";
 import {
-  suggestionModePlugin,
   setSuggestionMode,
   acceptAllSuggestions,
   rejectAllSuggestions,
@@ -77,6 +77,7 @@ export function ExperimentalTiptapEditor({
       StarterKit,
       SuggestionInsert,
       SuggestionDelete,
+      SuggestionModeExtension,
     ],
     content: content,
     editable: true,
@@ -88,29 +89,14 @@ export function ExperimentalTiptapEditor({
       }
     },
     onCreate: ({ editor }) => {
-      try {
-        // Add the prosemirror-suggestion-mode plugin using GPT's recommended approach
-        const pmPlugins = editor.view.state.plugins.slice();
-        pmPlugins.push(suggestionModePlugin({ 
-          username: "Current User", 
-          data: { source: "user" } 
-        }));
-        
-        editor.view.updateState(
-          editor.view.state.reconfigure({ plugins: pmPlugins })
-        );
-        
-        console.log("prosemirror-suggestion-mode plugin attached successfully");
-        
-        // Debug editor state after plugin attachment
-        debugEditorState(editor, "AFTER_PLUGIN_ATTACHMENT");
-        
-        // Notify parent that editor is ready
-        if (onEditorReady) {
-          onEditorReady(editor);
-        }
-      } catch (error) {
-        console.error("Failed to attach prosemirror-suggestion-mode plugin:", error);
+      console.log("=== EDITOR READY ===");
+      
+      // Debug editor state after creation
+      debugEditorState(editor, "AFTER_CREATION");
+      
+      // Notify parent that editor is ready
+      if (onEditorReady) {
+        onEditorReady(editor);
       }
     },
     editorProps: {
