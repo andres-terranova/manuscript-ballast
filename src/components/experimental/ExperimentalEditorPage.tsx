@@ -19,7 +19,7 @@ type ExperimentalManuscript = {
   contentHTML: string;
 };
 
-type ExperimentalSuggestion = {
+type AISuggestion = {
   textToReplace: string;
   textReplacement: string;
   reason?: string;
@@ -57,8 +57,8 @@ async function parseDocxToHTML(arrayBuffer: ArrayBuffer): Promise<string> {
 }
 
 // Fallback contextual suggestions
-function buildContextualSuggestions(text: string): ExperimentalSuggestion[] {
-  const results: ExperimentalSuggestion[] = [];
+function buildContextualSuggestions(text: string): AISuggestion[] {
+  const results: AISuggestion[] = [];
   
   const addWindow = (start: number, end: number, repFrom: string, repTo: string, reason: string) => {
     const before = Math.max(0, start - 30);
@@ -167,13 +167,13 @@ export default function ExperimentalEditorPage() {
     }
   }
 
-  async function runAIPass() {
-    if (!selected) return;
+  async function runAIPass(): Promise<AISuggestion[]> {
+    if (!selected || !editorInstance) return [];
     
     setIsRunning(true);
     const plainText = selected.contentHTML.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     
-    let suggestions: ExperimentalSuggestion[] = [];
+    let suggestions: AISuggestion[] = [];
 
     // Try edge function first
     try {
@@ -239,7 +239,7 @@ Return ONLY JSON: {"suggestions": [{"textToReplace": "text", "textReplacement": 
       try {
         const { applySuggestion } = await import("prosemirror-suggestion-mode");
         
-        suggestions.forEach((suggestion: ExperimentalSuggestion) => {
+        suggestions.forEach((suggestion: AISuggestion) => {
           try {
             applySuggestion(editorInstance.view, suggestion, "AI Assistant");
           } catch (error) {
