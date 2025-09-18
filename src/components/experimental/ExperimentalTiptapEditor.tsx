@@ -37,6 +37,41 @@ export function ExperimentalTiptapEditor({
 }: ExperimentalTiptapEditorProps) {
   const lastContentRef = useRef<string>("");
 
+  // Debug function to check editor state
+  const debugEditorState = (editor: any, context: string) => {
+    console.log(`=== DEBUG ${context} ===`);
+    
+    // Check if marks are registered in schema
+    const schema = editor.view.state.schema;
+    console.log("Schema marks:", Object.keys(schema.marks));
+    console.log("Has suggestion_insert:", 'suggestion_insert' in schema.marks);
+    console.log("Has suggestion_delete:", 'suggestion_delete' in schema.marks);
+    
+    // Check plugins
+    const plugins = editor.view.state.plugins;
+    console.log("Number of plugins:", plugins.length);
+    console.log("Plugin names:", plugins.map((p: any) => p.key || p.constructor.name));
+    
+    // Check prosemirror-suggestion-mode plugin specifically
+    const suggestionPlugin = plugins.find((p: any) => 
+      p.key && (p.key.includes('suggestion') || p.key.includes('prosemirror'))
+    );
+    console.log("Suggestion plugin found:", !!suggestionPlugin);
+    
+    // Check current HTML content
+    const html = editor.getHTML();
+    console.log("Current HTML length:", html.length);
+    console.log("HTML contains suggestion marks:", 
+      html.includes('suggestion-insert') || html.includes('suggestion-delete') ||
+      html.includes('data-suggestion')
+    );
+    
+    // Sample a bit of HTML to see structure
+    console.log("HTML sample (first 200 chars):", html.substring(0, 200));
+    
+    console.log(`=== END DEBUG ${context} ===`);
+  };
+
   const editor = useEditor({
     extensions: [
       StarterKit,

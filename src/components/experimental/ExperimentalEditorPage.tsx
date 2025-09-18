@@ -235,17 +235,62 @@ Return ONLY JSON: {"suggestions": [{"textToReplace": "text", "textReplacement": 
     if (suggestions.length > 0 && editorInstance?.view) {
       console.log("Applying suggestions:", suggestions);
       
-      // Import applySuggestion dynamically to apply each suggestion
+      // Apply suggestions to the editor with detailed debugging
       try {
         const { applySuggestion } = await import("prosemirror-suggestion-mode");
         
-        suggestions.forEach((suggestion: AISuggestion) => {
+        console.log("=== APPLYING SUGGESTIONS ===");
+        console.log(`About to apply ${suggestions.length} suggestions`);
+        
+        // Debug editor state before applying suggestions
+        if (editorInstance.view) {
+          console.log("Editor state before applying suggestions:");
+          console.log("- Current HTML length:", editorInstance.getHTML().length);
+          console.log("- Schema marks:", Object.keys(editorInstance.view.state.schema.marks));
+          console.log("- Plugin count:", editorInstance.view.state.plugins.length);
+        }
+        
+        suggestions.forEach((suggestion: AISuggestion, index: number) => {
           try {
+            console.log(`Applying suggestion ${index + 1}:`, {
+              textToReplace: suggestion.textToReplace,
+              textReplacement: suggestion.textReplacement,
+              reason: suggestion.reason
+            });
+            
+            // Get HTML before applying this suggestion
+            const htmlBefore = editorInstance.getHTML();
+            
             applySuggestion(editorInstance.view, suggestion, "AI Assistant");
+            
+            // Get HTML after applying this suggestion
+            const htmlAfter = editorInstance.getHTML();
+            
+            console.log(`Suggestion ${index + 1} applied:`, {
+              htmlChanged: htmlBefore !== htmlAfter,
+              lengthBefore: htmlBefore.length,
+              lengthAfter: htmlAfter.length,
+              hasInsertMarkup: htmlAfter.includes('suggestion-insert') || htmlAfter.includes('data-suggestion="insert"'),
+              hasDeleteMarkup: htmlAfter.includes('suggestion-delete') || htmlAfter.includes('data-suggestion="delete"')
+            });
+            
           } catch (error) {
-            console.warn("Failed to apply suggestion:", suggestion, error);
+            console.error(`Failed to apply suggestion ${index + 1}:`, suggestion, error);
           }
         });
+        
+        // Final state check
+        const finalHTML = editorInstance.getHTML();
+        console.log("=== FINAL STATE AFTER ALL SUGGESTIONS ===");
+        console.log("Final HTML length:", finalHTML.length);
+        console.log("Contains suggestion markup:", 
+          finalHTML.includes('suggestion-insert') || 
+          finalHTML.includes('suggestion-delete') ||
+          finalHTML.includes('data-suggestion')
+        );
+        console.log("Final HTML sample (first 300 chars):", finalHTML.substring(0, 300));
+        
+        console.log(`Applied ${suggestions.length} suggestions to editor`);
         
         const next = new Map(manuscripts);
         const m = next.get(selected.id)!;
@@ -448,7 +493,29 @@ Return ONLY JSON: {"suggestions": [{"textToReplace": "text", "textReplacement": 
                       next.set(manuscript.id, manuscript);
                       setManuscripts(next);
                     }}
-                    onEditorReady={setEditorInstance}
+                    onEditorReady={(editor) => {
+                      setEditorInstance(editor);
+                      // Debug editor state when ready
+                      console.log("=== EDITOR READY ===");
+                      if (editor?.view) {
+                        const schema = editor.view.state.schema;
+                        console.log("Editor schema marks:", Object.keys(schema.marks));
+                        console.log("Has suggestion_insert mark:", 'suggestion_insert' in schema.marks);
+                        console.log("Has suggestion_delete mark:", 'suggestion_delete' in schema.marks);
+                        
+                        const plugins = editor.view.state.plugins;
+                        console.log("Total plugins loaded:", plugins.length);
+                        console.log("Plugin keys/names:", plugins.map((p: any) => p.key || p.constructor.name));
+                        
+                        // Look specifically for prosemirror-suggestion-mode plugin
+                        const hasSuggestionPlugin = plugins.some((p: any) => 
+                          (p.key && p.key.includes && p.key.includes('suggestion')) ||
+                          (p.constructor && p.constructor.name && p.constructor.name.includes('suggestion'))
+                        );
+                        console.log("prosemirror-suggestion-mode plugin detected:", hasSuggestionPlugin);
+                      }
+                      console.log("=== END EDITOR READY ===");
+                    }}
                   />
                   <p className="mt-4 text-xs text-muted-foreground italic">
                     Suggestion Mode: When ON, your edits are recorded as suggestions (highlighted). 
