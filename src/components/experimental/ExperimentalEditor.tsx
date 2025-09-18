@@ -133,14 +133,17 @@ const ExperimentalEditor = () => {
       const serverSuggestions: ServerSuggestion[] = data.suggestions || [];
       const mapped = mapPlainTextToPM(editorRef.current, editorText, serverSuggestions);
       
-      setSuggestions(mapped);
-      
-      // Apply suggestion marks to editor using the plugin API
-      if (mapped.length > 0) {
-        mapped.forEach(suggestion => {
+      // Apply suggestions to the editor once when they're generated
+      if (editorRef.current && mapped.length > 0) {
+        console.log('Applying', mapped.length, 'suggestions to editor');
+        mapped.forEach((suggestion, index) => {
+          console.log(`Applying suggestion ${index + 1}:`, suggestion.before, '->', suggestion.after);
           applyUISuggestion(editorRef.current, suggestion, "AI Assistant");
         });
       }
+      
+      // Set suggestions state for UI display
+      setSuggestions(mapped);
       
       toast({
         title: `Generated ${mapped.length} suggestions`,

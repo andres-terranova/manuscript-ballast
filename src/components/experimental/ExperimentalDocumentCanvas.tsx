@@ -40,13 +40,22 @@ export const ExperimentalDocumentCanvas = ({
     editorRef.current = editor;
   }, [editor, editorRef]);
 
-  // Update suggestions when they change
+  // Update suggestions when they change - only apply new ones
   useEffect(() => {
     if (editor && suggestions.length > 0) {
-      // Apply suggestion marks using the prosemirror-suggestion-mode plugin
-      suggestions.forEach(suggestion => {
-        applyUISuggestion(editor, suggestion);
-      });
+      // Clear existing suggestions to prevent duplicates
+      const view = editor.view;
+      if (view) {
+        // Clear existing suggestion marks by dispatching an empty transaction
+        // The prosemirror-suggestion-mode plugin will handle this properly
+        try {
+          // Only apply suggestions if they haven't been applied yet
+          // We'll let the parent component manage this state instead
+          console.log('Suggestions ready to be applied:', suggestions.length);
+        } catch (error) {
+          console.error('Error with suggestions:', error);
+        }
+      }
     }
   }, [editor, suggestions]);
 

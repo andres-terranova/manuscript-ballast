@@ -35,7 +35,6 @@ export const SuggestionInsert = Mark.create({
       ...HTMLAttributes,
       class: cls,
       'data-suggestion': 'insert',
-      title: (HTMLAttributes as any)?.reason || undefined,
     };
     return ["span", attrs, 0];
   },
@@ -76,7 +75,6 @@ export const SuggestionDelete = Mark.create({
       ...HTMLAttributes,
       class: cls,
       'data-suggestion': 'delete',
-      title: (HTMLAttributes as any)?.reason || undefined,
     };
     return ["span", attrs, 0];
   },
