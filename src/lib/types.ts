@@ -1,8 +1,8 @@
 // Unified type system for suggestions with discriminated unions
 
 export type SuggestionType = "insert" | "delete" | "replace";
-export type SuggestionCategory = "grammar" | "spelling" | "style" | "manual";
-export type SuggestionActor = "Tool" | "Editor";
+export type SuggestionCategory = "grammar" | "spelling" | "style" | "manual" | "ai-suggestion";
+export type SuggestionActor = "Tool" | "Editor" | "AI";
 
 // Base suggestion properties
 type BaseSuggestion = {
@@ -34,6 +34,8 @@ export type ManualSuggestion = BaseSuggestion & {
 export type UISuggestion = (ServerSuggestion | ManualSuggestion) & {
   pmFrom: number;
   pmTo: number;
+  ruleId?: string; // For AI suggestions, store the rule ID for filtering
+  ruleTitle?: string; // For display purposes, store the rule title
 };
 
 // Type guards
@@ -43,6 +45,10 @@ export function isServerSuggestion(s: UISuggestion): s is ServerSuggestion & { p
 
 export function isManualSuggestion(s: UISuggestion): s is ManualSuggestion & { pmFrom: number; pmTo: number } {
   return s.origin === "manual";
+}
+
+export function isAISuggestion(s: UISuggestion): boolean {
+  return s.category === "ai-suggestion" && !!s.ruleId;
 }
 
 // Helper to create safe IDs

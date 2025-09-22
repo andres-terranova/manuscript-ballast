@@ -191,25 +191,58 @@ export class ManuscriptService {
     return this.updateManuscript(id, { suggestions });
   }
 
-  // Trigger DOCX processing for a manuscript
-  static async processDocx(manuscriptId: string, filePath: string): Promise<void> {
+  // Queue DOCX processing for a manuscript (replaces direct Edge Function call)
+  static async queueDocxProcessing(manuscriptId: string, filePath: string): Promise<void> {
     try {
-      const { data, error } = await supabase.functions.invoke('process-docx', {
-        body: { 
-          manuscriptId, 
-          filePath 
-        }
-      });
+      // Add job to processing queue instead of calling Edge Function directly
+      const { error } = await supabase
+        .from('processing_queue')
+        .insert({
+          manuscript_id: manuscriptId,
+          job_type: 'process_docx',
+          priority: 5,
+          progress_data: { file_path: filePath, step: 'queued' }
+        });
 
       if (error) {
-        console.error('DOCX processing error:', error);
-        throw new Error(`Failed to process DOCX: ${error.message}`);
+        console.error('Queue insertion error:', error);
+        throw new Error(`Failed to queue DOCX processing: ${error.message}`);
       }
 
-      console.log('DOCX processing initiated:', data);
+      console.log(`DOCX processing queued for manuscript ${manuscriptId}`);
     } catch (error) {
-      console.error('Error invoking DOCX processing:', error);
+      console.error('Error queueing DOCX processing:', error);
       throw error;
     }
+  }
+
+  // Get processing status for a manuscript
+  static async getProcessingStatus(manuscriptId: string): Promise<{
+    status: string;
+    progress?: any;
+    error?: string;
+  }> {
+    const { data, error } = await supabase
+      .from('processing_queue')
+      .select('status, progress_data, error_message')
+      .eq('manuscript_id', manuscriptId)
+      .eq('job_type', 'process_docx')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      throw new Error(`Failed to get processing status: ${error.message}`);
+    }
+
+    if (!data) {
+      return { status: 'not_found' };
+    }
+
+    return {
+      status: data.status,
+      progress: data.progress_data,
+      error: data.error_message
+    };
   }
 }

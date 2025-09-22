@@ -22,6 +22,23 @@ interface DocumentCanvasProps {
   getChecks?: () => CheckItem[];
   maxVisibleSuggestions?: number;
   maxVisibleChecks?: number;
+  aiSuggestionConfig?: {
+    enabled: boolean;
+    appId?: string;
+    token?: string;
+    rules?: Array<{
+      id: string;
+      title: string;
+      prompt: string;
+      color: string;
+      backgroundColor: string;
+    }>;
+    loadOnStart?: boolean;
+    reloadOnUpdate?: boolean;
+    debounceTimeout?: number;
+    onPopoverElementCreate?: (element: HTMLElement | null) => void;
+    onSelectedSuggestionChange?: (suggestion: any) => void;
+  };
 }
 
 export const DocumentCanvas = ({ 
@@ -32,7 +49,8 @@ export const DocumentCanvas = ({
   getUISuggestions, 
   getChecks,
   maxVisibleSuggestions = 200,
-  maxVisibleChecks = 200
+  maxVisibleChecks = 200,
+  aiSuggestionConfig
 }: DocumentCanvasProps) => {
   const { updateManuscript } = useManuscripts();
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
@@ -85,6 +103,7 @@ export const DocumentCanvas = ({
     getChecks,
     maxVisibleSuggestions,
     maxVisibleChecks,
+    aiSuggestionConfig,
   });
 
   // Set global editor reference for utility functions

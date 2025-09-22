@@ -1,30 +1,28 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent } from "@/components/ui/card";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
 import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionActor } from "@/lib/types";
-import { createSuggestionId, sanitizeNote } from "@/lib/types";
+import { createSuggestionId } from "@/lib/types";
 import { suggestionsPluginKey } from "@/lib/suggestionsPlugin";
 import { checksPluginKey } from "@/lib/checksPlugin";
-import { getGlobalEditor, getEditorPlainText, mapAndRefreshSuggestions } from "@/lib/editorUtils";
+import { getGlobalEditor, getEditorPlainText } from "@/lib/editorUtils";
 import { useToast } from "@/hooks/use-toast";
-import { STYLE_RULES, DEFAULT_STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
+import { STYLE_RULES, type StyleRuleKey } from "@/lib/styleRuleConstants";
 import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
 import { type CheckItem, runDeterministicChecks } from "@/lib/styleValidator";
+import { testTiptapAuth, validateJWTFormat } from "@/utils/testTiptapAuth";
+import { SuggestionPopover } from "./SuggestionPopover";
 
-// Remove old type definitions - now using unified types from types.ts
 import { 
-  ArrowLeft, 
   RotateCcw, 
   Settings2, 
   Play, 
@@ -32,26 +30,17 @@ import {
   Send,
   User,
   SettingsIcon,
-  Filter,
-  MessageSquare,
-  AlertTriangle,
   Plus,
-  ChevronDown,
-  MoreHorizontal,
-  Loader2,
-  FileText,
-  Clock,
-  CheckCircle,
-  XCircle,
-  RefreshCw
+  Loader2
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
 import { ChecksList } from "./ChecksList";
 import { ProcessingStatus } from "./ProcessingStatus";
-import { supabase } from "@/integrations/supabase/client";
+import AIEditorRuleSelector from "./AIEditorRuleSelector";
+import { AI_EDITOR_RULES, type AIEditorRule } from "./AIEditorRules";
 
-const ManuscriptWorkspace = () => {
+const ExperimentalEditor = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -65,18 +54,23 @@ const ManuscriptWorkspace = () => {
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
-  const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]); // For the sheet
+  const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   
   // Run AI Settings state
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
   const [aiChecks, setAiChecks] = useState({ contradictions: true, repetitions: true });
   
-  // Suggestions state - now using unified types
+  // Suggestions state
   const [suggestions, setSuggestions] = useState<UISuggestion[]>([]);
   const [contentText, setContentText] = useState<string>("");
   const [busySuggestions, setBusySuggestions] = useState<Set<string>>(new Set());
   const [busyChecks, setBusyChecks] = useState<Set<string>>(new Set());
+  
+  // AI Suggestion Popover state
+  const [popoverElement, setPopoverElement] = useState<HTMLElement | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
+  const [processingAction, setProcessingAction] = useState(false);
   
   // Style checks state
   const [checks, setChecks] = useState<CheckItem[]>([]);
@@ -95,6 +89,13 @@ const ManuscriptWorkspace = () => {
   
   // Read-only state derived from manuscript status
   const isReviewed = manuscript?.status === "Reviewed";
+
+  // AI Suggestion extension state
+  const [aiSuggestionsEnabled, setAiSuggestionsEnabled] = useState(false);
+  
+  // AI Editor Rules state
+  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>(['copy-editor', 'line-editor']);
+  const [availableRules, setAvailableRules] = useState<AIEditorRule[]>(AI_EDITOR_RULES);
   
   const handleOpenStyleRules = () => {
     setTempStyleRules(activeStyleRules);
@@ -108,7 +109,6 @@ const ManuscriptWorkspace = () => {
       style_rules: tempStyleRules
     });
     
-    // Update local state
     setManuscript(prev => prev ? {
       ...prev,
       styleRules: tempStyleRules,
@@ -126,13 +126,9 @@ const ManuscriptWorkspace = () => {
     const editor = getGlobalEditor();
     if (!editor) return;
     
-    // Update ref immediately for plugin access
     checksRef.current = newChecks;
-    
-    // Update state for UI
     setChecks(newChecks);
     
-    // Refresh decorations with fresh data
     editor.view?.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
     console.log('Decorations refreshed with', newChecks.length, 'checks');
   };
@@ -187,7 +183,6 @@ const ManuscriptWorkspace = () => {
     suggestionsRef.current = suggestions;
     console.log('Updated suggestionsRef with', suggestions.length, 'suggestions');
     
-    // Refresh plugin when suggestions change
     if (suggestions.length > 0) {
       const editor = getGlobalEditor();
       if (editor) {
@@ -203,15 +198,15 @@ const ManuscriptWorkspace = () => {
   const getUISuggestions = useCallback(() => {
     console.log('getUISuggestions called, returning', suggestionsRef.current.length, 'suggestions from ref, showSuggestions:', showSuggestions);
     return showSuggestions ? suggestionsRef.current : [];
-  }, [showSuggestions]); // Dependencies include toggle state
+  }, [showSuggestions]);
 
   // Callback that returns current checks from ref (with toggle respect)
   const getChecks = useCallback(() => {
     console.log('getChecks called, returning', checksRef.current.length, 'checks from ref, showChecks:', showChecks);
     return showChecks ? checksRef.current : [];
-  }, [showChecks]); // Dependencies include toggle state
+  }, [showChecks]);
 
-  // TipTap Transaction Helper Functions
+  // Helper functions for TipTap operations
   const withEditorTransaction = (editor: any, fn: (tr: any) => void) => {
     const { state, view } = editor;
     let tr = state.tr;
@@ -224,7 +219,6 @@ const ManuscriptWorkspace = () => {
     return state.doc.textBetween(from, to, "\n", "\n");
   };
 
-  // Helper to set busy state for individual suggestions
   const setActionBusy = (suggestionId: string, busy: boolean) => {
     setBusySuggestions(prev => {
       const newSet = new Set(prev);
@@ -237,19 +231,178 @@ const ManuscriptWorkspace = () => {
     });
   };
 
-  // Accept/Reject handlers using TipTap transactions
+  // Helper to get rule title by ID
+  const getRuleTitle = (ruleId: string | undefined): string | undefined => {
+    if (!ruleId) return undefined;
+    const rule = availableRules.find(r => r.id === ruleId);
+    return rule?.title;
+  };
+
+  // Convert AI suggestions to UISuggestion format for ChangeList
+  const convertAiSuggestionsToUI = (editor: any): UISuggestion[] => {
+    try {
+      // Use extensionStorage as documented in TipTap docs
+      const aiStorage = editor.extensionStorage?.aiSuggestion;
+      if (!aiStorage) {
+        console.log('No AI suggestion extension storage found');
+        return [];
+      }
+      
+      // Use the getSuggestions function to get current suggestions
+      const aiSuggestions = typeof aiStorage.getSuggestions === 'function' 
+        ? aiStorage.getSuggestions() 
+        : [];
+        
+      console.log(`📝 Converting ${aiSuggestions.length} AI suggestions to UI format`);
+      
+      return aiSuggestions.map((suggestion: any, index: number) => {
+        // Extract rule information from the TipTap suggestion
+        const ruleId = suggestion.rule?.id || suggestion.ruleId;
+        const ruleTitle = suggestion.rule?.title || getRuleTitle(ruleId);
+        
+        console.log('Processing AI suggestion:', {
+          id: suggestion.id,
+          ruleId,
+          ruleTitle,
+          suggestion: suggestion
+        });
+        
+        return {
+          id: suggestion.id || `ai-suggestion-${index}`,
+          type: suggestion.replacementOptions && suggestion.replacementOptions.length > 0 ? 'replace' : 'delete' as SuggestionType,
+          origin: 'server' as const,
+          pmFrom: suggestion.deleteRange?.from || 0,
+          pmTo: suggestion.deleteRange?.to || 0,
+          before: suggestion.deleteText || '',
+          after: suggestion.replacementOptions?.[0]?.addText || '',
+          category: 'ai-suggestion' as SuggestionCategory,
+          note: `${ruleTitle || 'AI'}: ${suggestion.replacementOptions?.[0]?.note || suggestion.note || 'Improvement suggestion'}`,
+          actor: 'AI' as SuggestionActor,
+          ruleId: ruleId,
+          ruleTitle: ruleTitle
+        };
+      });
+    } catch (error) {
+      console.error('Error converting AI suggestions:', error);
+      return [];
+    }
+  };
+
+  // Simple async waiting using TipTap's official loading state
+  const waitForAiSuggestions = async (editor: any): Promise<UISuggestion[]> => {
+    console.log('🔄 Waiting for AI suggestions using extension loading state...');
+    
+    const startTime = Date.now();
+    
+    // Use extensionStorage as documented in TipTap docs
+    const storage = editor.extensionStorage?.aiSuggestion;
+    if (!storage) {
+      console.error('❌ AI Suggestion extension storage not found');
+      return [];
+    }
+    
+    // Simple polling while loading - no timeout, let it take as long as needed
+    while (storage.isLoading) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`⏳ AI suggestions loading... (${elapsed}s elapsed)`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    const finalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    
+    // Check for errors
+    if (storage.error) {
+      console.error(`❌ AI loading error after ${finalElapsed}s:`, storage.error);
+      return [];
+    }
+    
+    // Get suggestions using the documented method
+    const suggestions = storage.getSuggestions();
+    console.log(`🎉 AI suggestions loaded after ${finalElapsed}s - found ${suggestions.length} suggestions`);
+    
+    return convertAiSuggestionsToUI(editor);
+  };
+
+
+  // Popover handlers for AI suggestions
+  const handlePopoverAccept = (suggestionId: string, replacementOptionId: string) => {
+    if (processingAction) return; // Prevent double-clicks
+    
+    console.log('🎯 Popover Accept clicked:', suggestionId);
+    setProcessingAction(true);
+    
+    // Clear popover immediately
+    setPopoverElement(null);
+    setSelectedSuggestion(null);
+    
+    // Execute action and reset state
+    handleAcceptSuggestion(suggestionId);
+    setTimeout(() => setProcessingAction(false), 500);
+  };
+
+  const handlePopoverReject = (suggestionId: string) => {
+    if (processingAction) return; // Prevent double-clicks
+    
+    console.log('🎯 Popover Reject clicked:', suggestionId);
+    setProcessingAction(true);
+    
+    // Clear popover immediately
+    setPopoverElement(null);
+    setSelectedSuggestion(null);
+    
+    // Execute action and reset state
+    handleRejectSuggestion(suggestionId);
+    setTimeout(() => setProcessingAction(false), 500);
+  };
+
+  // Accept/Reject handlers for AI suggestions
   const handleAcceptSuggestion = async (suggestionId: string) => {
     const editor = getGlobalEditor();
     if (!editor) return;
 
+    // Check if this is an AI suggestion
+    const aiStorage = editor.storage?.aiSuggestion;
+    const aiSuggestions = typeof aiStorage?.getSuggestions === 'function' ? aiStorage.getSuggestions() : [];
+    const aiSuggestion = aiSuggestions.find((s: any) => s.id === suggestionId);
+    
+    if (aiSuggestion) {
+      console.log('Applying AI suggestion:', aiSuggestion);
+      
+      try {
+        // Apply AI suggestion using the correct TipTap API
+        const result = editor.chain().applyAiSuggestion({ 
+          suggestionId: suggestionId,
+          replacementOptionId: aiSuggestion.replacementOptions?.[0]?.id,
+          format: 'plain-text'
+        }).run();
+        
+        console.log('Apply AI suggestion result:', result);
+        
+        // Remove from our UI suggestions list
+        setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
+        
+        toast({
+          title: "AI suggestion applied."
+        });
+        return;
+      } catch (error) {
+        console.error('Error applying AI suggestion:', error);
+        toast({
+          title: "Failed to apply AI suggestion",
+          description: error.message || "Unknown error",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Fallback to original logic for non-AI suggestions
     const uiSuggestion = suggestions.find(s => s.id === suggestionId);
     if (!uiSuggestion || busySuggestions.has(suggestionId)) return;
 
-    // Disable buttons for this card while processing
     setActionBusy(suggestionId, true);
 
     try {
-      // Optional integrity check (delete/replace): current text matches 'before'
       if (uiSuggestion.type !== "insert") {
         const current = getPMText(editor, uiSuggestion.pmFrom, uiSuggestion.pmTo);
         if (current !== uiSuggestion.before) {
@@ -257,42 +410,35 @@ const ManuscriptWorkspace = () => {
             title: "Suggestion no longer matches the text; skipped.",
             variant: "destructive"
           });
-          // Treat as reject & bail
           handleRejectSuggestion(suggestionId);
           return;
         }
       }
 
-      // Apply the patch via TipTap commands (more reliable than direct transactions)
       if (uiSuggestion.type === "insert") {
         editor.commands.insertContentAt(uiSuggestion.pmFrom, uiSuggestion.after);
       } else if (uiSuggestion.type === "delete") {
         editor.commands.deleteRange({ from: uiSuggestion.pmFrom, to: uiSuggestion.pmTo });
       } else {
-        // Replace: delete range then insert new content
         editor.commands.deleteRange({ from: uiSuggestion.pmFrom, to: uiSuggestion.pmTo });
         editor.commands.insertContentAt(uiSuggestion.pmFrom, uiSuggestion.after);
       }
 
       console.log('Accepting suggestion:', suggestionId, 'at positions', uiSuggestion.pmFrom, uiSuggestion.pmTo);
       
-      // Remove only the specific suggestion (find by ID + position for uniqueness)
       setSuggestions(prev => {
         const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
         console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
         return filtered;
       });
 
-      // Re-map remaining server suggestions' positions against the UPDATED doc
       const remaining = suggestions.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
       console.log('Remapping', remaining.length, 'remaining suggestions');
       
-      // Only remap server-originated suggestions  
       const serverSuggestions = remaining.filter((s): s is ServerSuggestion & { pmFrom: number; pmTo: number } => s.origin === 'server');
       if (serverSuggestions.length > 0) {
         const plainText = editor.getText();
         const remapped = mapPlainTextToPM(editor, plainText, serverSuggestions);
-        // Merge with manual suggestions that don't need remapping
         const manualSuggestions = remaining.filter(s => s.origin === 'manual');
         setSuggestions([...remapped, ...manualSuggestions]);
       }
@@ -315,6 +461,38 @@ const ManuscriptWorkspace = () => {
     const editor = getGlobalEditor();
     if (!editor) return;
 
+    // Check if this is an AI suggestion
+    const aiStorage = editor.storage?.aiSuggestion;
+    const aiSuggestions = typeof aiStorage?.getSuggestions === 'function' ? aiStorage.getSuggestions() : [];
+    const aiSuggestion = aiSuggestions.find((s: any) => s.id === suggestionId);
+    
+    if (aiSuggestion) {
+      console.log('Rejecting AI suggestion:', aiSuggestion);
+      
+      try {
+        // Reject AI suggestion using the correct TipTap API
+        const result = editor.chain().rejectAiSuggestion(suggestionId).run();
+        console.log('Reject AI suggestion result:', result);
+        
+        // Remove from our UI suggestions list
+        setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
+        
+        toast({
+          title: "AI suggestion dismissed."
+        });
+        return;
+      } catch (error) {
+        console.error('Error rejecting AI suggestion:', error);
+        toast({
+          title: "Failed to reject AI suggestion",
+          description: error.message || "Unknown error",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Fallback to original logic for non-AI suggestions
     const uiSuggestion = suggestions.find(s => s.id === suggestionId);
     if (!uiSuggestion) return;
 
@@ -322,14 +500,12 @@ const ManuscriptWorkspace = () => {
     try {
       console.log('Rejecting suggestion:', suggestionId, 'at positions', uiSuggestion.pmFrom, uiSuggestion.pmTo);
       
-      // Remove only the specific suggestion (find by ID + position for uniqueness)
       setSuggestions(prev => {
         const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
         console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
         return filtered;
       });
 
-      // Refresh decorations
       editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
 
       toast({
@@ -340,17 +516,57 @@ const ManuscriptWorkspace = () => {
     }
   };
 
-  // Handler for accepting a check (remove it from the list)
+  // Handle Apply All AI Suggestions
+  const handleApplyAllSuggestions = async () => {
+    const editor = getGlobalEditor();
+    if (!editor) {
+      toast({
+        title: "Editor not available",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('Applying all AI suggestions...');
+      
+      // Use Tiptap's built-in applyAllAiSuggestions command
+      const result = editor.commands.applyAllAiSuggestions();
+      console.log('Apply all suggestions result:', result);
+      
+      if (result) {
+        // Wait a moment for the changes to be processed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Refresh suggestions to get the updated state
+        const updatedSuggestions = await waitForAiSuggestions(editor);
+        setSuggestions(updatedSuggestions);
+        
+        toast({
+          title: "All suggestions applied successfully",
+          description: "Your document has been updated with all AI suggestions.",
+        });
+      } else {
+        throw new Error('Failed to apply suggestions');
+      }
+      
+    } catch (error) {
+      console.error('Error applying all suggestions:', error);
+      toast({
+        title: "Failed to apply all suggestions",
+        description: error.message || "An error occurred while applying suggestions.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Check handlers
   const handleAcceptCheck = (checkId: string) => {
     console.log('Accepting check:', checkId);
     setBusyChecks(prev => new Set(prev).add(checkId));
     
     try {
-      // Remove check from the list
       setChecks(prev => prev.filter(check => check.id !== checkId));
-      
-      // You could also apply the suggested fix here if checks had fix suggestions
-      // For now, we just remove the check
       
       console.log('Check accepted successfully:', checkId);
       toast({
@@ -371,13 +587,11 @@ const ManuscriptWorkspace = () => {
     }
   };
 
-  // Handler for rejecting a check (remove it from the list)
   const handleRejectCheck = (checkId: string) => {
     console.log('Rejecting check:', checkId);
     setBusyChecks(prev => new Set(prev).add(checkId));
     
     try {
-      // Remove check from the list (rejecting means ignoring the issue)
       setChecks(prev => prev.filter(check => check.id !== checkId));
       
       console.log('Check rejected successfully:', checkId);
@@ -409,7 +623,6 @@ const ManuscriptWorkspace = () => {
     const before = state.doc.textBetween(from, to, "\n", "\n");
     const id = createSuggestionId("manual");
 
-    // Validate payload
     if (data.mode !== "insert" && from === to) {
       toast({
         title: "Select text to replace/delete.",
@@ -439,10 +652,8 @@ const ManuscriptWorkspace = () => {
       actor: "Editor"
     };
 
-    // Add to suggestions list
     setSuggestions(prev => [...prev, suggestion]);
     
-    // Refresh decorations
     const tr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
     editor.view.dispatch(tr);
     
@@ -461,7 +672,6 @@ const ManuscriptWorkspace = () => {
     editor.view.dispatch = (tr: any) => {
       originalDispatch(tr);
       
-      // If document changed, remap suggestion positions
       if (tr.docChanged && suggestions.length > 0) {
         setSuggestions(prev => prev.map(s => {
           const from = tr.mapping.map(s.pmFrom);
@@ -469,7 +679,6 @@ const ManuscriptWorkspace = () => {
           return { ...s, pmFrom: from, pmTo: Math.max(from, to) };
         }));
         
-        // Refresh decorations after remapping
         setTimeout(() => {
           const refreshTr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
           editor.view.dispatch(refreshTr);
@@ -477,105 +686,137 @@ const ManuscriptWorkspace = () => {
       }
     };
 
-    // Cleanup
     return () => {
       if (editor?.view) {
         editor.view.dispatch = originalDispatch;
       }
     };
-  }, [suggestions.length]); // Re-run when suggestions count changes
+  }, [suggestions.length]);
 
-  // Handle Run AI Pass
+  // Handle Run AI Pass - EXPERIMENTAL VERSION using AI Suggestion extension
   const handleRunAIPass = async () => {
+    if (selectedRuleIds.length === 0) {
+      toast({
+        title: "No editor roles selected",
+        description: "Please select at least one AI editor role to run.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setShowRunAIModal(false);
     setShowToolRunning(true);
     
     try {
-      const text = getEditorPlainText();
+      const editor = getGlobalEditor();
+      if (!editor) {
+        throw new Error('Editor not available');
+      }
+
+      console.log('Starting AI Pass...');
+      console.log('Editor:', editor);
+      console.log('Editor storage:', editor.storage);
+      console.log('AI Storage:', editor.storage?.aiSuggestion);
+      console.log('Available commands:', Object.keys(editor.commands));
+      console.log('Extensions:', editor.extensionManager.extensions.map(ext => ext.name));
+      console.log('Document content:', editor.getText());
+      console.log('Document length:', editor.getText().length);
+
+      // Test authentication before proceeding
+      const appId = 'pkry1n5m'; // Your TipTap App ID
+      // Using TipTap's provided test JWT (temporary for testing)
+      const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NTg1NTI0ODgsIm5iZiI6MTc1ODU1MjQ4OCwiZXhwIjoxNzU4NjM4ODg4LCJpc3MiOiJodHRwczovL2Nsb3VkLnRpcHRhcC5kZXYiLCJhdWQiOiJjMWIzMmE5Mi0zYzFmLTRiNDktYWI2Yi1mYjVhN2E2MTc4YTgifQ.Yy4UdTVF-FGOfM28-gVHnP8AYt2Uf-Vgr2yMbWv98KE';
       
-      // Warn for very large documents
-      if (text.length > 100000) {
+      console.log('🧪 Testing with TipTap provided JWT...');
+      console.log('Token format check:', {
+        appId,
+        tokenLength: token.length,
+        tokenParts: token.split('.').length,
+        isValidJWT: token.split('.').length === 3,
+        tokenStart: token.substring(0, 50) + '...'
+      });
+      
+      const authTest = await testTiptapAuth(appId, token);
+      console.log('Auth test result:', authTest);
+      
+      if (!authTest.success) {
+        console.error('Authentication test failed:', authTest);
+        throw new Error(`Authentication failed: ${authTest.error}. Please check your credentials and allowed origins in TipTap dashboard.`);
+      }
+
+      // Update AI suggestion rules with selected editor roles
+      const selectedRules = availableRules
+        .filter(rule => selectedRuleIds.includes(rule.id))
+        .map(rule => ({
+          id: rule.id,
+          title: rule.title,
+          prompt: rule.prompt,
+          color: rule.color,
+          backgroundColor: rule.backgroundColor,
+        }));
+
+      console.log('Setting AI suggestion rules:', selectedRules);
+      
+      // Update the rules in the editor
+      if (editor.commands.setAiSuggestionRules) {
+        editor.chain().setAiSuggestionRules(selectedRules).run();
+      }
+
+      // Clear existing suggestions
+      setSuggestions([]);
+
+      // Check if AI extension is available
+      if (!editor.storage?.aiSuggestion) {
+        throw new Error('AI Suggestion extension not loaded. Check your TipTap Pro credentials.');
+      }
+
+      // Check if loadAiSuggestions command is available
+      if (!editor.commands.loadAiSuggestions) {
+        throw new Error('loadAiSuggestions command not available. Check extension configuration.');
+      }
+
+      console.log('Triggering AI suggestions...');
+      
+      // Load AI suggestions using the correct TipTap API
+      const result = editor.chain().loadAiSuggestions().run();
+      console.log('Load AI suggestions result:', result);
+      
+      // Wait for AI suggestions to be generated with proper async monitoring
+      const uiSuggestions = await waitForAiSuggestions(editor);
+      
+      console.log('🎯 Final result: Generated', uiSuggestions.length, 'AI suggestions');
+      setSuggestions(uiSuggestions);
+      
+      if (uiSuggestions.length > 0) {
         toast({
-          title: "Large document detected",
-          description: "This may take several minutes to process. Consider selecting a smaller section.",
+          title: `Generated ${uiSuggestions.length} AI suggestion${uiSuggestions.length === 1 ? "" : "s"}.`,
+          description: "Review suggestions in the editor and change list."
+        });
+      } else {
+        toast({
+          title: "No suggestions generated",
+          description: "The AI didn't find any improvements to suggest for this content.",
           variant: "default"
         });
       }
-      
-      const scope = 
-        aiScope === "Entire Document" ? "entire" :
-        aiScope === "Current Section" ? "section" : "selection";
-      const rules = activeStyleRules;
-
-      // Create abort controller for timeout
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
-
-      const { data, error } = await supabase.functions.invoke('suggest', {
-        body: { text, scope, rules }
-      });
-      
-      clearTimeout(timeout);
-      
-      if (controller.signal.aborted) {
-        throw new Error('Request timeout - document too large');
-      }
-
-      if (error) {
-        let msg = error.message || "Server error";
-        let title = "AI request failed";
-        
-        // Handle specific error types
-        if (error.message?.includes('timeout') || error.message?.includes('504')) {
-          title = "Request timed out";
-          msg = "The text is too long to process. Try selecting a smaller section or current section instead.";
-        } else if (error.message?.includes('429')) {
-          title = "Rate limit exceeded";
-          msg = "Please wait a moment before trying again.";
-        } else if (error.message?.includes('422') || error.message?.includes('invalid_response') || error.message?.includes('AI service temporarily unavailable')) {
-          title = "AI processing error";
-          msg = "The AI service encountered an error processing your text. Please try again or try a smaller section.";
-        } else if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout') || error.message?.includes('aborted')) {
-          title = "Request timeout";
-          msg = "The document is too large to process completely. Try selecting a smaller section or current section instead.";
-        }
-        
-        toast({
-          title,
-          description: msg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Map to server suggestions with origin field for AI suggestions
-      const serverSuggestions = (data?.suggestions || []).map((s: any) => ({
-        ...s,
-        origin: 'server' as const,
-        actor: 'Tool' as const
-      }));
-      
-      // Map suggestions to UI suggestions using the SAME text that was sent to AI
-      const editor = getGlobalEditor();
-      const mapped = mapPlainTextToPM(editor, text, serverSuggestions);
-      console.log('About to set UI suggestions:', mapped.length);
-      setSuggestions(mapped);
-      
-      toast({
-        title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`
-      });
     } catch (e: any) {
-      console.error('AI request failed:', e);
+      console.error('AI suggestions failed:', e);
       
-      let title = "AI request failed";
+      let title = "AI suggestions failed";
       let msg = "Please try again.";
       
-      if (e.message?.includes('aborted') || e.name === 'AbortError' || e.message?.includes('timeout')) {
-        title = "Request timeout";
-        msg = "The document is too large to process. Try selecting a smaller section.";
-      } else if (e.message?.includes('Failed to fetch')) {
-        title = "Network error";
-        msg = "Unable to connect to AI service. Please check your connection and try again.";
+      if (e.message?.includes('Authentication failed')) {
+        title = "Authentication Error";
+        msg = `${e.message}\n\nTroubleshooting steps:\n1. Verify your .env file has correct VITE_TIPTAP_APP_ID and VITE_TIPTAP_TOKEN\n2. Add ${window.location.origin} to Allowed Origins in TipTap dashboard\n3. Restart your dev server`;
+      } else if (e.message?.includes('AI Suggestion extension not loaded')) {
+        title = "Extension not loaded";
+        msg = "Check your TipTap Pro credentials and ensure the extension is properly configured.";
+      } else if (e.message?.includes('loadAiSuggestions command not available')) {
+        title = "Command not available";
+        msg = "The AI suggestion commands are not available. Check your extension setup.";
+      } else if (e.message?.includes('Editor not available')) {
+        title = "Editor error";
+        msg = "Editor is not ready. Please try again.";
       }
       
       toast({
@@ -597,7 +838,6 @@ const ManuscriptWorkspace = () => {
       ball_in_court: "editor"
     });
 
-    // Update local state
     setManuscript(prev => prev ? {
       ...prev,
       status: "Reviewed",
@@ -605,7 +845,6 @@ const ManuscriptWorkspace = () => {
       updatedAt: new Date().toISOString()
     } : null);
 
-    // Clear pending suggestions
     setSuggestions([]);
 
     toast({
@@ -615,27 +854,29 @@ const ManuscriptWorkspace = () => {
 
   useEffect(() => {
     const loadManuscript = async () => {
+      console.log('[ExperimentalEditor] Loading manuscript with ID:', id);
+      
       if (!id) {
+        console.log('[ExperimentalEditor] No ID provided, redirecting to dashboard');
         navigate("/dashboard");
         return;
       }
       
       setIsLoading(true);
+      console.log('[ExperimentalEditor] Set loading to true');
       
-      // Try to find manuscript in context first
       let found = getManuscriptById(id);
+      console.log('[ExperimentalEditor] Found manuscript:', found);
       
-      // If not found and we haven't exceeded retry limit, refresh manuscripts context
       if (!found && retryCount < maxRetries) {
         try {
-          // Force refresh manuscripts from database
           await refreshManuscripts();
-          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay for context to update
+          await new Promise(resolve => setTimeout(resolve, 200));
           found = getManuscriptById(id);
           
           if (!found) {
             setRetryCount(prev => prev + 1);
-            return; // This will re-trigger the effect
+            return;
           }
         } catch (error) {
           console.error('Error refreshing manuscripts:', error);
@@ -654,7 +895,7 @@ const ManuscriptWorkspace = () => {
       setContentText(found.contentText);
       setNotFound(false);
       setIsLoading(false);
-      setRetryCount(0); // Reset retry count on success
+      setRetryCount(0);
     };
     
     loadManuscript();
@@ -675,7 +916,10 @@ const ManuscriptWorkspace = () => {
     }
   };
 
+  console.log('[ExperimentalEditor] Render state:', { isLoading, notFound, manuscript: !!manuscript });
+
   if (isLoading) {
+    console.log('[ExperimentalEditor] Rendering loading state');
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -814,97 +1058,43 @@ const ManuscriptWorkspace = () => {
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
             onCreateSuggestion={createManualSuggestion}
-                    getUISuggestions={getUISuggestions}
-                    getChecks={getChecks}
-                    maxVisibleSuggestions={maxVisibleAI}
-                    maxVisibleChecks={maxVisibleChecks}
+            getUISuggestions={getUISuggestions}
+            getChecks={getChecks}
+            maxVisibleSuggestions={maxVisibleAI}
+            maxVisibleChecks={maxVisibleChecks}
+            // Enable AI suggestions for experimental editor
+            aiSuggestionConfig={(() => {
+              // Get selected rules from available rules
+              const selectedRules = availableRules
+                .filter(rule => selectedRuleIds.includes(rule.id))
+                .map(rule => ({
+                  id: rule.id,
+                  title: rule.title,
+                  prompt: rule.prompt,
+                  color: rule.color,
+                  backgroundColor: rule.backgroundColor,
+                }));
+
+              const config: any = {
+                enabled: true,
+                // Using TipTap's provided test JWT (temporary for testing)
+                appId: 'pkry1n5m',
+                token: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NTg1NTI0ODgsIm5iZiI6MTc1ODU1MjQ4OCwiZXhwIjoxNzU4NjM4ODg4LCJpc3MiOiJodHRwczovL2Nsb3VkLnRpcHRhcC5kZXYiLCJhdWQiOiJjMWIzMmE5Mi0zYzFmLTRiNDktYWI2Yi1mYjVhN2E2MTc4YTgifQ.Yy4UdTVF-FGOfM28-gVHnP8AYt2Uf-Vgr2yMbWv98KE',
+                rules: selectedRules,
+                loadOnStart: false, // Disable automatic loading as requested
+                reloadOnUpdate: false, // Don't reload on every edit
+                debounceTimeout: 1000,
+                // Popover configuration
+                onPopoverElementCreate: setPopoverElement,
+                onSelectedSuggestionChange: setSelectedSuggestion,
+              };
+              return config;
+            })()}
           />
         </div>
 
         {/* Right Sidebar */}
         <div id="right-sidebar" className="w-full lg:w-80 bg-muted border-t lg:border-t-0 lg:border-l border-border overflow-hidden flex-shrink-0">
-          {/* Highlight Legend */}
-          <div className="p-3 border-b bg-background">
-            <div className="flex items-center gap-4 text-sm" data-testid="highlight-legend">
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showChecks}
-                  onChange={(e) => {
-                    setShowChecks(e.target.checked);
-                    const editor = getGlobalEditor();
-                    if (editor) {
-                      editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
-                    }
-                  }}
-                  data-testid="toggle-checks"
-                  className="rounded"
-                />
-                <span className="flex items-center gap-1">
-                  <span className="inline-block w-3 h-3 bg-yellow-300 border border-yellow-600 rounded-sm"></span>
-                  Checks
-                </span>
-              </label>
-
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showSuggestions}
-                  onChange={(e) => {
-                    setShowSuggestions(e.target.checked);
-                    const editor = getGlobalEditor();
-                    if (editor) {
-                      editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
-                    }
-                  }}
-                  data-testid="toggle-suggestions"
-                  className="rounded"
-                />
-                <span className="flex items-center gap-1">
-                  <span className="inline-block w-3 h-3 bg-blue-300 border border-blue-600 rounded-sm"></span>
-                  AI Suggestions
-                </span>
-              </label>
-            </div>
-            
-            {/* Show More Controls */}
-            {(suggestions.length > maxVisibleAI || checks.length > maxVisibleChecks) && (
-              <div className="flex flex-col gap-1 mt-2 text-xs">
-                {suggestions.length > maxVisibleAI && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 text-xs px-2 justify-start"
-                    onClick={() => {
-                      setMaxVisibleAI(prev => prev + 200);
-                      const editor = getGlobalEditor();
-                      if (editor) {
-                        editor.view.dispatch(editor.state.tr.setMeta(suggestionsPluginKey, "refresh"));
-                      }
-                    }}
-                  >
-                    + Show {Math.min(200, suggestions.length - maxVisibleAI)} more AI suggestions ({maxVisibleAI}/{suggestions.length})
-                  </Button>
-                )}
-                {checks.length > maxVisibleChecks && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 text-xs px-2 justify-start"
-                    onClick={() => {
-                      setMaxVisibleChecks(prev => prev + 200);
-                      const editor = getGlobalEditor();
-                      if (editor) {
-                        editor.view.dispatch(editor.state.tr.setMeta(checksPluginKey, "refresh"));
-                      }
-                    }}
-                  >
-                    + Show {Math.min(200, checks.length - maxVisibleChecks)} more checks ({maxVisibleChecks}/{checks.length})
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             {/* Tab List */}
@@ -936,53 +1126,26 @@ const ManuscriptWorkspace = () => {
                   onRejectSuggestion={handleRejectSuggestion}
                   busySuggestions={busySuggestions}
                   isReviewed={isReviewed}
+                  showSuggestions={showSuggestions}
+                  onToggleSuggestions={setShowSuggestions}
+                  onApplyAllSuggestions={handleApplyAllSuggestions}
                 />
               </TabsContent>
 
               <TabsContent value="comments" className="h-full mt-0">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
-                    {manuscript.comments?.map((comment) => (
-                      <div key={comment.id} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                            <User className="h-3 w-3" />
-                          </div>
-                          <span className="text-sm font-medium">{comment.author}</span>
-                          <span className="text-xs text-muted-foreground">2h ago</span>
+                    <div className="bg-card border border-card-border rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                          <User className="h-3 w-3" />
                         </div>
-                        <p className="text-sm mb-2">{comment.text}</p>
-                        <p className="text-xs text-muted-foreground mb-3">{comment.location}</p>
-                        {comment.replies?.map((reply) => (
-                          <div key={reply.id} className="ml-4 mt-2 p-2 bg-muted rounded">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-medium">{reply.author}</span>
-                            </div>
-                            <p className="text-xs">{reply.text}</p>
-                          </div>
-                        ))}
-                        <div className="flex gap-2 mt-3">
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
-                        </div>
+                        <span className="text-sm font-medium">System</span>
+                        <span className="text-xs text-muted-foreground">Now</span>
                       </div>
-                    )) || [1, 2].map((i) => (
-                      <div key={i} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                            <User className="h-3 w-3" />
-                          </div>
-                          <span className="text-sm font-medium">Editor</span>
-                          <span className="text-xs text-muted-foreground">2h ago</span>
-                        </div>
-                        <p className="text-sm mb-2">This section needs clarification.</p>
-                        <p className="text-xs text-muted-foreground mb-3">Line {5 + i}</p>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Reply</Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs">Resolve</Button>
-                        </div>
-                      </div>
-                    ))}
+                      <p className="text-sm mb-2">This is the AI suggestions editor. AI suggestions will appear directly in the text as you type or when you run AI Pass.</p>
+                      <p className="text-xs text-muted-foreground mb-3">AI Mode</p>
+                    </div>
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -1001,31 +1164,17 @@ const ManuscriptWorkspace = () => {
               <TabsContent value="new-content" className="h-full mt-0">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
-                    {manuscript.newContent?.map((content) => (
-                      <div key={content.id} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{content.snippet}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {content.location}
-                            </p>
-                          </div>
+                    <div className="bg-card border border-card-border rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Advanced AI Features</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            This editor uses TipTap Pro AI suggestions for enhanced editing capabilities.
+                          </p>
                         </div>
                       </div>
-                    )) || [1, 2].map((i) => (
-                      <div key={i} className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">New paragraph added</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              After line {12 + i}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    </div>
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -1036,89 +1185,22 @@ const ManuscriptWorkspace = () => {
 
       {/* Run AI Settings Modal */}
       <Dialog open={showRunAIModal} onOpenChange={setShowRunAIModal}>
-        <DialogContent id="run-ai-modal" className="sm:max-w-md">
+        <DialogContent id="run-ai-modal" className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Run AI Editing Pass</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Configure the scope and checks for the AI editing pass.
+              Select which AI editor roles to apply to your manuscript. Each role focuses on specific aspects of editing.
             </p>
           </DialogHeader>
-          <div className="py-4 space-y-6">
-            {/* Scope Selection Section */}
-            <div id="run-ai-scope">
-              <h4 className="text-sm font-medium mb-3">Scope</h4>
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="scope" 
-                    checked={aiScope === "Entire Document"}
-                    onChange={() => setAiScope("Entire Document")}
-                  />
-                  <span className="text-sm">Entire Document</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="scope" 
-                    checked={aiScope === "Current Section"}
-                    onChange={() => setAiScope("Current Section")}
-                  />
-                  <span className="text-sm">Current Section</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="scope" 
-                    checked={aiScope === "Selected Text"}
-                    onChange={() => setAiScope("Selected Text")}
-                  />
-                  <span className="text-sm">Selected Text</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Assistive Checks Section */}
-            <div id="run-ai-checks">
-              <h4 className="text-sm font-medium mb-3">Checks to Perform</h4>
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={aiChecks.contradictions}
-                    onChange={() => setAiChecks(prev => ({ ...prev, contradictions: !prev.contradictions }))}
-                  />
-                  <span className="text-sm">Flag potential contradictions</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={aiChecks.repetitions}
-                    onChange={() => setAiChecks(prev => ({ ...prev, repetitions: !prev.repetitions }))}
-                  />
-                  <span className="text-sm">Flag repetitions</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Active Style Rules Section */}
-            <div id="run-ai-style-rules">
-              <h4 className="text-sm font-medium mb-3">Active Style Rules</h4>
-              <div className="flex flex-wrap gap-1">
-                {activeStyleRules.length > 0 ? (
-                  activeStyleRules.map((ruleKey) => (
-                    <Badge key={ruleKey} variant="secondary" className="text-xs">
-                      {STYLE_RULES[ruleKey]}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">No active rules</span>
-                )}
-              </div>
-            </div>
+          
+          <div className="py-4">
+            <AIEditorRuleSelector
+              selectedRuleIds={selectedRuleIds}
+              onRuleSelectionChange={setSelectedRuleIds}
+              onRulesUpdate={setAvailableRules}
+            />
           </div>
 
-          {/* Footer */}
           <div className="flex justify-end gap-3">
             <Button 
               id="run-ai-cancel"
@@ -1129,10 +1211,11 @@ const ManuscriptWorkspace = () => {
             </Button>
             <Button 
               id="run-ai-run"
-              className="bg-black text-white hover:bg-black/90"
+              className="bg-purple-600 text-white hover:bg-purple-700"
               onClick={handleRunAIPass}
+              disabled={selectedRuleIds.length === 0}
             >
-              Run
+              Run AI Pass ({selectedRuleIds.length} {selectedRuleIds.length === 1 ? 'role' : 'roles'})
             </Button>
           </div>
         </DialogContent>
@@ -1196,15 +1279,25 @@ const ManuscriptWorkspace = () => {
         <DialogContent id="tool-running-modal" className="max-w-md">
           <div className="text-center py-6">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">AI Pass in Progress</h3>
+            <h3 className="text-lg font-medium mb-2">AI Suggestions Loading</h3>
             <p className="text-sm text-muted-foreground">
-              Analyzing manuscript for improvements...
+              Generating AI-powered suggestions for your manuscript...
             </p>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Suggestion Popover Portal */}
+      {popoverElement && selectedSuggestion && createPortal(
+        <SuggestionPopover
+          suggestion={selectedSuggestion}
+          onAccept={handlePopoverAccept}
+          onReject={handlePopoverReject}
+        />,
+        popoverElement
+      )}
     </div>
   );
 };
 
-export default ManuscriptWorkspace;
+export default ExperimentalEditor;

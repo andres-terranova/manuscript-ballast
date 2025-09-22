@@ -367,3 +367,72 @@
 .check-numericRangeEnDash {
   text-decoration-color: hsl(var(--check-primary));
 }
+
+/* TipTap AI Suggestions Extension Styles */
+.tiptap-ai-suggestion {
+  border-bottom: 2px solid var(--tiptap-ai-suggestion-color, #dc143c);
+  margin-bottom: -2px;
+  cursor: pointer;
+  position: relative;
+}
+
+.tiptap-ai-suggestion--selected {
+  background-color: var(--tiptap-ai-suggestion-background-color, #ffe6e6);
+  transition: background-color 0.5s ease;
+}
+
+.tiptap-ai-suggestion:hover {
+  background-color: var(--tiptap-ai-suggestion-background-color, #ffe6e6);
+}
+
+/* AI Suggestion default color scheme based on rule types */
+.tiptap-ai-suggestion[data-rule-id="grammar"] {
+  --tiptap-ai-suggestion-color: #dc143c;
+  --tiptap-ai-suggestion-background-color: #ffe6e6;
+}
+
+.tiptap-ai-suggestion[data-rule-id="clarity"] {
+  --tiptap-ai-suggestion-color: #0066cc;
+  --tiptap-ai-suggestion-background-color: #e6f3ff;
+}
+
+.tiptap-ai-suggestion[data-rule-id="tone"] {
+  --tiptap-ai-suggestion-color: #009900;
+  --tiptap-ai-suggestion-background-color: #e6ffe6;
+}
+
+.tiptap-ai-suggestion[data-rule-id="style"] {
+  --tiptap-ai-suggestion-color: #9333ea;
+  --tiptap-ai-suggestion-background-color: #f3e8ff;
+}
+
+/* AI Editor Role Styles */
+.tiptap-ai-suggestion[data-rule-id="copy-editor"] {
+  --tiptap-ai-suggestion-color: #DC143C;
+  --tiptap-ai-suggestion-background-color: #FFE6E6;
+}
+
+.tiptap-ai-suggestion[data-rule-id="line-editor"] {
+  --tiptap-ai-suggestion-color: #FF8C00;
+  --tiptap-ai-suggestion-background-color: #FFF5E6;
+}
+
+.tiptap-ai-suggestion[data-rule-id="proofreader"] {
+  --tiptap-ai-suggestion-color: #8A2BE2;
+  --tiptap-ai-suggestion-background-color: #F3E6FF;
+}
+
+.tiptap-ai-suggestion[data-rule-id="cmos-formatter"] {
+  --tiptap-ai-suggestion-color: #4682B4;
+  --tiptap-ai-suggestion-background-color: #E6F0FF;
+}
+
+.tiptap-ai-suggestion[data-rule-id="manuscript-evaluator"] {
+  --tiptap-ai-suggestion-color: #059669;
+  --tiptap-ai-suggestion-background-color: #D1FAE5;
+}
+
+.tiptap-ai-suggestion[data-rule-id="developmental-editor"] {
+  --tiptap-ai-suggestion-color: #7C3AED;
+  --tiptap-ai-suggestion-background-color: #EDE9FE;
+}

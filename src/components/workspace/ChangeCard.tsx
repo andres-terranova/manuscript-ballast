@@ -2,8 +2,9 @@ import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Plus, Minus, Edit3 } from "lucide-react";
+import { Check, X, Plus, Minus, ArrowRightLeft } from "lucide-react";
 import type { UISuggestion, SuggestionType } from "@/lib/types";
+import { isAISuggestion } from "@/lib/types";
 
 interface ChangeCardProps {
   suggestion: UISuggestion;
@@ -22,7 +23,7 @@ const getSuggestionIcon = (type: SuggestionType) => {
     case 'delete':
       return <Minus className="h-3 w-3" />;
     case 'replace':
-      return <Edit3 className="h-3 w-3" />;
+      return <ArrowRightLeft className="h-3 w-3" />;
     default:
       return null;
   }
@@ -39,6 +40,23 @@ const getSuggestionColor = (type: SuggestionType) => {
     default:
       return 'text-muted-foreground bg-muted border-border';
   }
+};
+
+const getSuggestionRuleColor = (ruleId: string | undefined): string => {
+  const ruleColorMap: { [key: string]: string } = {
+    'copy-editor': '#DC143C',
+    'line-editor': '#FF8C00',
+    'proofreader': '#8A2BE2',
+    'cmos-formatter': '#4682B4',
+    'manuscript-evaluator': '#059669',
+    'developmental-editor': '#7C3AED',
+    // Fallback colors for legacy or custom rules
+    'grammar': '#DC143C',
+    'clarity': '#0066CC',
+    'tone': '#009900',
+    'style': '#9333EA',
+  };
+  return ruleColorMap[ruleId || ''] || '#6B7280';
 };
 
 export const ChangeCard = memo<ChangeCardProps>(({ 
@@ -75,21 +93,32 @@ export const ChangeCard = memo<ChangeCardProps>(({
             <div className={`p-1 rounded border ${getSuggestionColor(suggestion.type)}`}>
               {getSuggestionIcon(suggestion.type)}
             </div>
-            <Badge variant="secondary" className="text-xs">
-              {suggestion.actor === 'Tool' ? 'AI Tool' : 'Manual'}
-            </Badge>
-            <Badge variant="outline" className="text-xs">
-              {suggestion.category}
-            </Badge>
+            {isAISuggestion(suggestion) && suggestion.ruleTitle ? (
+              <Badge 
+                variant="outline" 
+                className="text-xs gap-1"
+                style={{
+                  borderColor: getSuggestionRuleColor(suggestion.ruleId),
+                  color: getSuggestionRuleColor(suggestion.ruleId),
+                }}
+              >
+                <div
+                  className="w-2 h-2 rounded-sm"
+                  style={{ backgroundColor: getSuggestionRuleColor(suggestion.ruleId) }}
+                />
+                {suggestion.ruleTitle}
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-xs">
+                {suggestion.actor === 'Tool' ? 'AI Tool' : 'Manual'}
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
       <CardContent className="pb-3">
         <div className="space-y-2">
           <div className="text-sm font-medium">{suggestion.note}</div>
-          <div className="text-xs text-muted-foreground">
-            {suggestion.origin === 'server' ? suggestion.location || 'Unknown location' : 'Manual edit'}
-          </div>
           
           {suggestion.type === 'replace' && (
             <div className="text-xs">

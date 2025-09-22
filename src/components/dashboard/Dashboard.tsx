@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +15,7 @@ import { markdownToHtml, htmlToPlainText, validateMarkdownFile, readFileAsText }
 import { updateEditorContent } from "@/lib/editorUtils";
 import { ManuscriptService } from "@/services/manuscriptService";
 import { dbToFrontend } from "@/types/manuscript";
+import { useQueueProcessor } from "@/hooks/useQueueProcessor";
 
 const Dashboard = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -28,6 +30,7 @@ const Dashboard = () => {
   const { toast } = useToast();
   const { loggedIn, logout } = useAuth();
   const { manuscripts, updateManuscript, addManuscript } = useManuscripts();
+  const { getManuscriptStatus, processingStatuses, isProcessing, processQueue } = useQueueProcessor();
 
   useEffect(() => {
     // Check authentication
@@ -192,7 +195,7 @@ const Dashboard = () => {
       
       // Add a small delay to ensure manuscript is in context before navigation
       setTimeout(() => {
-        navigate(`/manuscript/${frontendManuscript.id}`);
+        navigate(`/manuscript/${frontendManuscript.id}/experimental`);
       }, 100);
       
     } catch (error) {
@@ -224,7 +227,7 @@ const Dashboard = () => {
       
       // Start DOCX processing in the background
       try {
-        await ManuscriptService.processDocx(frontendManuscript.id, filePath);
+        await ManuscriptService.queueDocxProcessing(frontendManuscript.id, filePath);
         toast({
           title: "DOCX Processing Started",
           description: `"${frontendManuscript.title}" is being processed. You can view its progress in the workspace.`,
@@ -245,7 +248,7 @@ const Dashboard = () => {
       
       // Add a small delay to ensure manuscript is in context before navigation
       setTimeout(() => {
-        navigate(`/manuscript/${frontendManuscript.id}`);
+        navigate(`/manuscript/${frontendManuscript.id}/experimental`);
       }, 100);
       
     } catch (error) {
@@ -449,6 +452,37 @@ const Dashboard = () => {
               </DialogContent>
             </Dialog>
             
+            {/* Queue Status & Manual Trigger */}
+            <div className="flex items-center gap-2">
+              {/* Auto-processing status */}
+              {isProcessing && (
+                <div className="flex items-center gap-1 text-sm text-blue-600">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                  <span className="text-xs">Auto-processing...</span>
+                </div>
+              )}
+              
+              {/* Queue count indicator */}
+              {Object.keys(processingStatuses).length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {Object.keys(processingStatuses).length} in queue
+                </Badge>
+              )}
+              
+              {/* Manual trigger (backup for when auto-processing fails) */}
+              {Object.keys(processingStatuses).length > 0 && !isProcessing && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => processQueue()}
+                  className="text-xs"
+                  title="Manual trigger if auto-processing isn't working"
+                >
+                  ⚡ Process Now
+                </Button>
+              )}
+            </div>
+            
             <Button variant="ghost" size="icon">
               <Bell className="h-4 w-4" />
             </Button>
@@ -506,9 +540,45 @@ const Dashboard = () => {
                   <TableRow 
                     key={manuscript.id}
                     className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => navigate(`/manuscript/${manuscript.id}`)}
+                    onClick={() => navigate(`/manuscript/${manuscript.id}/experimental`)}
                   >
-                    <TableCell className="font-medium">{manuscript.title}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <span>{manuscript.title}</span>
+                        {(() => {
+                          const queueStatus = getManuscriptStatus(manuscript.id);
+                          
+                          // Show queue processing status
+                          if (queueStatus?.status === 'pending') {
+                            return <Badge variant="secondary" className="text-xs animate-pulse">⏳ Queued</Badge>;
+                          }
+                          if (queueStatus?.status === 'processing') {
+                            const progress = queueStatus.progress?.progress || 0;
+                            const step = queueStatus.progress?.step || 'processing';
+                            return (
+                              <Badge variant="outline" className="text-xs animate-pulse">
+                                ⚡ {step} ({progress}%)
+                              </Badge>
+                            );
+                          }
+                          
+                          // Show manuscript processing status for completed/failed
+                          if (manuscript.processingStatus === 'completed' && queueStatus?.status === 'completed') {
+                            return <Badge variant="default" className="text-xs bg-green-100 text-green-800">✅ Ready</Badge>;
+                          }
+                          if (manuscript.processingStatus === 'failed' || queueStatus?.status === 'failed') {
+                            return <Badge variant="destructive" className="text-xs">❌ Failed</Badge>;
+                          }
+                          
+                          // Show initial processing status
+                          if (manuscript.processingStatus === 'pending') {
+                            return <Badge variant="secondary" className="text-xs">📝 Uploaded</Badge>;
+                          }
+                          
+                          return null;
+                        })()}
+                      </div>
+                    </TableCell>
                     <TableCell>{manuscript.owner}</TableCell>
                     <TableCell>Round {manuscript.round}</TableCell>
                     <TableCell>{getStatusBadge(manuscript.status)}</TableCell>
@@ -517,16 +587,27 @@ const Dashboard = () => {
                     </TableCell>
                     <TableCell className="text-gray-600">{formatDate(manuscript.updatedAt)}</TableCell>
                     <TableCell>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Dropdown logic would go here
-                        }}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/manuscript/${manuscript.id}`);
+                            }}
+                          >
+                            Open in Legacy Editor
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
