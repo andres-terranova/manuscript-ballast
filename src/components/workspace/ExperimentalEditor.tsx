@@ -86,7 +86,22 @@ const ExperimentalEditor = () => {
 
   // Style Rules Management
   const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
-  
+
+  // TipTap Authentication using JWT token directly
+  const tiptapAppId = import.meta.env.VITE_TIPTAP_APP_ID;
+  const tiptapToken = import.meta.env.VITE_TIPTAP_JWT;
+
+  // Debug authentication state
+  useEffect(() => {
+    console.log('🔑 TipTap Auth Debug:', {
+      hasAppId: !!tiptapAppId,
+      hasToken: !!tiptapToken,
+      appId: tiptapAppId,
+      tokenLength: tiptapToken?.length || 0,
+      tokenStart: tiptapToken?.substring(0, 20) + '...'
+    });
+  }, [tiptapAppId, tiptapToken]);
+
   // Read-only state derived from manuscript status
   const isReviewed = manuscript?.status === "Reviewed";
 
@@ -722,21 +737,20 @@ const ExperimentalEditor = () => {
       console.log('Document content:', editor.getText());
       console.log('Document length:', editor.getText().length);
 
+      // Check token availability
+      if (!tiptapToken || !tiptapAppId) {
+        throw new Error('TipTap credentials not available. Please check environment variables.');
+      }
+
       // Test authentication before proceeding
-      const appId = 'pkry1n5m'; // Your TipTap App ID
-      // Using TipTap's provided test JWT (temporary for testing)
-      const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NTg1NTI0ODgsIm5iZiI6MTc1ODU1MjQ4OCwiZXhwIjoxNzU4NjM4ODg4LCJpc3MiOiJodHRwczovL2Nsb3VkLnRpcHRhcC5kZXYiLCJhdWQiOiJjMWIzMmE5Mi0zYzFmLTRiNDktYWI2Yi1mYjVhN2E2MTc4YTgifQ.Yy4UdTVF-FGOfM28-gVHnP8AYt2Uf-Vgr2yMbWv98KE';
-      
-      console.log('🧪 Testing with TipTap provided JWT...');
-      console.log('Token format check:', {
-        appId,
-        tokenLength: token.length,
-        tokenParts: token.split('.').length,
-        isValidJWT: token.split('.').length === 3,
-        tokenStart: token.substring(0, 50) + '...'
+      console.log('🔑 Testing with fresh JWT token...');
+      console.log('Auth check:', {
+        appId: tiptapAppId,
+        tokenLength: tiptapToken.length,
+        tokenStart: tiptapToken.substring(0, 20) + '...'
       });
-      
-      const authTest = await testTiptapAuth(appId, token);
+
+      const authTest = await testTiptapAuth(tiptapAppId, tiptapToken);
       console.log('Auth test result:', authTest);
       
       if (!authTest.success) {
@@ -989,7 +1003,12 @@ const ExperimentalEditor = () => {
                   <Settings2 className="mr-2 h-4 w-4" />
                   <span className="hidden xl:inline">Style Rules</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowRunAIModal(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRunAIModal(true)}
+                  disabled={!tiptapToken || !tiptapAppId}
+                >
                   <Play className="mr-2 h-4 w-4" />
                   <span className="hidden sm:inline">Run AI Pass</span>
                 </Button>
@@ -1064,6 +1083,16 @@ const ExperimentalEditor = () => {
             maxVisibleChecks={maxVisibleChecks}
             // Enable AI suggestions for experimental editor
             aiSuggestionConfig={(() => {
+              // Only enable if credentials are available
+              if (!tiptapToken || !tiptapAppId) {
+                return {
+                  enabled: false,
+                  appId: undefined,
+                  token: undefined,
+                  rules: [],
+                };
+              }
+
               // Get selected rules from available rules
               const selectedRules = availableRules
                 .filter(rule => selectedRuleIds.includes(rule.id))
@@ -1077,9 +1106,9 @@ const ExperimentalEditor = () => {
 
               const config: any = {
                 enabled: true,
-                // Using TipTap's provided test JWT (temporary for testing)
-                appId: 'pkry1n5m',
-                token: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NTg1NTI0ODgsIm5iZiI6MTc1ODU1MjQ4OCwiZXhwIjoxNzU4NjM4ODg4LCJpc3MiOiJodHRwczovL2Nsb3VkLnRpcHRhcC5kZXYiLCJhdWQiOiJjMWIzMmE5Mi0zYzFmLTRiNDktYWI2Yi1mYjVhN2E2MTc4YTgifQ.Yy4UdTVF-FGOfM28-gVHnP8AYt2Uf-Vgr2yMbWv98KE',
+                // Using fresh JWT token directly
+                appId: tiptapAppId,
+                token: tiptapToken,
                 rules: selectedRules,
                 loadOnStart: false, // Disable automatic loading as requested
                 reloadOnUpdate: false, // Don't reload on every edit
@@ -1209,11 +1238,11 @@ const ExperimentalEditor = () => {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               id="run-ai-run"
               className="bg-purple-600 text-white hover:bg-purple-700"
               onClick={handleRunAIPass}
-              disabled={selectedRuleIds.length === 0}
+              disabled={selectedRuleIds.length === 0 || !tiptapToken || !tiptapAppId}
             >
               Run AI Pass ({selectedRuleIds.length} {selectedRuleIds.length === 1 ? 'role' : 'roles'})
             </Button>
