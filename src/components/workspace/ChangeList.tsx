@@ -17,9 +17,10 @@ interface ChangeListProps {
   showSuggestions?: boolean;
   onToggleSuggestions?: (show: boolean) => void;
   onApplyAllSuggestions?: () => void;
+  onTriggerPopover?: (suggestionId: string) => void;
 }
 
-export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set(), isReviewed = false, showSuggestions = true, onToggleSuggestions, onApplyAllSuggestions }: ChangeListProps) => {
+export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set(), isReviewed = false, showSuggestions = true, onToggleSuggestions, onApplyAllSuggestions, onTriggerPopover }: ChangeListProps) => {
   const [ruleFilter, setRuleFilter] = useState<"all" | string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25; // Phase 1: reduce from 50 to 25 for better performance
@@ -81,6 +82,12 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
       setTimeout(() => {
         element.classList.remove('ring-2', 'ring-primary');
       }, 800);
+    }
+
+    // Trigger popover for AI suggestions
+    const suggestion = suggestions.find(s => s.id === suggestionId);
+    if (suggestion && isAISuggestion(suggestion) && onTriggerPopover) {
+      onTriggerPopover(suggestionId);
     }
   };
 
@@ -189,6 +196,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                   isBusy={isBusy}
                   onSuggestionClick={handleSuggestionClick}
                   getNextFocusableCard={getNextFocusableCard}
+                  onTriggerPopover={onTriggerPopover}
                 />
               );
             })

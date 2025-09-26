@@ -21,6 +21,7 @@ import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
 import { type CheckItem, runDeterministicChecks } from "@/lib/styleValidator";
 import { testTiptapAuth, validateJWTFormat } from "@/utils/testTiptapAuth";
 import { SuggestionPopover } from "./SuggestionPopover";
+import { useTiptapJWT } from "@/hooks/useTiptapJWT";
 
 import { 
   RotateCcw, 
@@ -87,20 +88,27 @@ const ExperimentalEditor = () => {
   // Style Rules Management
   const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
 
-  // TipTap Authentication using JWT token directly
-  const tiptapAppId = import.meta.env.VITE_TIPTAP_APP_ID;
-  const tiptapToken = import.meta.env.VITE_TIPTAP_JWT;
 
-  // Debug authentication state
+  // TipTap Authentication using production JWT system
+  const { token: tiptapToken, appId: tiptapAppId, isLoading: jwtLoading, error: jwtError, refreshToken } = useTiptapJWT();
+
+  // Debug authentication state and JWT source
   useEffect(() => {
+    // Check if using temporary JWT from environment
+    const tempJWT = import.meta.env.VITE_TIPTAP_JWT;
+    const isUsingTempJWT = tempJWT && tiptapToken === tempJWT;
+
     console.log('🔑 TipTap Auth Debug:', {
       hasAppId: !!tiptapAppId,
       hasToken: !!tiptapToken,
+      jwtLoading,
+      jwtError,
       appId: tiptapAppId,
       tokenLength: tiptapToken?.length || 0,
-      tokenStart: tiptapToken?.substring(0, 20) + '...'
+      tokenStart: tiptapToken?.substring(0, 20) + '...',
+      jwtSource: isUsingTempJWT ? '🟡 TEMPORARY JWT (Development)' : '🟢 SERVER-SIDE JWT (Production)'
     });
-  }, [tiptapAppId, tiptapToken]);
+  }, [tiptapAppId, tiptapToken, jwtLoading, jwtError]);
 
   // Read-only state derived from manuscript status
   const isReviewed = manuscript?.status === "Reviewed";
@@ -357,18 +365,38 @@ const ExperimentalEditor = () => {
 
   const handlePopoverReject = (suggestionId: string) => {
     if (processingAction) return; // Prevent double-clicks
-    
+
     console.log('🎯 Popover Reject clicked:', suggestionId);
     setProcessingAction(true);
-    
+
     // Clear popover immediately
     setPopoverElement(null);
     setSelectedSuggestion(null);
-    
+
     // Execute action and reset state
     handleRejectSuggestion(suggestionId);
     setTimeout(() => setProcessingAction(false), 500);
   };
+
+  // Handle triggering popover from change list clicks
+  const handleTriggerPopover = useCallback((suggestionId: string) => {
+    const editor = getGlobalEditor();
+    if (!editor) {
+      console.warn('Editor not available for popover trigger');
+      return;
+    }
+
+    console.log('🎯 Triggering popover for suggestion:', suggestionId);
+
+    // Use TipTap's native command to select the AI suggestion
+    // This will trigger the existing popover system automatically
+    if (editor.commands.selectAiSuggestion) {
+      const result = editor.commands.selectAiSuggestion(suggestionId);
+      console.log('TipTap selectAiSuggestion result:', result);
+    } else {
+      console.warn('selectAiSuggestion command not available');
+    }
+  }, []);
 
   // Accept/Reject handlers for AI suggestions
   const handleAcceptSuggestion = async (suggestionId: string) => {
@@ -739,7 +767,13 @@ const ExperimentalEditor = () => {
 
       // Check token availability
       if (!tiptapToken || !tiptapAppId) {
-        throw new Error('TipTap credentials not available. Please check environment variables.');
+        // Try to refresh the token
+        await refreshToken();
+
+        // Check again after refresh
+        if (!tiptapToken || !tiptapAppId) {
+          throw new Error('TipTap credentials not available. Please check environment variables and Supabase function.');
+        }
       }
 
       // Test authentication before proceeding
@@ -1007,10 +1041,14 @@ const ExperimentalEditor = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowRunAIModal(true)}
-                  disabled={!tiptapToken || !tiptapAppId}
+                  disabled={!tiptapToken || !tiptapAppId || jwtLoading}
+                  title={jwtError ? `JWT Error: ${jwtError}` : undefined}
                 >
-                  <Play className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Run AI Pass</span>
+                  {jwtLoading ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading JWT...</span></>
+                  ) : (
+                    <><Play className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
+                  )}
                 </Button>
               </>
             )}
@@ -1055,6 +1093,31 @@ const ExperimentalEditor = () => {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <SettingsIcon className="h-4 w-4" />
               <span>Current turn</span>
+            </div>
+            {/* JWT Source Indicator */}
+            <div className="flex items-center gap-2 text-xs">
+              {(() => {
+                const tempJWT = import.meta.env.VITE_TIPTAP_JWT;
+                const isUsingTempJWT = tempJWT && tiptapToken === tempJWT;
+
+                if (jwtLoading) {
+                  return <Badge variant="outline" className="bg-gray-100 text-gray-600">JWT Loading...</Badge>;
+                }
+
+                if (jwtError) {
+                  return <Badge variant="destructive" className="bg-red-100 text-red-600">JWT Error</Badge>;
+                }
+
+                if (isUsingTempJWT) {
+                  return <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300">🟡 Temp JWT</Badge>;
+                }
+
+                if (tiptapToken) {
+                  return <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">🟢 Server JWT</Badge>;
+                }
+
+                return <Badge variant="outline" className="bg-gray-100 text-gray-600">No JWT</Badge>;
+              })()}
             </div>
           </div>
         </div>
@@ -1149,7 +1212,7 @@ const ExperimentalEditor = () => {
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
               <TabsContent value="changes" className="h-full mt-0">
-                <ChangeList 
+                <ChangeList
                   suggestions={isReviewed ? [] : suggestions}
                   onAcceptSuggestion={handleAcceptSuggestion}
                   onRejectSuggestion={handleRejectSuggestion}
@@ -1158,6 +1221,7 @@ const ExperimentalEditor = () => {
                   showSuggestions={showSuggestions}
                   onToggleSuggestions={setShowSuggestions}
                   onApplyAllSuggestions={handleApplyAllSuggestions}
+                  onTriggerPopover={handleTriggerPopover}
                 />
               </TabsContent>
 
@@ -1242,9 +1306,9 @@ const ExperimentalEditor = () => {
               id="run-ai-run"
               className="bg-purple-600 text-white hover:bg-purple-700"
               onClick={handleRunAIPass}
-              disabled={selectedRuleIds.length === 0 || !tiptapToken || !tiptapAppId}
+              disabled={selectedRuleIds.length === 0 || !tiptapToken || !tiptapAppId || jwtLoading}
             >
-              Run AI Pass ({selectedRuleIds.length} {selectedRuleIds.length === 1 ? 'role' : 'roles'})
+              {jwtLoading ? 'Loading JWT...' : `Run AI Pass (${selectedRuleIds.length} ${selectedRuleIds.length === 1 ? 'role' : 'roles'})`}
             </Button>
           </div>
         </DialogContent>
