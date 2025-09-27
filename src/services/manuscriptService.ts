@@ -245,4 +245,100 @@ export class ManuscriptService {
       error: data.error_message
     };
   }
+
+  // Get AI suggestion results for a manuscript
+  static async getAISuggestionResults(manuscriptId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('ai_suggestion_results')
+      .select('suggestions, total_suggestions, created_at')
+      .eq('manuscript_id', manuscriptId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      throw new Error(`Failed to get AI suggestion results: ${error.message}`);
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    return data.suggestions || [];
+  }
+
+  // Load suggestions from completed queue job
+  static async loadSuggestionsFromQueue(manuscriptId: string): Promise<{
+    suggestions: any[];
+    jobStatus: string;
+    totalSuggestions: number;
+  }> {
+    // Check if AI suggestion job has completed
+    const { data: jobData, error: jobError } = await supabase
+      .from('processing_queue')
+      .select('status, progress_data')
+      .eq('manuscript_id', manuscriptId)
+      .eq('job_type', 'generate_ai_suggestions')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (jobError && jobError.code !== 'PGRST116') {
+      throw new Error(`Failed to check AI job status: ${jobError.message}`);
+    }
+
+    if (!jobData) {
+      return {
+        suggestions: [],
+        jobStatus: 'not_found',
+        totalSuggestions: 0
+      };
+    }
+
+    const jobStatus = jobData.status;
+
+    // If job is not completed, return current status
+    if (jobStatus !== 'completed') {
+      return {
+        suggestions: [],
+        jobStatus,
+        totalSuggestions: 0
+      };
+    }
+
+    // Load suggestions from results table
+    try {
+      const suggestions = await this.getAISuggestionResults(manuscriptId);
+      return {
+        suggestions,
+        jobStatus: 'completed',
+        totalSuggestions: suggestions.length
+      };
+    } catch (error) {
+      console.error('Error loading AI suggestions:', error);
+      return {
+        suggestions: [],
+        jobStatus: 'error',
+        totalSuggestions: 0
+      };
+    }
+  }
+
+  // Check if AI suggestion job is available for a manuscript
+  static async hasAISuggestionJob(manuscriptId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('processing_queue')
+      .select('id')
+      .eq('manuscript_id', manuscriptId)
+      .eq('job_type', 'generate_ai_suggestions')
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking AI suggestion job:', error);
+      return false;
+    }
+
+    return !!data;
+  }
 }

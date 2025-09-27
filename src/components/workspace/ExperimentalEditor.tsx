@@ -40,6 +40,8 @@ import { ChecksList } from "./ChecksList";
 import { ProcessingStatus } from "./ProcessingStatus";
 import AIEditorRuleSelector from "./AIEditorRuleSelector";
 import { AI_EDITOR_RULES, type AIEditorRule } from "./AIEditorRules";
+import { supabase } from "@/integrations/supabase/client";
+import { ManuscriptService } from "@/services/manuscriptService";
 
 const ExperimentalEditor = () => {
   const { id } = useParams<{ id: string }>();
@@ -736,7 +738,7 @@ const ExperimentalEditor = () => {
     };
   }, [suggestions.length]);
 
-  // Handle Run AI Pass - EXPERIMENTAL VERSION using AI Suggestion extension
+  // Handle Run AI Pass - Enhanced version with large document support
   const handleRunAIPass = async () => {
     if (selectedRuleIds.length === 0) {
       toast({
@@ -749,44 +751,31 @@ const ExperimentalEditor = () => {
 
     setShowRunAIModal(false);
     setShowToolRunning(true);
-    
+
     try {
       const editor = getGlobalEditor();
       if (!editor) {
         throw new Error('Editor not available');
       }
 
+      const documentText = editor.getText();
+      const documentLength = documentText.length;
+      const isLargeDocument = documentLength > 100000; // 100K chars threshold
+
       console.log('Starting AI Pass...');
-      console.log('Editor:', editor);
-      console.log('Editor storage:', editor.storage);
-      console.log('AI Storage:', editor.storage?.aiSuggestion);
-      console.log('Available commands:', Object.keys(editor.commands));
-      console.log('Extensions:', editor.extensionManager.extensions.map(ext => ext.name));
-      console.log('Document content:', editor.getText());
-      console.log('Document length:', editor.getText().length);
+      console.log('Document length:', documentLength);
+      console.log('Is large document:', isLargeDocument);
 
       // Check token availability
       if (!tiptapToken || !tiptapAppId) {
-        // Try to refresh the token
         await refreshToken();
-
-        // Check again after refresh
         if (!tiptapToken || !tiptapAppId) {
           throw new Error('TipTap credentials not available. Please check environment variables and Supabase function.');
         }
       }
 
       // Test authentication before proceeding
-      console.log('🔑 Testing with fresh JWT token...');
-      console.log('Auth check:', {
-        appId: tiptapAppId,
-        tokenLength: tiptapToken.length,
-        tokenStart: tiptapToken.substring(0, 20) + '...'
-      });
-
       const authTest = await testTiptapAuth(tiptapAppId, tiptapToken);
-      console.log('Auth test result:', authTest);
-      
       if (!authTest.success) {
         console.error('Authentication test failed:', authTest);
         throw new Error(`Authentication failed: ${authTest.error}. Please check your credentials and allowed origins in TipTap dashboard.`);
@@ -804,7 +793,7 @@ const ExperimentalEditor = () => {
         }));
 
       console.log('Setting AI suggestion rules:', selectedRules);
-      
+
       // Update the rules in the editor
       if (editor.commands.setAiSuggestionRules) {
         editor.chain().setAiSuggestionRules(selectedRules).run();
@@ -818,27 +807,38 @@ const ExperimentalEditor = () => {
         throw new Error('AI Suggestion extension not loaded. Check your TipTap Pro credentials.');
       }
 
-      // Check if loadAiSuggestions command is available
+      // Use TipTap's built-in AI suggestion loading (custom resolver will handle large documents automatically)
+      console.log(`Processing document with ${documentLength} characters...`);
+
+      if (isLargeDocument) {
+        toast({
+          title: "Processing large document",
+          description: `Document is ${Math.round(documentLength/1000)}K characters. Custom resolver will process in chunks with rate limiting.`,
+          duration: 5000
+        });
+      }
+
       if (!editor.commands.loadAiSuggestions) {
         throw new Error('loadAiSuggestions command not available. Check extension configuration.');
       }
 
-      console.log('Triggering AI suggestions...');
-      
-      // Load AI suggestions using the correct TipTap API
+      // Trigger AI suggestions (custom resolver will handle chunking for large documents)
       const result = editor.chain().loadAiSuggestions().run();
       console.log('Load AI suggestions result:', result);
-      
-      // Wait for AI suggestions to be generated with proper async monitoring
-      const uiSuggestions = await waitForAiSuggestions(editor);
-      
-      console.log('🎯 Final result: Generated', uiSuggestions.length, 'AI suggestions');
+
+      // Wait for suggestions with appropriate timeout
+      const timeout = isLargeDocument ? 300000 : 120000; // 5 minutes for large, 2 minutes for small
+      const uiSuggestions = await waitForAiSuggestions(editor, timeout);
+
+      console.log('Generated', uiSuggestions.length, 'AI suggestions');
       setSuggestions(uiSuggestions);
-      
+
       if (uiSuggestions.length > 0) {
         toast({
-          title: `Generated ${uiSuggestions.length} AI suggestion${uiSuggestions.length === 1 ? "" : "s"}.`,
-          description: "Review suggestions in the editor and change list."
+          title: `Generated ${uiSuggestions.length} AI suggestions`,
+          description: isLargeDocument
+            ? `Processed ${Math.round(documentLength/1000)}K characters successfully. Review suggestions in the editor and change list.`
+            : "Review suggestions in the editor and change list."
         });
       } else {
         toast({
@@ -849,10 +849,10 @@ const ExperimentalEditor = () => {
       }
     } catch (e: any) {
       console.error('AI suggestions failed:', e);
-      
+
       let title = "AI suggestions failed";
       let msg = "Please try again.";
-      
+
       if (e.message?.includes('Authentication failed')) {
         title = "Authentication Error";
         msg = `${e.message}\n\nTroubleshooting steps:\n1. Verify your .env file has correct VITE_TIPTAP_APP_ID and VITE_TIPTAP_TOKEN\n2. Add ${window.location.origin} to Allowed Origins in TipTap dashboard\n3. Restart your dev server`;
@@ -866,7 +866,7 @@ const ExperimentalEditor = () => {
         title = "Editor error";
         msg = "Editor is not ready. Please try again.";
       }
-      
+
       toast({
         title,
         description: msg,
@@ -876,6 +876,7 @@ const ExperimentalEditor = () => {
       setShowToolRunning(false);
     }
   };
+
 
   // Handle Mark Reviewed
   const handleMarkReviewed = () => {

@@ -60,14 +60,24 @@ Make sure your `.npmrc` file is configured for TipTap Pro registry access (this 
 ### Using AI Suggestions
 
 1. **Manual Trigger**: Click "Run AI Pass" to generate suggestions for the entire document
-2. **Automatic Generation**: AI suggestions can be configured to generate as you type (currently disabled by default)
-3. **Review Suggestions**: 
+2. **Large Document Processing**: Documents over 100,000 characters automatically use enhanced processing with chunking and rate limiting
+3. **Review Suggestions**:
    - Suggestions appear as underlined text in the editor
    - They also appear in the "Changes" tab in the right panel
-4. **Accept/Reject**: 
+4. **Accept/Reject**:
    - Click on underlined text to select a suggestion
    - Use accept/reject buttons in the Change List
    - Or use the inline controls that appear when suggestions are selected
+
+### Enhanced Large Document Processing
+
+For documents larger than 100K characters, the system automatically switches to enhanced processing mode:
+
+- **Smart Chunking**: Document is split into 4,000-character chunks respecting paragraph boundaries
+- **Rate Limiting**: 2-second delays between chunks to avoid API rate limits
+- **Progress Tracking**: Real-time updates showing processing status (e.g., "Processing chunk 23 of 86...")
+- **100% Coverage**: Processes the entire document without arbitrary limits
+- **Background Processing**: No browser blocking - can process 150+ chunks reliably
 
 ### AI Suggestion Rules
 
@@ -103,6 +113,16 @@ Key configuration options:
 - `reloadOnUpdate: false` - Don't regenerate on every edit
 - `debounceTimeout: 1000` - Wait 1 second after typing stops before triggering
 
+### Large Document Processing Configuration
+
+The enhanced processing system uses these optimized settings:
+
+- **Size Threshold**: 100,000 characters triggers enhanced mode
+- **Chunk Size**: 4,000 characters per chunk (optimized for large documents)
+- **Rate Limiting**: 2,000ms delay between chunks to avoid 429 errors
+- **Smart Chunking**: Respects paragraph boundaries to maintain context
+- **Custom Resolver**: Temporarily overrides TipTap's resolver for chunked processing
+
 ## 🎨 Visual Styling
 
 AI suggestions are styled with:
@@ -127,6 +147,7 @@ AI suggestions are styled with:
 2. **API Costs**: AI suggestions consume TipTap Cloud API credits
 3. **Beta Feature**: The AI Suggestion extension is in beta
 4. **No Offline Mode**: Requires internet connection for AI processing
+5. **Large Document Processing Time**: Documents over 300K characters may take 60+ minutes to process due to chunking and rate limiting
 
 ## 🐛 Troubleshooting
 
@@ -156,16 +177,24 @@ Auth test result: {success: true}
 Configuring AI Suggestion extension with: {appId: "pkry1n5m", hasToken: true, isValidJWT: true}
 Extensions: [..., "aiSuggestion", ...]
 
+# For large documents, look for:
+📝 Converting X AI suggestions to UI format
+🔄 Processing large document with enhanced chunking and rate limiting...
+Processing chunk X of Y (Z chars)
+🎉 AI suggestions loaded after Xs - found X suggestions
+
 # Bad signs:
 Auth test result: {success: false, error: "HTTP 401: Unauthorized"}
 Token does not appear to be a valid JWT format
 AI Suggestion extension not loaded
+Rate limiting error: 429
 ```
 
 **Solutions**:
 - Follow the 401 Unauthorized fix above
 - Verify JWT token format (should have 3 parts separated by dots)
 - Check API credits remaining in TipTap dashboard
+- For large documents, ensure you have sufficient API credits for extended processing
 
 ### 3. Extension Not Loading
 
@@ -199,6 +228,22 @@ AI Suggestion extension not loaded
 **Requirements**:
 - Document must have some text content (empty documents won't generate suggestions)
 - Try with sample text like: "This is some text with grammer mistakes and awkward phrasing."
+
+### 7. Large Document Processing Issues
+
+**Symptoms**: Processing appears stuck or very slow on documents >100K characters
+
+**Expected Behavior**:
+- Documents >100K characters automatically use enhanced chunking
+- Progress updates show "Processing chunk X of Y..."
+- Total processing time scales with document size (2-4 minutes per 100K characters)
+- You'll see rate limiting delays ("Processed chunk X completed: Y suggestions")
+
+**Solutions**:
+- Ensure adequate TipTap API credits for extended processing
+- Check browser console for chunking progress messages
+- For very large documents (300K+), consider processing in smaller sections
+- Verify your TipTap plan supports high-volume API usage
 
 ## 🚀 Next Steps
 

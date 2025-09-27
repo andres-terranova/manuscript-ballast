@@ -185,18 +185,15 @@ const Dashboard = () => {
       
       toast({
         title: "Imported from Markdown",
-        description: `Successfully imported "${frontendManuscript.title}".`,
+        description: `Successfully imported "${frontendManuscript.title}". You can now click it in the table to open the editor.`,
       });
-      
+
       setShowUploadModal(false);
       setUploadStep(1);
       setSelectedFile(null);
       setFileType(null);
-      
-      // Add a small delay to ensure manuscript is in context before navigation
-      setTimeout(() => {
-        navigate(`/manuscript/${frontendManuscript.id}/experimental`);
-      }, 100);
+
+      // Keep user in dashboard - they can click the manuscript to open it when ready
       
     } catch (error) {
       console.error('Error processing markdown:', error);
@@ -230,7 +227,7 @@ const Dashboard = () => {
         await ManuscriptService.queueDocxProcessing(frontendManuscript.id, filePath);
         toast({
           title: "DOCX Processing Started",
-          description: `"${frontendManuscript.title}" is being processed. You can view its progress in the workspace.`,
+          description: `"${frontendManuscript.title}" is being processed. Watch the status in the table below - you can open it when processing completes.`,
         });
       } catch (processingError) {
         console.error('Failed to start DOCX processing:', processingError);
@@ -245,11 +242,9 @@ const Dashboard = () => {
       setUploadStep(1);
       setSelectedFile(null);
       setFileType(null);
-      
-      // Add a small delay to ensure manuscript is in context before navigation
-      setTimeout(() => {
-        navigate(`/manuscript/${frontendManuscript.id}/experimental`);
-      }, 100);
+
+      // Keep user in dashboard to see processing status
+      // They can click the manuscript to open it when processing completes
       
     } catch (error) {
       console.error('Error processing DOCX:', error);
