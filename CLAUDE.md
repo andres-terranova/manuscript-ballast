@@ -101,12 +101,12 @@ VITE_TIPTAP_TOKEN=your_content_ai_secret
 - **Editor State**: Uses TipTap's plugin system for managing suggestions and decorations
 - **Suggestion Flow**:
   - Small docs: TipTap AI → direct suggestions → UI components
-  - Large docs: Custom chunking → TipTap AI per chunk → aggregated suggestions → UI components
+  - Large docs: TipTap native chunking → cached suggestions → UI components
 - **Style Rules**: Configurable editing rules with both AI and deterministic validation
 - **Dual Editor Support**: Experimental (default) and standard (deprecated) editors share data but use different AI backends
 - **Real-time Features**: Default experimental editor provides live AI suggestions as you type
 - **Performance Optimization**: Large document processing prevents browser blocking and memory issues
-- **Rate Limiting**: Built-in delays and chunking prevent TipTap Cloud API rate limit errors
+- **Rate Limiting**: TipTap's native system handles API rate limits internally
 
 ## Common Workflows
 
@@ -114,8 +114,29 @@ VITE_TIPTAP_TOKEN=your_content_ai_secret
 2. **New style rules**: Add to `STYLE_RULES` in `styleRuleConstants.ts`
 3. **Editor plugins**: Extend TipTap functionality in `lib/` utilities
 4. **AI configuration**: Modify rule sets in `AIEditorRules.tsx` for the default experimental editor
-5. **Large document tuning**: Adjust `CHUNK_SIZE` (4000), `DELAY_BETWEEN_CHUNKS` (2000ms), or size threshold (100K chars) in `ExperimentalEditor.tsx`
+5. **Large document tuning**: Adjust `chunkSize` (10 HTML nodes) and `enableCache` settings in TipTap configuration
 6. **Performance monitoring**: Check browser console for chunking progress and rate limiting status
+
+## IMPORTANT: Use TipTap's Native Features First
+
+**DO NOT create custom resolvers for chunking!** TipTap has built-in chunking that handles:
+- Document splitting (via `chunkSize` - number of HTML nodes per chunk)
+- Caching (via `enableCache` - caches suggestions per chunk)
+- Rate limiting (internal to their API)
+
+**Correct approach:**
+```typescript
+AiSuggestion.configure({
+  enableCache: true,    // Use TipTap's built-in caching
+  chunkSize: 10,       // 10 HTML nodes per chunk (adjust based on needs)
+  // NO custom resolver needed for chunking!
+})
+```
+
+**Only use custom resolvers if:**
+- Integrating a different LLM (not TipTap Cloud)
+- Adding custom business logic to suggestions
+- **NOT** for chunking or rate limiting
 
 ## TipTap AI Implementation Mistakes to Avoid
 

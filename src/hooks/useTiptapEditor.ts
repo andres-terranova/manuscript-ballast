@@ -111,126 +111,21 @@ export const useTiptapEditor = ({
             // Fix: Use a valid model name instead of "gpt-5-mini"
             modelName: 'gpt-4o-mini',
             model: 'gpt-4o-mini',
-            // Custom resolver for large document handling with rate limiting
-            resolver: async ({ defaultResolver, html, htmlChunks, rules, ...options }: any) => {
-              const documentLength = html?.length || 0;
-              const LARGE_DOCUMENT_THRESHOLD = 100000; // 100K characters
-              const CHUNK_SIZE = 4000;
-              const DELAY_BETWEEN_CHUNKS = 2000; // 2 seconds
-
-              console.log(`Custom resolver triggered for document with ${documentLength} characters`);
-
-              // For small documents, use default resolver directly
-              if (documentLength <= LARGE_DOCUMENT_THRESHOLD) {
-                console.log('Small document - using default resolver');
-                return await defaultResolver({ html, htmlChunks, rules, ...options });
-              }
-
-              // For large documents, implement custom chunking with rate limiting
-              console.log('Large document detected - implementing custom chunking with rate limiting');
-
-              try {
-                // Smart chunking function that respects paragraph boundaries
-                const smartChunkText = (text: string, chunkSize: number): string[] => {
-                  if (text.length <= chunkSize) {
-                    return [text];
-                  }
-
-                  const chunks: string[] = [];
-                  const paragraphs = text.split('\n\n');
-                  let currentChunk = '';
-
-                  for (const paragraph of paragraphs) {
-                    if (currentChunk.length + paragraph.length + 2 > chunkSize && currentChunk.length > 0) {
-                      chunks.push(currentChunk.trim());
-                      currentChunk = paragraph;
-                    } else {
-                      currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
-                    }
-                  }
-
-                  if (currentChunk.trim()) {
-                    chunks.push(currentChunk.trim());
-                  }
-
-                  return chunks;
-                };
-
-                // Convert HTML to text for chunking
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
-                const plainText = tempDiv.textContent || tempDiv.innerText || '';
-
-                const chunks = smartChunkText(plainText, CHUNK_SIZE);
-                console.log(`Processing ${plainText.length} characters in ${chunks.length} chunks`);
-
-                let allSuggestions: any[] = [];
-                let currentOffset = 0;
-
-                for (let i = 0; i < chunks.length; i++) {
-                  const chunk = chunks[i];
-
-                  try {
-                    console.log(`Processing chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
-
-                    // Create HTML chunk for this text chunk
-                    const chunkHtml = `<p>${chunk.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
-
-                    // Process this chunk with the default resolver
-                    const chunkSuggestions = await defaultResolver({
-                      ...options,
-                      html: chunkHtml,
-                      htmlChunks: [{ html: chunkHtml, start: currentOffset, end: currentOffset + chunk.length }],
-                      rules
-                    });
-
-                    // Adjust suggestion positions based on offset in original document
-                    const adjustedSuggestions = chunkSuggestions.map((suggestion: any) => ({
-                      ...suggestion,
-                      deleteRange: {
-                        from: suggestion.deleteRange.from + currentOffset,
-                        to: suggestion.deleteRange.to + currentOffset
-                      }
-                    }));
-
-                    allSuggestions.push(...adjustedSuggestions);
-                    currentOffset += chunk.length + 2; // Account for paragraph breaks
-
-                    console.log(`Chunk ${i + 1} processed: ${chunkSuggestions.length} suggestions`);
-
-                    // Rate limiting: wait between chunks to avoid 429 errors
-                    if (i < chunks.length - 1) {
-                      console.log(`Waiting ${DELAY_BETWEEN_CHUNKS}ms before next chunk...`);
-                      await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_CHUNKS));
-                    }
-
-                  } catch (error) {
-                    console.error(`Error processing chunk ${i + 1}:`, error);
-                    // Continue with remaining chunks even if one fails
-                  }
-                }
-
-                console.log(`Large document processing complete: ${allSuggestions.length} total suggestions`);
-                return allSuggestions;
-
-              } catch (error) {
-                console.error('Custom resolver error:', error);
-                // Fallback to default resolver if custom logic fails
-                return await defaultResolver({ html, htmlChunks, rules, ...options });
-              }
-            },
+            // Use TipTap's native chunking system for large documents
+            enableCache: true,      // Enable caching to avoid redundant API calls
+            chunkSize: 10,         // 10 HTML nodes per chunk
             // Add error handler for better debugging
-            onLoadSuggestionsError: (error: any, context: any) => {
+            onLoadSuggestionsError: (error: Error, context: unknown) => {
               console.error('AI Suggestions loading error:', {
                 error: error,
                 message: error.message,
-                status: error.status,
+                status: (error as any).status,
                 context: context,
                 timestamp: new Date().toISOString()
               });
             },
             // Add custom suggestion decoration for popover
-            getCustomSuggestionDecoration: ({ suggestion, isSelected, getDefaultDecorations }: any) => {
+            getCustomSuggestionDecoration: ({ suggestion, isSelected, getDefaultDecorations }: { suggestion: any; isSelected: boolean; getDefaultDecorations: () => any[] }) => {
               const decorations = getDefaultDecorations();
               
               // Add popover element when suggestion is selected

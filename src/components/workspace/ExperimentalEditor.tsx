@@ -807,13 +807,13 @@ const ExperimentalEditor = () => {
         throw new Error('AI Suggestion extension not loaded. Check your TipTap Pro credentials.');
       }
 
-      // Use TipTap's built-in AI suggestion loading (custom resolver will handle large documents automatically)
+      // Use TipTap's built-in AI suggestion loading with native chunking
       console.log(`Processing document with ${documentLength} characters...`);
 
       if (isLargeDocument) {
         toast({
           title: "Processing large document",
-          description: `Document is ${Math.round(documentLength/1000)}K characters. Custom resolver will process in chunks with rate limiting.`,
+          description: `Document is ${Math.round(documentLength/1000)}K characters. TipTap will process in chunks with native caching.`,
           duration: 5000
         });
       }
@@ -822,13 +822,12 @@ const ExperimentalEditor = () => {
         throw new Error('loadAiSuggestions command not available. Check extension configuration.');
       }
 
-      // Trigger AI suggestions (custom resolver will handle chunking for large documents)
+      // Trigger AI suggestions (TipTap's native chunking will handle large documents)
       const result = editor.chain().loadAiSuggestions().run();
       console.log('Load AI suggestions result:', result);
 
-      // Wait for suggestions with appropriate timeout
-      const timeout = isLargeDocument ? 300000 : 120000; // 5 minutes for large, 2 minutes for small
-      const uiSuggestions = await waitForAiSuggestions(editor, timeout);
+      // Wait for suggestions (timeout handled internally by function)
+      const uiSuggestions = await waitForAiSuggestions(editor);
 
       console.log('Generated', uiSuggestions.length, 'AI suggestions');
       setSuggestions(uiSuggestions);
