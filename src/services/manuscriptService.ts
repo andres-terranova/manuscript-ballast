@@ -105,11 +105,36 @@ export class ManuscriptService {
   
   // Delete a manuscript
   static async deleteManuscript(id: string): Promise<void> {
+    // First, get manuscript details to check for storage file
+    const { data: manuscript, error: fetchError } = await supabase
+      .from('manuscripts')
+      .select('docx_file_path')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching manuscript for deletion:', fetchError);
+      throw new Error(`Failed to fetch manuscript: ${fetchError.message}`);
+    }
+
+    // Delete storage file if it exists
+    if (manuscript?.docx_file_path) {
+      try {
+        await this.deleteDocxFile(manuscript.docx_file_path);
+      } catch (storageError) {
+        // Log storage deletion failure but don't fail the operation
+        // This prevents orphaned DB records if storage deletion fails
+        console.error('Failed to delete storage file:', storageError);
+        // Continue with manuscript deletion anyway
+      }
+    }
+
+    // Delete the manuscript record (CASCADE will handle related tables)
     const { error } = await supabase
       .from('manuscripts')
       .delete()
       .eq('id', id);
-    
+
     if (error) {
       console.error('Error deleting manuscript:', error);
       throw new Error(`Failed to delete manuscript: ${error.message}`);

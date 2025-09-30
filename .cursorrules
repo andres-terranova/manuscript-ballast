@@ -1,0 +1,412 @@
+# Manuscript Ballast - Cursor Rules & Subagents
+
+## Project Context
+
+This is a manuscript editing application with AI-powered suggestions, built with React + TipTap + Supabase.
+The codebase has significant complexity around TipTap Pro integration, queue-based document processing, and ProseMirror plugins.
+
+## General Rules
+
+1. **Use pnpm exclusively** - Never npm or yarn
+2. **Server runs on port 8080** - Default Vite port
+3. **No manual edits to src/components/ui/** - These are shadcn/ui managed components
+4. **Always use available MCPs** - Supabase MCP for database operations
+5. **Component organization**: Place in app directory /components and combine by usecase in subdirectories
+6. **Always use /components/ui** to build new components
+7. **Fetch logs from console** for debugging
+8. **Point out performance improvements and security issues** proactively
+9. **Don't install packages unless asked** - The stack is stable
+10. **Prefer iteration and modularization over code duplication**
+
+## Documentation Structure
+
+- **Root CLAUDE.md** - Navigation hub and quick reference
+- **docs/** - Organized by: architecture, features, guides, api, product
+- **src/components/workspace/CLAUDE.md** - Workspace component details
+- **src/lib/CLAUDE.md** - Core utilities and business logic
+- **supabase/functions/CLAUDE.md** - Edge function documentation
+
+## Custom Slash Commands
+
+### /tiptap - TipTap Integration Specialist
+
+**When to use**: TipTap editor issues, JWT authentication, AI suggestions, large documents
+
+**Expertise**:
+- TipTap v3 editor configuration and extensions
+- ProseMirror plugin development
+- JWT authentication with TipTap Pro API
+- AI Suggestion extension usage
+- Large document chunking and caching
+- Decoration management
+- Editor command chains
+
+**Context to load**:
+1. Read: docs/guides/TIPTAP_JWT_GUIDE.md
+2. Read: docs/guides/EXPERIMENTAL_AI_SETUP.md
+3. Read: src/hooks/useTiptapEditor.ts
+4. Read: src/components/workspace/ExperimentalEditor.tsx
+5. Search: "TipTap" in codebase
+
+**Common tasks**:
+- Debug "401 Unauthorized" errors → Check JWT token and Allowed Origins
+- Fix suggestion positioning issues → Use ProseMirror positions, not character offsets
+- Optimize large document processing → Adjust chunkSize, enableCache settings
+- Add new editor extensions → Configure in useTiptapEditor.ts
+- Debug decoration rendering → Check suggestionsPlugin.ts and checksPlugin.ts
+
+**Critical reminders**:
+- ❌ DO NOT create custom resolvers for chunking (use native chunkSize)
+- ❌ DO NOT use character offsets (use ProseMirror positions)
+- ❌ DO NOT expose secrets to client-side (use JWT tokens only)
+- ✅ Always use editor.chain() for multiple commands
+- ✅ TipTap native features first before custom solutions
+
+---
+
+### /queue - Queue System Specialist
+
+**When to use**: Document processing, DOCX uploads, stuck jobs, background processing
+
+**Expertise**:
+- Queue-based document processing architecture
+- Supabase edge function development (queue-processor)
+- DOCX file processing with Mammoth.js
+- Progress tracking and status updates
+- CPU timeout protection
+- Automatic retry logic
+- Stuck job detection and recovery
+
+**Context to load**:
+1. Read: docs/architecture/QUEUE_SYSTEM_ARCHITECTURE.md
+2. Read: supabase/functions/queue-processor/index.ts
+3. Read: src/hooks/useQueueProcessor.ts
+4. Read: src/services/manuscriptService.ts
+5. Query: SELECT * FROM processing_queue via Supabase MCP
+
+**Common tasks**:
+- Debug stuck processing jobs → Check processing_queue table status
+- Fix timeout errors → Review CPU timeout protection logic
+- Add new job types → Extend queue-processor function
+- Improve processing speed → Optimize Mammoth.js settings
+- Add progress indicators → Update progress_data field
+
+**Critical reminders**:
+- ✅ Queue system handles 60K+ word documents reliably
+- ✅ CPU timeout protection at 1.8s prevents edge function timeout
+- ✅ Auto-retry up to 3 attempts per job
+- ❌ Never bypass queue for large documents
+- ❌ Don't use direct edge function calls for processing
+
+---
+
+### /supabase - Supabase & Database Specialist
+
+**When to use**: Database schema, edge functions, storage, RLS policies, authentication
+
+**Expertise**:
+- PostgreSQL database design and queries
+- Row Level Security (RLS) policies
+- Supabase edge functions (Deno-based)
+- Supabase Storage for file management
+- Authentication and user management
+- Real-time subscriptions (future)
+
+**Context to load**:
+1. List tables via Supabase MCP
+2. Read: supabase/functions/CLAUDE.md
+3. Read: docs/api/README.md (Supabase section)
+4. List migrations: supabase/migrations/
+5. Use Supabase MCP tools for database operations
+
+**Common tasks**:
+- Create database migrations → supabase migration new <name>
+- Fix RLS policy issues → Check policy definitions, user permissions
+- Deploy edge functions → supabase functions deploy <name>
+- Debug edge function errors → supabase functions logs <name>
+- Query processing queue → Use Supabase MCP execute_sql
+
+**Critical reminders**:
+- ✅ Always use RLS policies for data access control
+- ✅ Service role key only in edge functions (never client-side)
+- ✅ Edge functions have 2-minute timeout limit
+- ❌ Never commit secrets to git
+- ❌ Don't use SELECT * (select only needed columns)
+
+---
+
+### /architecture - System Architecture Specialist
+
+**When to use**: System design questions, data flow, component relationships, adding major features
+
+**Expertise**:
+- Overall system architecture and design patterns
+- Component hierarchy and relationships
+- Data flow between frontend and backend
+- State management patterns
+- Integration patterns (TipTap, Supabase, OpenAI)
+- Performance optimization strategies
+- Scalability considerations
+
+**Context to load**:
+1. Read: docs/architecture/README.md
+2. Read: docs/features/README.md
+3. Read: CLAUDE.md (root)
+4. Read: src/components/workspace/CLAUDE.md
+5. Read: src/lib/CLAUDE.md
+
+**Common tasks**:
+- Plan new major features → Review architecture docs, plan integration points
+- Refactor large components → Identify boundaries, extract utilities
+- Optimize performance → Review data flow, identify bottlenecks
+- Debug complex issues → Trace data flow from UI to database
+- Understand dual editor system → ExperimentalEditor vs ManuscriptWorkspace
+
+**Critical reminders**:
+- ✅ ExperimentalEditor is default (TipTap Pro AI)
+- ✅ ManuscriptWorkspace is deprecated (OpenAI legacy)
+- ✅ Queue system eliminates WORKER_LIMIT errors
+- ✅ JWT authentication for TipTap is complex (check guide)
+- ❌ Don't duplicate logic between editors (share utilities)
+
+---
+
+### /suggestions - Suggestion System Specialist
+
+**When to use**: AI suggestion mapping, position calculations, decoration rendering, suggestion UI
+
+**Expertise**:
+- Suggestion mapping (server → UI format)
+- ProseMirror position calculations
+- Suggestion decoration rendering
+- ChangeList and ChangeCard components
+- Suggestion acceptance/rejection workflow
+- Position drift debugging
+- Overlapping suggestion handling
+
+**Context to load**:
+1. Read: src/lib/suggestionMapper.ts
+2. Read: src/lib/suggestionsPlugin.ts
+3. Read: src/lib/types.ts
+4. Read: src/components/workspace/ChangeList.tsx
+5. Read: src/components/workspace/ChangeCard.tsx
+
+**Common tasks**:
+- Fix position mapping issues → Check ProseMirror position calculations
+- Debug suggestion not appearing → Verify decoration creation
+- Handle overlapping suggestions → Adjust decoration ranges
+- Optimize suggestion rendering → Cap decoration count, use React.memo
+- Add new suggestion types → Update types.ts, suggestionMapper.ts
+
+**Critical reminders**:
+- ✅ Use ProseMirror positions, never character offsets
+- ✅ Map AI suggestions to UISuggestion format
+- ✅ Handle document mutations (positions shift after edits)
+- ❌ Don't manipulate DOM directly (use decorations)
+- ❌ Don't store large strings in state unnecessarily
+
+---
+
+### /product - Product & Planning Specialist
+
+**When to use**: Feature planning, roadmap, user feedback, PRD, competitive analysis
+
+**Expertise**:
+- Product vision and strategy
+- User personas and journeys
+- Feature prioritization
+- Competitive analysis
+- Go-to-market strategy
+- Success metrics
+- Roadmap planning
+
+**Context to load**:
+1. Read: docs/product/README.md
+2. Read: docs/product/Future_Cleanup_Checklist.md
+3. Read: docs/features/README.md
+4. Read: README.md
+
+**Common tasks**:
+- Plan new features → Review product docs, assess user value vs. effort
+- Prioritize technical debt → Check Future_Cleanup_Checklist.md
+- Understand user needs → Review personas and pain points
+- Analyze competitors → Reference competitive analysis section
+- Plan releases → Review roadmap and priorities
+
+**Critical reminders**:
+- ✅ Target users: Fiction authors, non-fiction authors, editors
+- ✅ Core value: Professional editing at 1/10th cost
+- ✅ Current priorities: Resolve JWT, deprecate standard editor, add export
+- 🔴 Known issue: TipTap JWT server-generated tokens rejected
+- 🟢 Success: Queue system handles 60K+ words reliably
+
+---
+
+### /debug - Debugging Specialist
+
+**When to use**: Complex bugs, error tracing, console logs, performance profiling
+
+**Expertise**:
+- Browser DevTools (console, network, performance)
+- Error tracing and stack analysis
+- Console log interpretation
+- Performance profiling
+- Memory leak detection
+- Network request debugging
+- Supabase edge function logs
+
+**Context to load**:
+1. Ask user for console errors/logs
+2. Use Supabase MCP get_logs for edge function logs
+3. Read: docs/guides/README.md (troubleshooting sections)
+4. Search: Error message in codebase
+
+**Common tasks**:
+- Trace 401 errors → Check network tab, JWT token, TipTap dashboard
+- Debug stuck processing → Check processing_queue table, edge function logs
+- Fix memory leaks → Profile memory, check decoration cleanup
+- Optimize performance → Profile rendering, identify bottlenecks
+- Resolve type errors → Check type definitions in src/lib/types.ts
+
+**Critical reminders**:
+- ✅ Always check browser console first
+- ✅ Use Supabase MCP get_logs for edge function errors
+- ✅ Network tab shows API call failures
+- ✅ Performance tab identifies slow operations
+- ❌ Don't guess - gather logs and evidence first
+
+---
+
+## Subagent Invocation Examples
+
+```
+User: "AI suggestions aren't showing up after clicking Run AI Pass"
+→ Invoke: /tiptap - Specialist in TipTap AI and suggestion rendering
+→ Check: JWT token, TipTap dashboard, browser console, decoration plugin
+
+User: "DOCX processing is stuck at 'extracting_text'"
+→ Invoke: /queue - Specialist in queue system and document processing
+→ Check: processing_queue table, edge function logs, CPU timeout
+
+User: "Need to add version history feature"
+→ Invoke: /architecture - System design specialist
+→ Plan: Data model, UI components, integration points, migration strategy
+
+User: "Suggestions positions are wrong after editing"
+→ Invoke: /suggestions - Suggestion mapping specialist
+→ Debug: Position calculations, document mutations, decoration updates
+
+User: "RLS policy violation when querying manuscripts"
+→ Invoke: /supabase - Database and RLS specialist
+→ Check: RLS policies, user authentication, row ownership
+```
+
+## MCP Integration
+
+### Supabase MCP Tools Available
+- `list_tables` - List all database tables
+- `execute_sql` - Run SQL queries
+- `apply_migration` - Create database migrations
+- `get_logs` - Fetch edge function logs
+- `list_edge_functions` - List deployed functions
+- `deploy_edge_function` - Deploy functions
+- `generate_typescript_types` - Generate DB types
+
+### Context7 MCP (External Documentation)
+- Use for TipTap Pro documentation
+- Use for React/TypeScript best practices
+- Use for Supabase feature documentation
+
+## Code Quality Standards
+
+### TypeScript
+- Explicit types for function parameters and returns
+- Avoid `any` - use `unknown` if type unknown
+- Prefer interfaces for objects, types for unions
+- Use discriminated unions for complex types
+
+### React
+- Functional components with hooks only
+- Extract complex logic to custom hooks
+- Keep components under 300 lines
+- Use React.memo() for expensive renders
+
+### TipTap/ProseMirror
+- Never manipulate DOM directly
+- Use decorations for highlights
+- Use editor.chain() for multiple commands
+- ProseMirror positions, not character offsets
+
+### Supabase
+- Always use RLS policies
+- Edge functions for CPU-intensive work
+- Keep functions under 2-minute timeout
+- Use queue for long-running tasks
+
+## Performance Best Practices
+
+- Cap visible decorations (max 200)
+- Debounce validation functions (500ms)
+- Use React.memo() for list items
+- Virtualize long lists (future)
+- Clear large objects from memory
+- Profile before optimizing
+
+## Security Best Practices
+
+- Never commit secrets to git
+- Client-side: Only public keys and JWT tokens
+- Server-side: Secrets in Supabase env vars
+- Always validate user input
+- Use RLS for data access control
+- Service role key only in edge functions
+
+## Common Error Patterns
+
+### TipTap 401 Unauthorized
+→ Invoke /tiptap
+→ Check: JWT token format, Allowed Origins in TipTap dashboard, token expiration
+
+### WORKER_LIMIT exceeded
+→ Invoke /queue
+→ Check: Using queue system (not direct calls), CPU timeout protection
+
+### Position mapping incorrect
+→ Invoke /suggestions
+→ Check: Using ProseMirror positions, handling document mutations
+
+### RLS policy violation
+→ Invoke /supabase
+→ Check: User authentication, row ownership, policy definitions
+
+## Development Workflow
+
+1. **Read documentation first** - Check relevant CLAUDE.md or docs/
+2. **Invoke appropriate subagent** - Use slash commands for specialized help
+3. **Use MCP tools** - Leverage Supabase MCP for database operations
+4. **Check existing patterns** - Search codebase for similar implementations
+5. **Test incrementally** - Manual testing checklist in docs/guides/
+6. **Update documentation** - Keep CLAUDE.md files current
+
+## Priority Reminders
+
+### Current Priorities (Q4 2025)
+1. 🔴 Resolve TipTap JWT issue (server tokens rejected)
+2. 🟡 Deprecate Standard Editor (migrate to Experimental)
+3. 📋 Add DOCX export functionality
+4. 📋 Implement suggestion pagination
+
+### Known Complexity Areas
+1. TipTap Pro JWT authentication (HIGH COMPLEXITY)
+2. Large document processing (SOLVED with queue system)
+3. Dual editor system (IN TRANSITION to single editor)
+
+### Technical Debt
+- See: docs/product/Future_Cleanup_Checklist.md
+- Priority items marked with checkboxes
+- Update as items completed
+
+---
+
+**Last Updated**: September 30, 2025
+**Version**: 1.0.0
