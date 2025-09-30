@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
@@ -26,10 +27,11 @@ const Dashboard = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState<'markdown' | 'docx' | null>(null);
+  const [deleteConfirmManuscript, setDeleteConfirmManuscript] = useState<Manuscript | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loggedIn, logout } = useAuth();
-  const { manuscripts, updateManuscript, addManuscript } = useManuscripts();
+  const { manuscripts, updateManuscript, addManuscript, deleteManuscript } = useManuscripts();
   const { getManuscriptStatus, processingStatuses, isProcessing, processQueue } = useQueueProcessor();
 
   useEffect(() => {
@@ -57,6 +59,18 @@ const Dashboard = () => {
       description: "You have been successfully logged out.",
     });
     navigate("/login");
+  };
+
+  const handleDeleteManuscript = async () => {
+    if (!deleteConfirmManuscript) return;
+
+    try {
+      await deleteManuscript(deleteConfirmManuscript.id);
+      setDeleteConfirmManuscript(null);
+    } catch (error) {
+      console.error('Failed to delete manuscript:', error);
+      // Error toast is already shown by the context
+    }
   };
 
   const getStatusBadge = (status: Manuscript['status']) => {
@@ -601,6 +615,17 @@ const Dashboard = () => {
                           >
                             Open in Legacy Editor
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmManuscript(manuscript);
+                            }}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Manuscript
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -611,6 +636,35 @@ const Dashboard = () => {
           </div>
         )}
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmManuscript} onOpenChange={(open) => !open && setDeleteConfirmManuscript(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Manuscript</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "<strong>{deleteConfirmManuscript?.title}</strong>"?
+              {deleteConfirmManuscript?.docxFilePath && (
+                <span className="block mt-2 text-sm">
+                  This will also delete the associated DOCX file from storage.
+                </span>
+              )}
+              <span className="block mt-2 text-sm font-semibold">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteManuscript}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
