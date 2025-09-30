@@ -9,17 +9,18 @@
 - **Root Cause**: TipTap API timeout + browser memory limits
 - **Solution**: See `/chunking` agent or docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
 
-### 2. TipTap JWT Authentication Broken
-- **Symptom**: Server-generated tokens rejected (401 auth_cloud_failed)
-- **Workaround**: Using temporary dashboard token
-- **Docs**: https://tiptap.dev/docs/content-ai/capabilities/suggestion/use-with-content-ai-cloud
+### 2. ✅ TipTap JWT Authentication - RESOLVED
+- **Status**: Fixed - server-generated JWT working in production
+- **Solution**: Simplified JWT payload structure
+- **Key Discovery**: TipTap accepts any valid JWT signed with Content AI Secret
+- **Docs**: docs/guides/TIPTAP_JWT_GUIDE.md
 
 ## 🎯 Quick Decision Tree - What Do You Need?
 
 ```
 Need to fix something?
 ├── 💥 Timeout on large docs → `/chunking` → docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
-├── 🔐 Auth/JWT errors → `/auth` → docs/guides/TIPTAP_JWT_GUIDE.md
+├── ✅ JWT authentication (RESOLVED) → docs/guides/TIPTAP_JWT_GUIDE.md
 ├── 📍 Wrong suggestion positions → `/prosemirror` → src/lib/suggestionMapper.ts
 ├── 🔧 Editor not working → `/tiptap` → src/components/workspace/ExperimentalEditor.tsx
 ├── 📄 DOCX upload stuck → `/queue` → processing_queue table + edge function logs
@@ -91,7 +92,7 @@ supabase db reset                         # Reset database (caution!)
 ## 🎯 Current Priorities
 
 1. **Fix timeout on large docs** (500+ suggestions hit ~2 min limit)
-2. **Resolve TipTap JWT rejection** (server tokens fail, using dashboard token)
+2. ✅ ~~**Resolve TipTap JWT rejection**~~ (RESOLVED - simplified JWT structure works)
 3. **Complete ExperimentalEditor migration** (deprecate ManuscriptWorkspace)
 
 ---

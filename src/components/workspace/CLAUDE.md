@@ -49,7 +49,7 @@ ManuscriptWorkspace.tsx (Legacy Editor - Deprecated)
 ```
 
 **Key Hooks Used**:
-- `useTiptapJWT()` - JWT token management
+- `useTiptapJWT()` - JWT token management (production-ready, auto-refreshing)
 - `useManuscripts()` - Manuscript CRUD operations
 - `useActiveStyleRules()` - Style rule configuration
 - `useToast()` - User notifications
@@ -81,13 +81,18 @@ handleRejectSuggestion(suggestionId) {
 ```typescript
 AiSuggestion.configure({
   appId: tiptapAppId,
-  token: tiptapToken,
+  token: tiptapToken,         // Auto-refreshing JWT from useTiptapJWT
   enableCache: true,
-  chunkSize: 10,          // 10 HTML nodes per chunk
-  loadOnStart: false,     // Manual trigger only
-  reloadOnUpdate: false,  // Don't auto-reload
+  chunkSize: 10,              // 10 HTML nodes per chunk
+  loadOnStart: false,         // Manual trigger only
+  reloadOnUpdate: false,      // Don't auto-reload
 })
 ```
+
+**Loading State**:
+- Editor shows "Initializing editor..." spinner while JWT loads
+- Prevents race conditions by waiting for valid token before initialization
+- Error state with retry button if JWT fetch fails
 
 **File Location**: `src/components/workspace/ExperimentalEditor.tsx` (1397 lines)
 

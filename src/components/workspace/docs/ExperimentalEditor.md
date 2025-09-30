@@ -114,8 +114,8 @@ const handleAcceptSuggestion = (suggestionId: string) => {
 ## Hooks Used
 
 ```typescript
-// JWT management
-const { token: tiptapToken, loading: tokenLoading } = useTiptapJWT();
+// JWT management (production-ready, auto-refreshing)
+const { token: tiptapToken, loading: tokenLoading, error: tokenError } = useTiptapJWT();
 
 // Manuscript operations
 const { updateManuscript } = useManuscripts();
@@ -123,12 +123,41 @@ const { updateManuscript } = useManuscripts();
 // Style rules
 const { activeRules } = useActiveStyleRules(manuscript.id);
 
-// Editor instance
+// Editor instance (waits for JWT to be ready)
 const editor = useTiptapEditor({
   content: manuscript.content_html,
   onUpdate: handleContentChange,
   extensions: [/* ... */]
 });
+```
+
+## JWT Loading State
+
+The editor implements a loading pattern to prevent race conditions:
+
+```typescript
+// Show loading spinner while JWT initializes
+if (tokenLoading) {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <Spinner />
+      <span>Initializing editor...</span>
+    </div>
+  );
+}
+
+// Show error state with retry if JWT fails
+if (tokenError) {
+  return (
+    <div className="flex flex-col items-center justify-center h-screen">
+      <p>Failed to initialize editor authentication</p>
+      <Button onClick={retryJWT}>Retry</Button>
+    </div>
+  );
+}
+
+// Only render editor once JWT is ready
+return <EditorComponent token={tiptapToken} />;
 ```
 
 ## Auto-save Logic
@@ -222,17 +251,21 @@ return (
 
 ## Known Issues
 
-1. **JWT Token Rejection** - Server-generated tokens fail (401)
-   - Using temporary dashboard token
-   - See: docs/guides/TIPTAP_JWT_GUIDE.md
-
-2. **Large Document Timeout** - 500+ suggestions timeout at ~2 min
+1. **Large Document Timeout** - 500+ suggestions timeout at ~2 min
    - Reduce chunkSize to 5
    - See: docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
 
-3. **Memory Usage** - 1000+ decorations can exhaust browser memory
+2. **Memory Usage** - 1000+ decorations can exhaust browser memory
    - Cap decorations at 200
    - Implement pagination
+
+## Resolved Issues
+
+1. **JWT Authentication** ✅ RESOLVED
+   - Server-generated JWT working in production
+   - Automatic token refresh with 5-minute buffer
+   - Transparent loading state prevents race conditions
+   - See: docs/guides/TIPTAP_JWT_GUIDE.md
 
 ## Testing Scenarios
 
