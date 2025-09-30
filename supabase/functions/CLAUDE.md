@@ -136,7 +136,7 @@ try {
 
 **Purpose**: Generates JWT tokens for TipTap Pro AI authentication.
 
-**Status**: ✅ Implementation complete, 🔴 TipTap rejects tokens (under investigation)
+**Status**: ✅ Production ready
 
 **Trigger**: HTTP POST from frontend
 
@@ -170,7 +170,7 @@ Body: {}
 }
 ```
 
-**JWT Structure**:
+**JWT Structure** (Simplified & Working):
 ```javascript
 // Header
 {
@@ -178,13 +178,12 @@ Body: {}
   "typ": "JWT"
 }
 
-// Payload
+// Payload (Simple structure accepted by TipTap)
 {
-  "iat": 1758921800,  // Issued at
-  "nbf": 1758921800,  // Not before
-  "exp": 1759008200,  // Expires (1 hour)
   "iss": "https://cloud.tiptap.dev",
-  "aud": "c1b32a92-3c1f-4b49-ab6b-fb5a7a6178a8"
+  "iat": 1758921800,  // Issued at
+  "exp": 1759008200,  // Expires (1 hour)
+  "sub": "user-session-identifier"
 }
 ```
 
@@ -205,10 +204,11 @@ TIPTAP_CONTENT_AI_SECRET=<content-ai-secret>
 TIPTAP_APP_ID=pkry1n5m
 ```
 
-**Known Issues**:
-- Server-generated tokens are rejected by TipTap API (401 auth_cloud_failed)
-- Structure matches TipTap's example JWT exactly
-- Temporary workaround: Use JWT from TipTap dashboard
+**Key Discovery**:
+- ✅ TipTap accepts **ANY valid JWT** signed with Content AI Secret
+- ✅ Simplified payload structure works perfectly
+- ✅ No need for complex claims like `nbf` or specific `aud` values
+- 📖 See [TipTap JWT Guide](../../docs/guides/TIPTAP_JWT_GUIDE.md) for resolution details
 
 **File Location**: `supabase/functions/generate-tiptap-jwt/index.ts`
 

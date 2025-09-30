@@ -94,21 +94,16 @@ const ExperimentalEditor = () => {
   // TipTap Authentication using production JWT system
   const { token: tiptapToken, appId: tiptapAppId, isLoading: jwtLoading, error: jwtError, refreshToken } = useTiptapJWT();
 
-  // Debug authentication state and JWT source
+  // Debug authentication state
   useEffect(() => {
-    // Check if using temporary JWT from environment
-    const tempJWT = import.meta.env.VITE_TIPTAP_JWT;
-    const isUsingTempJWT = tempJWT && tiptapToken === tempJWT;
-
-    console.log('🔑 TipTap Auth Debug:', {
+    console.log('🔑 TipTap Auth:', {
       hasAppId: !!tiptapAppId,
       hasToken: !!tiptapToken,
       jwtLoading,
       jwtError,
       appId: tiptapAppId,
       tokenLength: tiptapToken?.length || 0,
-      tokenStart: tiptapToken?.substring(0, 20) + '...',
-      jwtSource: isUsingTempJWT ? '🟡 TEMPORARY JWT (Development)' : '🟢 SERVER-SIDE JWT (Production)'
+      status: tiptapToken ? '🟢 Server JWT Active' : '⚠️ No Token'
     });
   }, [tiptapAppId, tiptapToken, jwtLoading, jwtError]);
 
@@ -1094,31 +1089,6 @@ const ExperimentalEditor = () => {
               <SettingsIcon className="h-4 w-4" />
               <span>Current turn</span>
             </div>
-            {/* JWT Source Indicator */}
-            <div className="flex items-center gap-2 text-xs">
-              {(() => {
-                const tempJWT = import.meta.env.VITE_TIPTAP_JWT;
-                const isUsingTempJWT = tempJWT && tiptapToken === tempJWT;
-
-                if (jwtLoading) {
-                  return <Badge variant="outline" className="bg-gray-100 text-gray-600">JWT Loading...</Badge>;
-                }
-
-                if (jwtError) {
-                  return <Badge variant="destructive" className="bg-red-100 text-red-600">JWT Error</Badge>;
-                }
-
-                if (isUsingTempJWT) {
-                  return <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300">🟡 Temp JWT</Badge>;
-                }
-
-                if (tiptapToken) {
-                  return <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">🟢 Server JWT</Badge>;
-                }
-
-                return <Badge variant="outline" className="bg-gray-100 text-gray-600">No JWT</Badge>;
-              })()}
-            </div>
           </div>
         </div>
       </header>
@@ -1128,14 +1098,34 @@ const ExperimentalEditor = () => {
         {/* Document Canvas - Left Column */}
         <div id="document-canvas" className="flex-1 min-h-0 overflow-hidden">
           {isReviewed && (
-            <div 
-              data-testid="reviewed-banner" 
+            <div
+              data-testid="reviewed-banner"
               className="bg-green-50 border-b border-green-200 px-4 lg:px-6 py-2 text-sm text-green-800"
             >
               Reviewed — read-only
             </div>
           )}
-          <DocumentCanvas 
+          {/* Wait for JWT before rendering editor to ensure AiSuggestion extension is loaded */}
+          {jwtLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">Initializing editor...</p>
+              </div>
+            </div>
+          ) : jwtError ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-md">
+                <div className="text-4xl mb-4">⚠️</div>
+                <h3 className="text-lg font-semibold mb-2">JWT Authentication Error</h3>
+                <p className="text-muted-foreground mb-4">{jwtError}</p>
+                <Button onClick={refreshToken} variant="outline">
+                  Retry
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <DocumentCanvas 
             manuscript={{...manuscript, contentText}} 
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
@@ -1183,6 +1173,7 @@ const ExperimentalEditor = () => {
               return config;
             })()}
           />
+          )}
         </div>
 
         {/* Right Sidebar */}

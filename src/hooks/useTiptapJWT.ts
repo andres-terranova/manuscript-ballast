@@ -110,79 +110,10 @@ export function useTiptapJWT(): UseTiptapJWTReturn {
     return fetchNewToken().then(() => undefined);
   }, [fetchNewToken]);
 
-  // TEMPORARILY: Use temp JWT first while debugging server generation
+  // Fetch JWT from server on mount
   useEffect(() => {
-    // Check for temporary JWT first for debugging
-    const tempJWT = import.meta.env.VITE_TIPTAP_JWT;
-    const appId = import.meta.env.VITE_TIPTAP_APP_ID;
-
-    if (tempJWT && appId) {
-      console.log('🟡 Using temporary JWT from environment variable (debugging mode)');
-
-      // Parse the JWT to check expiration
-      try {
-        const payload = JSON.parse(atob(tempJWT.split('.')[1]));
-        const expiresAt = payload.exp * 1000;
-
-        if (expiresAt > Date.now()) {
-          setState({
-            token: tempJWT,
-            appId: appId,
-            isLoading: false,
-            error: null,
-            expiresAt: expiresAt,
-          });
-          return; // Use temp JWT and exit
-        } else {
-          console.log('Temporary JWT has expired, trying server-side');
-        }
-      } catch (e) {
-        console.error('Failed to parse temporary JWT:', e);
-      }
-    }
-
-    // Only try server-side if no valid temp JWT
-    fetchNewToken().catch((serverError) => {
-      console.error('Server-side JWT generation failed:', serverError);
-
-      if (tempJWT && appId) {
-        console.log('🟡 Falling back to temporary JWT from environment variable (server-side failed)');
-
-        // Parse the JWT to check expiration
-        try {
-          const payload = JSON.parse(atob(tempJWT.split('.')[1]));
-          const expiresAt = payload.exp * 1000;
-
-          if (expiresAt > Date.now()) {
-            setState({
-              token: tempJWT,
-              appId: appId,
-              isLoading: false,
-              error: null,
-              expiresAt: expiresAt,
-            });
-
-            // Schedule refresh before expiry to try server-side again
-            const timeUntilExpiry = expiresAt - Date.now() - TOKEN_BUFFER_TIME;
-            if (timeUntilExpiry > 0) {
-              refreshTimerRef.current = setTimeout(() => {
-                fetchNewToken(); // Try server-side again when temp expires
-              }, timeUntilExpiry);
-            } else {
-              // Token is about to expire, fetch new one immediately
-              fetchNewToken();
-            }
-            return;
-          } else {
-            console.log('Temporary JWT has also expired');
-          }
-        } catch (e) {
-          console.error('Failed to parse temporary JWT:', e);
-        }
-      }
-
-      // If both server-side and temporary JWT failed/unavailable, keep the error state
-      console.error('No valid JWT available from server or temporary fallback');
+    fetchNewToken().catch((error) => {
+      console.error('Server-side JWT generation failed:', error);
     });
   }, [fetchNewToken]);
 

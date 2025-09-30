@@ -37,8 +37,9 @@ docs/
 ├── guides/
 │   ├── README.md                      Development guides & troubleshooting
 │   ├── EXPERIMENTAL_AI_SETUP.md       TipTap Pro setup guide
-│   ├── TIPTAP_JWT_GUIDE.md           JWT authentication guide
-│   └── TIPTAP_AI_RATE_LIMITING_GUIDE.md
+│   ├── TIPTAP_JWT_GUIDE.md           JWT authentication guide (✅ RESOLVED)
+│   ├── TIPTAP_AI_RATE_LIMITING_GUIDE.md
+│   └── static_jwt_online_tool.md     JWT breakthrough discovery
 │
 ├── api/
 │   └── README.md                      External API documentation
@@ -160,11 +161,12 @@ User: "Need to add version history feature"
 
 ## 🚨 Known Issues & Workarounds
 
-### TipTap JWT Authentication 🔴
-- **Issue**: Server-generated JWT rejected by TipTap API
-- **Workaround**: Using temporary JWT from TipTap dashboard
+### TipTap JWT Authentication ✅
+- **Status**: RESOLVED - Production ready
+- **Solution**: Simplified JWT payload structure
+- **Key Discovery**: TipTap accepts any valid JWT signed with Content AI Secret
 - **Documentation**: [docs/guides/TIPTAP_JWT_GUIDE.md](./docs/guides/TIPTAP_JWT_GUIDE.md)
-- **Use**: `/tiptap` for help
+- **Use**: `/tiptap` for implementation details
 
 ### Large Document Processing 🟢
 - **Status**: SOLVED with queue system

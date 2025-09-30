@@ -43,19 +43,19 @@ serve(async (req) => {
     const now = Math.floor(Date.now() / 1000)
     const expiresIn = 3600 // 1 hour
 
-    // Create JWT payload matching the exact structure from TipTap's example
+    // Create simple JWT payload - TipTap accepts any valid JWT signed with Content AI Secret
+    // Verified working with online JWT builder (docs/guides/static_jwt_online_tool.md)
     const payload = {
+      iss: "manuscript-ballast-server",
       iat: now,
-      nbf: now, // not before - same as issued at
       exp: now + expiresIn,
-      iss: "https://cloud.tiptap.dev",
-      aud: "c1b32a92-3c1f-4b49-ab6b-fb5a7a6178a8" // TipTap's standard audience
+      sub: userId
     }
 
-    // Create JWT using the Content AI Secret with exact header structure
+    // Create JWT using the Content AI Secret
     const secret = new TextEncoder().encode(TIPTAP_CONTENT_AI_SECRET)
     const jwt = await new jose.SignJWT(payload)
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' }) // Include typ in header
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .sign(secret)
 
     console.log('Generated JWT for user:', userId)
