@@ -90,23 +90,26 @@ const Dashboard = () => {
     );
   };
 
-  const getBallInCourtIcon = (ballInCourt: Manuscript['ballInCourt']) => {
+  const getBallInCourtIcon = (ballInCourt: Manuscript['ballInCourt'], round: number) => {
     const config = {
       'Editor': { icon: Monitor, tooltip: 'Editor', color: 'text-purple-600' },
       'Author': { icon: User, tooltip: 'Author', color: 'text-blue-600' },
       'Tool': { icon: Settings, tooltip: 'Tool', color: 'text-gray-600' },
       'None': { icon: Clock, tooltip: 'None', color: 'text-gray-400' }
     };
-    
+
     const { icon: Icon, tooltip, color } = config[ballInCourt] || config.None;
-    
+
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-2">
-              <Icon className={`h-4 w-4 ${color}`} />
-              <span className="text-sm text-gray-600">{ballInCourt}</span>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <Icon className={`h-4 w-4 ${color}`} />
+                <span className="text-sm text-gray-600">{ballInCourt}</span>
+              </div>
+              <span className="text-xs text-gray-400 ml-6">Round {round}</span>
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -123,6 +126,10 @@ const Dashboard = () => {
       day: 'numeric',
       year: 'numeric'
     }).format(new Date(isoDate));
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('en-US').format(num);
   };
 
   const validateFile = (file: File): { valid: boolean; error?: string; type?: 'markdown' | 'docx' } => {
@@ -537,9 +544,10 @@ const Dashboard = () => {
                 <TableRow className="bg-gray-50">
                   <TableHead className="font-medium text-gray-700">Title</TableHead>
                   <TableHead className="font-medium text-gray-700">Owner</TableHead>
-                  <TableHead className="font-medium text-gray-700">Round</TableHead>
                   <TableHead className="font-medium text-gray-700">Status</TableHead>
                   <TableHead className="font-medium text-gray-700">Ball-in-Court</TableHead>
+                  <TableHead className="font-medium text-gray-700">Word Count</TableHead>
+                  <TableHead className="font-medium text-gray-700">Character Count</TableHead>
                   <TableHead className="font-medium text-gray-700">Last Modified</TableHead>
                   <TableHead className="font-medium text-gray-700">Actions</TableHead>
                 </TableRow>
@@ -589,11 +597,12 @@ const Dashboard = () => {
                       </div>
                     </TableCell>
                     <TableCell>{manuscript.owner}</TableCell>
-                    <TableCell>Round {manuscript.round}</TableCell>
                     <TableCell>{getStatusBadge(manuscript.status)}</TableCell>
                     <TableCell>
-                      {getBallInCourtIcon(manuscript.ballInCourt)}
+                      {getBallInCourtIcon(manuscript.ballInCourt, manuscript.round)}
                     </TableCell>
+                    <TableCell className="text-gray-600">{formatNumber(manuscript.wordCount)}</TableCell>
+                    <TableCell className="text-gray-600">{formatNumber(manuscript.characterCount)}</TableCell>
                     <TableCell className="text-gray-600">{formatDate(manuscript.updatedAt)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
