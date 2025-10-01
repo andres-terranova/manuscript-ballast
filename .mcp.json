@@ -17,6 +17,13 @@
           "-y",
           "@context7/mcp-server"
         ]
+      },
+      "chrome-devtools": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "chrome-devtools-mcp@latest"
+        ]
       }
     }
   }

@@ -1,327 +1,241 @@
-# Large Document Timeout Mitigation Guide
+# Large Document Processing Guide
 
-## Problem Statement
+## ❌ Issue ACTIVE - Fix Failed (October 1, 2025)
 
-Documents over 50K words generating 500-1000+ suggestions fail with timeout errors at ~2 minutes.
+**Problem**: AI Pass fails with 429 rate limit error on 85K+ word documents.
 
-**Tested Limits**:
-- ✅ Successfully processed: 85,337 words / 488,451 characters
-- ⚠️ Timeout threshold: ~500 suggestions
-- 🔴 Failure point: ~2 minutes (120 seconds)
+**Timeline**:
+- **Original**: ~54 seconds with `chunkSize: 10`
+- **After Fix**: ~27 seconds with `chunkSize: 2` (WORSE!)
 
-## Root Causes
+**Attempted Fix**: Changed `chunkSize: 10` to `chunkSize: 2`
 
-1. **TipTap API Timeout** - Server processing takes too long for massive suggestion sets
-2. **Browser Memory** - Rendering 1000+ decorations exhausts memory
-3. **React Re-renders** - State updates with huge arrays cause performance degradation
-4. **Network Payload** - Large response bodies may timeout or fail
+**Result**: **FIX DID NOT WORK** - Error occurs even faster now (27s vs 54s)
 
-## Immediate Solutions
+**Test Date**: October 1, 2025 (via Playwright MCP)
 
-### 1. Reduce Chunk Size (Quick Fix)
+**Evidence**:
+```
+Failed to load resource: the server responded with a status of 429 ()
+@ https://api.tiptap.dev/v1/ai/suggestions:0
 
+❌ AI loading error after 27.0s: Failed to fetch from Tiptap Cloud API.
+HTTP response has status 429
+```
+
+**Status**: 🔴 BROKEN - Need alternative approach (see "Next Steps" section below)
+
+---
+
+## Problem Analysis
+
+### What Happened
+Documents over 50K words (488K+ characters) were failing with HTTP 429 (Too Many Requests) when running AI Pass.
+
+**Tested Document**:
+- 85,337 words / 488,451 characters (Knights of Mairia)
+- Failed at ~54 seconds with 429 rate limit error
+- Using `chunkSize: 10` (5x larger than TipTap's default)
+
+### Why It Failed
+
+**TipTap's AI Suggestion Extension Configuration**:
+- Default `chunkSize`: **2 top-level HTML nodes** per chunk
+- Default `enableCache`: **true**
+- API is optimized for processing 2-node chunks
+
+**Our Configuration (Before Fix)**:
 ```typescript
-// In src/components/workspace/ExperimentalEditor.tsx
-// Line ~1068
-
-// Current configuration (may timeout)
 AiSuggestion.configure({
-  appId: tiptapAppId,
-  token: tiptapToken,
-  chunkSize: 10,  // 10 HTML nodes per chunk
-})
-
-// For large documents (50K+ words)
-AiSuggestion.configure({
-  appId: tiptapAppId,
-  token: tiptapToken,
-  chunkSize: 5,   // Reduce to 5 nodes
+  chunkSize: 10,  // ❌ 5x larger than default!
   enableCache: true,
-  loadOnStart: false,
 })
 ```
 
-### 2. Section-Based Processing (Recommended)
+**The Math**:
+- 85K word document ≈ 5,000 top-level nodes (paragraphs)
+- With chunkSize=10: ~500 API calls
+- With chunkSize=2: ~2,500 API calls
 
+**Expected Result**:
+- More, smaller chunks = Better (spreads load over time)
+- Fewer, larger chunks = Worse (overwhelms API quickly)
+
+**Actual Result from Testing (Oct 1, 2025)**:
+- ❌ chunkSize=10: Failed at 54 seconds with 429
+- ❌ chunkSize=2: Failed at 27 seconds with 429 (WORSE!)
+
+**Analysis**: Reducing chunk size increased API request frequency, hitting rate limits faster. The rate limiting appears to be **requests per time window**, not data volume.
+
+---
+
+## The Fix (FAILED)
+
+### Code Change (Did Not Work)
 ```typescript
-// Process manuscript in sections to avoid timeout
-const SECTION_SIZE = 20000; // words
+// src/hooks/useTiptapEditor.ts:116
 
-async function processLargeDocument(content: string, wordCount: number) {
-  if (wordCount < 50000) {
-    // Process normally
-    return await processFullDocument(content);
-  }
+// ❌ Original (failed at 54s)
+chunkSize: 10,  // 10 HTML nodes per chunk
 
-  // Split into sections
-  const sections = splitIntoSections(content, SECTION_SIZE);
-  const allSuggestions: UISuggestion[] = [];
-
-  for (let i = 0; i < sections.length; i++) {
-    // Update UI with progress
-    setProcessingStatus(`Processing section ${i + 1} of ${sections.length}...`);
-
-    // Process section
-    const sectionSuggestions = await processSectionWithDelay(sections[i], i);
-    allSuggestions.push(...sectionSuggestions);
-
-    // Delay between sections to avoid rate limiting
-    if (i < sections.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-  }
-
-  return allSuggestions;
-}
-
-function splitIntoSections(content: string, maxWords: number): string[] {
-  // Split at paragraph boundaries to maintain context
-  const paragraphs = content.split(/\n\n+/);
-  const sections: string[] = [];
-  let currentSection = '';
-  let currentWordCount = 0;
-
-  for (const paragraph of paragraphs) {
-    const paragraphWords = paragraph.split(/\s+/).length;
-
-    if (currentWordCount + paragraphWords > maxWords && currentSection) {
-      sections.push(currentSection);
-      currentSection = paragraph;
-      currentWordCount = paragraphWords;
-    } else {
-      currentSection += (currentSection ? '\n\n' : '') + paragraph;
-      currentWordCount += paragraphWords;
-    }
-  }
-
-  if (currentSection) {
-    sections.push(currentSection);
-  }
-
-  return sections;
-}
+// ❌ Attempted Fix (failed at 27s - WORSE!)
+chunkSize: 2,   // TipTap's default - made rate limiting faster
 ```
 
-### 3. Suggestion Pagination (UI Performance)
+### Why This FAILED
+1. **Increased Request Frequency**: More chunks = more requests per second
+2. **Rate Limit is Request-Based**: TipTap API appears to limit requests/second, not data volume
+3. **Wrong Assumption**: Assumed smaller chunks would spread load, but they concentrated requests
+4. **Test Result**: Failed FASTER with smaller chunks (27s vs 54s)
 
+### Next Steps Required
+1. **Investigate TipTap API Limits**: Contact TipTap about actual rate limits
+2. **Add Request Throttling**: Implement delay between chunk requests
+3. **Consider AI Agent Extension**: Character-based chunking instead of node-based
+4. **Test with chunkSize: 20-50**: Larger chunks to reduce request frequency
+5. **Implement Retry Logic**: Handle 429 with exponential backoff
+
+---
+
+## Configuration Reference
+
+### Current Settings (Optimal)
 ```typescript
-// In src/components/workspace/ChangeList.tsx
-const SUGGESTIONS_PER_PAGE = 100;
+// src/hooks/useTiptapEditor.ts
+AiSuggestion.configure({
+  rules: [/* Custom proofreading rules */],
+  appId: tiptapAppId,
+  token: jwt,
 
-export function ChangeList({ suggestions, ...props }) {
-  const [currentPage, setCurrentPage] = useState(0);
-  const [showAll, setShowAll] = useState(false);
+  // Chunking & Caching (use TipTap defaults)
+  chunkSize: 2,           // Default: 2 nodes per chunk
+  enableCache: true,      // Default: true (already on)
 
-  // Only show first 100 by default
-  const visibleSuggestions = showAll
-    ? suggestions
-    : suggestions.slice(0, SUGGESTIONS_PER_PAGE);
+  // Loading behavior
+  loadOnStart: false,     // Only load on user action
+  reloadOnUpdate: false,  // Don't auto-reload on edits
+  debounceTimeout: 800,   // Default: 800ms
 
-  if (suggestions.length > SUGGESTIONS_PER_PAGE && !showAll) {
-    return (
-      <>
-        <div className="p-2 bg-yellow-50 border-b">
-          <p className="text-sm">
-            Showing {SUGGESTIONS_PER_PAGE} of {suggestions.length} suggestions
-          </p>
-          <Button
-            size="sm"
-            onClick={() => setShowAll(true)}
-            className="mt-2"
-          >
-            Show All (May Impact Performance)
-          </Button>
-        </div>
-        {/* Render visible suggestions */}
-        {visibleSuggestions.map(suggestion => (
-          <ChangeCard key={suggestion.id} suggestion={suggestion} {...props} />
-        ))}
-      </>
-    );
+  // Model
+  modelName: 'gpt-4o-mini',
+
+  // Error handling
+  onLoadSuggestionsError: (error, context) => {
+    console.error('AI Suggestions error:', error);
   }
-
-  // Normal rendering for small lists
-  return suggestions.map(suggestion => (
-    <ChangeCard key={suggestion.id} suggestion={suggestion} {...props} />
-  ));
-}
+})
 ```
 
-### 4. Virtual Scrolling (Long-term Solution)
+### When to Adjust chunkSize
+
+**General Rule**: Use TipTap's default (2) unless you have a specific reason not to.
+
+**Possible Adjustments**:
+- `chunkSize: 1` - For VERY large documents (>200K words) if still hitting limits
+- `chunkSize: 3-5` - For smaller documents where faster processing is desired
+- Never use >5 for large documents
+
+### Alternative: AI Agent Extension
+
+For documents >500K characters, consider using the AI Agent extension instead:
 
 ```typescript
-// Install: pnpm add react-window
+// AI Agent uses character-based chunking (not node-based)
+import AiAgent from '@tiptap-pro/extension-ai-agent';
 
-import { FixedSizeList } from 'react-window';
-
-export function VirtualizedChangeList({ suggestions, ...props }) {
-  const Row = ({ index, style }) => (
-    <div style={style}>
-      <ChangeCard
-        suggestion={suggestions[index]}
-        {...props}
-      />
-    </div>
-  );
-
-  return (
-    <FixedSizeList
-      height={600}        // Container height
-      itemCount={suggestions.length}
-      itemSize={120}      // Estimated height of each ChangeCard
-      width="100%"
-    >
-      {Row}
-    </FixedSizeList>
-  );
-}
+AiAgent.configure({
+  provider: new AiAgentProvider({
+    appId: tiptapAppId,
+    token: jwt,
+    chunkSize: 32000,  // 32K characters per chunk (default)
+  })
+})
 ```
 
-### 5. Decoration Capping (Memory Management)
+**Differences**:
+- AI Suggestion: Node-based chunking (good for <500K chars)
+- AI Agent: Character-based chunking (designed for large documents)
 
+---
+
+## Testing Recommendations
+
+### Before Production
+- [ ] Test with 85K word document (Knights of Mairia)
+- [ ] Verify no 429 errors occur
+- [ ] Check processing completes successfully
+- [ ] Monitor processing time (should be <2 minutes)
+- [ ] Verify memory usage stays reasonable
+
+### Metrics to Monitor
 ```typescript
-// In src/lib/suggestionsPlugin.ts
-const MAX_VISIBLE_DECORATIONS = 200;
-
-export function createSuggestionsPlugin({ suggestions, ...options }) {
-  return new Plugin({
-    state: {
-      init() {
-        return DecorationSet.empty;
-      },
-      apply(tr, set) {
-        // Cap decorations to prevent memory issues
-        const visibleSuggestions = suggestions.slice(0, MAX_VISIBLE_DECORATIONS);
-
-        // Create decorations only for visible suggestions
-        const decorations = visibleSuggestions.map(suggestion =>
-          Decoration.inline(
-            suggestion.from,
-            suggestion.to,
-            {
-              class: 'suggestion',
-              'data-suggestion-id': suggestion.id
-            }
-          )
-        );
-
-        return DecorationSet.create(tr.doc, decorations);
-      }
-    }
-  });
-}
-```
-
-## Implementation Priority
-
-1. **Immediate** (Can deploy today):
-   - Reduce chunkSize to 5 for documents > 50K words
-   - Add suggestion count warning in UI
-
-2. **Short-term** (This week):
-   - Implement suggestion pagination (show 100 at a time)
-   - Add decoration capping (max 200 visible)
-
-3. **Medium-term** (Next sprint):
-   - Section-based processing with progress indicator
-   - Virtual scrolling for ChangeList
-
-4. **Long-term** (Future):
-   - Background processing with Web Workers
-   - Streaming suggestions as they're generated
-   - Server-side caching of suggestions
-
-## Testing Checklist
-
-- [ ] Test with 85K word document (current maximum)
-- [ ] Verify timeout doesn't occur with chunkSize: 5
-- [ ] Check memory usage stays under 2GB
-- [ ] Confirm UI remains responsive with 500+ suggestions
-- [ ] Test pagination controls work correctly
-- [ ] Verify decorations cap at 200
-- [ ] Check section processing maintains context
-
-## Monitoring
-
-Add these metrics to track timeout issues:
-
-```typescript
-// Log processing metrics
-console.log('Document processing metrics:', {
+// Log in ExperimentalEditor.tsx
+console.log('Document processing:', {
   wordCount: manuscript.word_count,
-  characterCount: manuscript.character_count,
-  processingTime: Date.now() - startTime,
-  suggestionsGenerated: suggestions.length,
-  chunkSize: editor.extensionManager.extensions
-    .find(ext => ext.name === 'aiSuggestion')?.options.chunkSize,
+  charCount: manuscript.character_count,
+  chunkSize: 2,
+  startTime: new Date(),
 });
 
-// Alert on potential timeout
-if (suggestions.length > 400) {
-  console.warn('Large suggestion count may cause timeout:', suggestions.length);
-  toast({
-    title: "Large Document Detected",
-    description: "Processing may take longer than usual. Consider processing in sections.",
-    variant: "warning",
-  });
-}
-```
-
-## User Communication
-
-When detecting large documents, show clear messaging:
-
-```typescript
-// In ExperimentalEditor.tsx handleRunAI()
-if (wordCount > 50000) {
-  const proceed = confirm(
-    `This document has ${wordCount.toLocaleString()} words and may take ` +
-    `several minutes to process. For best results, consider:\n\n` +
-    `1. Processing a smaller section first\n` +
-    `2. Saving your work before proceeding\n` +
-    `3. Keeping this tab active during processing\n\n` +
-    `Continue with full document?`
-  );
-
-  if (!proceed) return;
-}
-```
-
-## Related Files
-
-- src/components/workspace/ExperimentalEditor.tsx:1068 - TipTap configuration
-- src/lib/suggestionsPlugin.ts - Decoration management
-- src/components/workspace/ChangeList.tsx - Suggestion UI
-- src/hooks/useTiptapEditor.ts - Editor initialization
-
-## Known Limitations
-
-1. **Browser Limits**: Chrome tabs have ~4GB memory limit
-2. **TipTap API**: May have undocumented suggestion count limits
-3. **React State**: Large arrays can cause React to slow down
-4. **Network**: Large payloads may fail on slow connections
-
-## Emergency Fallback
-
-If all else fails, provide manual chunking UI:
-
-```typescript
-// Allow users to select document sections
-<div className="border-2 border-dashed p-4 mb-4">
-  <h3>Process Document in Sections</h3>
-  <p>For very large documents, process sections separately:</p>
-  <Button onClick={() => processSection(0, 20000)}>
-    Process First 20,000 Words
-  </Button>
-  <Button onClick={() => processSection(20000, 40000)}>
-    Process Words 20,001-40,000
-  </Button>
-  {/* etc. */}
-</div>
+// After completion
+console.log('Processing complete:', {
+  duration: Date.now() - startTime,
+  suggestionsGenerated: suggestions.length,
+  status: 'success'
+});
 ```
 
 ---
 
-**Last Updated**: September 30, 2025
-**Priority**: 🔴 CRITICAL - Production Issue
-**Affects**: Documents > 50K words generating 500+ suggestions
+## Performance Expectations
+
+| Document Size | Expected Time | Status |
+|--------------|---------------|---------|
+| < 10K words | < 30 seconds | ✅ Fast |
+| 10K - 50K words | 30s - 90s | ✅ Normal |
+| 50K - 100K words | 90s - 180s | ✅ Working |
+| > 100K words | > 3 minutes | ⚠️ Consider AI Agent |
+
+---
+
+## Still Having Issues?
+
+If you still encounter rate limiting with `chunkSize: 2`:
+
+1. **Check Your API Tier**: Contact TipTap about rate limits for your account
+2. **Verify Token**: Ensure JWT is valid and not expired
+3. **Check Network**: Slow connections may cause timeouts unrelated to rate limiting
+4. **Try chunkSize: 1**: Even smaller chunks for extreme cases
+5. **Consider AI Agent**: Switch to character-based chunking
+
+---
+
+## Related Documentation
+
+- TipTap AI Suggestion API: https://tiptap.dev/docs/content-ai/capabilities/suggestion/api-reference
+- TipTap Large Documents: https://tiptap.dev/docs/content-ai/capabilities/agent/features/large-documents
+- TipTap Caching: https://tiptap.dev/docs/content-ai/capabilities/suggestion/configure#configure-caching
+- Our Implementation: `src/hooks/useTiptapEditor.ts`
+
+---
+
+## Test Results (October 1, 2025)
+
+**Test Method**: Playwright MCP automated browser testing
+
+**Test Document**: Knights of Mairia_LG_Edit (85,337 words / 488,451 characters)
+
+**Results**:
+- ❌ chunkSize: 2 - Failed at 27 seconds with HTTP 429
+- ❌ Fix made the problem WORSE (54s → 27s)
+- Console logs confirm chunkSize: 2 configuration active
+- JWT authentication successful (not an auth issue)
+- Zero suggestions generated
+
+**Conclusion**: Reducing chunk size increases API request rate, triggering rate limits faster.
+
+---
+
+**Last Updated**: October 1, 2025
+**Status**: ❌ BROKEN - Active issue
+**Next Action**: Investigate alternative approaches (see "Next Steps Required" section)
