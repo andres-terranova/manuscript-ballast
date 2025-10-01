@@ -1,16 +1,17 @@
 # Large Document Processing Guide
 
-## ❌ Issue ACTIVE - Fix Failed (October 1, 2025)
+## ❌ Issue ACTIVE - NOT RESOLVED (October 1, 2025)
 
 **Problem**: AI Pass fails with 429 rate limit error on 85K+ word documents.
 
+**Status**: 🔴 **BROKEN** - Multiple fix attempts have failed. Issue remains unresolved.
+
 **Timeline**:
 - **Original**: ~54 seconds with `chunkSize: 10`
-- **After Fix**: ~27 seconds with `chunkSize: 2` (WORSE!)
+- **Attempt #1**: ~27 seconds with `chunkSize: 2` (WORSE!)
+- **Attempt #2**: ~74 seconds with `chunkSize: 35` (still fails with 429)
 
-**Attempted Fix**: Changed `chunkSize: 10` to `chunkSize: 2`
-
-**Result**: **FIX DID NOT WORK** - Error occurs even faster now (27s vs 54s)
+**Current State**: No working solution yet. All tested configurations still hit 429 rate limit.
 
 **Test Date**: October 1, 2025 (via Playwright MCP)
 
@@ -19,102 +20,211 @@
 Failed to load resource: the server responded with a status of 429 ()
 @ https://api.tiptap.dev/v1/ai/suggestions:0
 
-❌ AI loading error after 27.0s: Failed to fetch from Tiptap Cloud API.
+❌ AI loading error: Failed to fetch from Tiptap Cloud API.
 HTTP response has status 429
 ```
-
-**Status**: 🔴 BROKEN - Need alternative approach (see "Next Steps" section below)
 
 ---
 
 ## Problem Analysis
 
-### What Happened
-Documents over 50K words (488K+ characters) were failing with HTTP 429 (Too Many Requests) when running AI Pass.
+### What's Happening
+Documents over 50K words (488K+ characters) fail with HTTP 429 (Too Many Requests) when running AI Pass.
 
 **Tested Document**:
 - 85,337 words / 488,451 characters (Knights of Mairia)
-- Failed at ~54 seconds with 429 rate limit error
-- Using `chunkSize: 10` (5x larger than TipTap's default)
+- Multiple `chunkSize` values tested - all eventually hit 429 error
+- JWT authentication is working correctly (not an auth issue)
 
-### Why It Failed
+### Why Our Fixes Keep Failing
 
-**TipTap's AI Suggestion Extension Configuration**:
-- Default `chunkSize`: **2 top-level HTML nodes** per chunk
-- Default `enableCache`: **true**
-- API is optimized for processing 2-node chunks
+**Test Results**:
+- ❌ `chunkSize: 10` → Failed at 54 seconds with 429
+- ❌ `chunkSize: 2` → Failed at 27 seconds with 429 (WORSE - more frequent requests)
+- ❌ `chunkSize: 35` → Failed at 74 seconds with 429 (delayed but still fails)
 
-**Our Configuration (Before Fix)**:
+**Pattern Analysis**:
+- Smaller chunks = More API calls = Faster 429 error
+- Larger chunks = Fewer API calls = Delayed 429 error (but still fails)
+- Rate limiting appears to be **requests per time window**, not data volume
+- Simply adjusting `chunkSize` only delays the inevitable
+
+**Root Cause**: TipTap API has rate limits we're hitting regardless of chunk size. We need throttling between requests, not just chunk size adjustment.
+
+---
+
+## ❌ Failed Approaches (Don't Repeat These)
+
+### 1. Adjusting `chunkSize` Alone
 ```typescript
+// ❌ Does NOT solve the problem - only delays it
 AiSuggestion.configure({
-  chunkSize: 10,  // ❌ 5x larger than default!
-  enableCache: true,
+  chunkSize: 2,   // Fails faster (27s)
+  chunkSize: 10,  // Fails medium (54s)
+  chunkSize: 35,  // Fails slower (74s) - but still fails!
 })
 ```
+**Why it fails**: No delay between API requests means we still hammer the API too fast.
 
-**The Math**:
-- 85K word document ≈ 5,000 top-level nodes (paragraphs)
-- With chunkSize=10: ~500 API calls
-- With chunkSize=2: ~2,500 API calls
+### 2. Native TipTap Caching
+```typescript
+// ❌ Doesn't prevent initial rate limiting
+AiSuggestion.configure({
+  enableCache: true,  // Only helps on subsequent loads
+  chunkSize: 10,      // Still hits rate limits on first load
+})
+```
+**Why it fails**: Caching only helps after first successful load. Doesn't prevent 429 on initial processing.
 
-**Expected Result**:
-- More, smaller chunks = Better (spreads load over time)
-- Fewer, larger chunks = Worse (overwhelms API quickly)
-
-**Actual Result from Testing (Oct 1, 2025)**:
-- ❌ chunkSize=10: Failed at 54 seconds with 429
-- ❌ chunkSize=2: Failed at 27 seconds with 429 (WORSE!)
-
-**Analysis**: Reducing chunk size increased API request frequency, hitting rate limits faster. The rate limiting appears to be **requests per time window**, not data volume.
+### 3. Custom Resolver Without Throttling
+```typescript
+// ❌ DEPRECATED - See TIPTAP_AI_RATE_LIMITING_GUIDE.md (archived)
+// - Converted HTML to plain text (lost structure)
+// - Manual position adjustment logic
+// - No request throttling added
+```
+**Why it failed**: Custom chunking without throttling still triggers rate limits.
 
 ---
 
-## The Fix (FAILED)
+## 🎯 Proposed Solutions (NOT YET IMPLEMENTED)
 
-### Code Change (Did Not Work)
+### Option A: Custom Resolver with Throttling ⭐ (Recommended)
+
+**Status**: ⚠️ **PLANNED - NOT IMPLEMENTED**
+
+**What**: Override TipTap's default API calling logic with throttled implementation.
+
+**How**:
+1. Create `src/utils/throttledTiptapResolver.ts`
+   - Implement custom chunking logic
+   - Add configurable delay between API calls (2-3 seconds)
+   - Use TipTap's API endpoint with our JWT
+   - Aggregate results from all chunks
+
+2. Update `src/hooks/useTiptapEditor.ts`:
+   ```typescript
+   AiSuggestion.configure({
+     resolver: async ({ content, rules }) => {
+       return throttledTiptapResolver({
+         content: content.html,
+         rules,
+         appId: aiSuggestionConfig.appId!,
+         token: aiSuggestionConfig.token!,
+         chunkSize: 35,
+         delayMs: 2000, // 2 second delay between chunks
+       });
+     },
+   })
+   ```
+
+3. Add configuration options:
+   - `CHUNK_DELAY_MS`: Delay between chunk requests (default: 2000ms)
+   - `MAX_CHUNKS`: Safety limit to prevent infinite loops
+   - `CHUNK_SIZE`: Nodes per chunk (default: 35)
+
+**Pros**:
+- Full control over API call timing
+- Can implement exponential backoff
+- Can add retry logic for failed chunks
+- Most flexible solution
+
+**Cons**:
+- More complex to implement (~200 lines)
+- Need to maintain our own chunking logic
+- Bypasses TipTap's built-in optimizations
+
+**Estimated Time**: 2-3 hours
+
+---
+
+### Option B: Continue Testing Larger `chunkSize` Values
+
+**Status**: ⚠️ **NOT RECOMMENDED**
+
+**What**: Keep increasing `chunkSize` (50, 75, 100) to delay rate limit.
+
+**Why NOT recommended**:
+- Only delays the inevitable 429 error
+- Doesn't solve root cause
+- May hit other API limits (request size, timeout)
+- Already tested values 2, 10, 35 - all failed
+
+**Estimated Time**: 30 minutes per test (but unlikely to succeed)
+
+---
+
+### Option C: Retry Logic with Exponential Backoff
+
+**Status**: ⚠️ **COULD WORK BUT POOR UX**
+
+**What**: Catch 429 errors and retry with increasing delays.
+
+**How**:
+1. Wrap `loadAiSuggestions()` call in retry logic
+2. On 429 error, wait (5s, 10s, 20s, 40s)
+3. Retry up to N times
+4. Show progress to user
+
+**Pros**:
+- Handles temporary rate limits
+- Relatively simple to add
+- Works with existing TipTap logic
+
+**Cons**:
+- Doesn't prevent rate limits, just handles them
+- Can be very slow (multiple retries)
+- Poor user experience (waiting for retries)
+- May still fail on very large documents
+
+**Estimated Time**: 1-2 hours
+
+---
+
+## 📋 Implementation Checklist (When Ready)
+
+**Before implementing**:
+- [ ] Verify TipTap API rate limits with vendor (requests/second, requests/minute)
+- [ ] Check if our API tier supports higher limits
+- [ ] Review TipTap docs for any built-in throttling options we missed
+
+**For Option A (Custom Resolver)**:
+- [ ] Create `src/utils/throttledTiptapResolver.ts`
+- [ ] Implement chunking function
+- [ ] Add configurable delay between requests
+- [ ] Add retry logic for 429 errors
+- [ ] Update `useTiptapEditor.ts` to use custom resolver
+- [ ] Test with small document (10K words)
+- [ ] Test with large document (85K words)
+- [ ] Monitor network tab for request timing
+- [ ] Verify no 429 errors occur
+
+**Testing metrics**:
 ```typescript
-// src/hooks/useTiptapEditor.ts:116
-
-// ❌ Original (failed at 54s)
-chunkSize: 10,  // 10 HTML nodes per chunk
-
-// ❌ Attempted Fix (failed at 27s - WORSE!)
-chunkSize: 2,   // TipTap's default - made rate limiting faster
+// Expected for 85K word doc with Option A:
+// - ~30 chunks at 2s delay = ~60s + processing time
+// - Should avoid 429 errors entirely
 ```
 
-### Why This FAILED
-1. **Increased Request Frequency**: More chunks = more requests per second
-2. **Rate Limit is Request-Based**: TipTap API appears to limit requests/second, not data volume
-3. **Wrong Assumption**: Assumed smaller chunks would spread load, but they concentrated requests
-4. **Test Result**: Failed FASTER with smaller chunks (27s vs 54s)
-
-### Next Steps Required
-1. **Investigate TipTap API Limits**: Contact TipTap about actual rate limits
-2. **Add Request Throttling**: Implement delay between chunk requests
-3. **Consider AI Agent Extension**: Character-based chunking instead of node-based
-4. **Test with chunkSize: 20-50**: Larger chunks to reduce request frequency
-5. **Implement Retry Logic**: Handle 429 with exponential backoff
-
 ---
 
-## Configuration Reference
+## Current Configuration (Active as of Oct 1, 2025)
 
-### Current Settings (Optimal)
 ```typescript
-// src/hooks/useTiptapEditor.ts
+// File: src/hooks/useTiptapEditor.ts:116
 AiSuggestion.configure({
   rules: [/* Custom proofreading rules */],
   appId: tiptapAppId,
   token: jwt,
 
-  // Chunking & Caching (use TipTap defaults)
-  chunkSize: 2,           // Default: 2 nodes per chunk
-  enableCache: true,      // Default: true (already on)
+  // Current settings (STILL HITTING 429 ERRORS)
+  chunkSize: 2,           // ❌ Fails at 27s
+  enableCache: true,      // Doesn't prevent initial 429
 
   // Loading behavior
-  loadOnStart: false,     // Only load on user action
-  reloadOnUpdate: false,  // Don't auto-reload on edits
-  debounceTimeout: 800,   // Default: 800ms
+  loadOnStart: false,
+  reloadOnUpdate: false,
+  debounceTimeout: 800,
 
   // Model
   modelName: 'gpt-4o-mini',
@@ -126,21 +236,15 @@ AiSuggestion.configure({
 })
 ```
 
-### When to Adjust chunkSize
+---
 
-**General Rule**: Use TipTap's default (2) unless you have a specific reason not to.
+## Alternative: AI Agent Extension
 
-**Possible Adjustments**:
-- `chunkSize: 1` - For VERY large documents (>200K words) if still hitting limits
-- `chunkSize: 3-5` - For smaller documents where faster processing is desired
-- Never use >5 for large documents
+**Status**: ⚠️ **NOT TESTED - POSSIBLE ALTERNATIVE**
 
-### Alternative: AI Agent Extension
-
-For documents >500K characters, consider using the AI Agent extension instead:
+For documents >500K characters, TipTap offers a different extension with character-based chunking:
 
 ```typescript
-// AI Agent uses character-based chunking (not node-based)
 import AiAgent from '@tiptap-pro/extension-ai-agent';
 
 AiAgent.configure({
@@ -153,60 +257,42 @@ AiAgent.configure({
 ```
 
 **Differences**:
-- AI Suggestion: Node-based chunking (good for <500K chars)
-- AI Agent: Character-based chunking (designed for large documents)
+- AI Suggestion: Node-based chunking (what we're using now)
+- AI Agent: Character-based chunking (may have different rate limits)
+
+**Unknown**: Whether AI Agent has same rate limiting issues. Needs testing.
 
 ---
 
-## Testing Recommendations
+## Key Questions to Answer
 
-### Before Production
-- [ ] Test with 85K word document (Knights of Mairia)
-- [ ] Verify no 429 errors occur
-- [ ] Check processing completes successfully
-- [ ] Monitor processing time (should be <2 minutes)
-- [ ] Verify memory usage stays reasonable
+Before proceeding with implementation:
 
-### Metrics to Monitor
-```typescript
-// Log in ExperimentalEditor.tsx
-console.log('Document processing:', {
-  wordCount: manuscript.word_count,
-  charCount: manuscript.character_count,
-  chunkSize: 2,
-  startTime: new Date(),
-});
+1. **Are chunks sent concurrently or sequentially?**
+   - Open DevTools network tab during next test
+   - Filter for `api.tiptap.dev`
+   - Check if requests fire all at once or one-by-one
 
-// After completion
-console.log('Processing complete:', {
-  duration: Date.now() - startTime,
-  suggestionsGenerated: suggestions.length,
-  status: 'success'
-});
-```
+2. **What are TipTap's actual rate limits?**
+   - Contact TipTap support for our API tier limits
+   - Requests per second? Requests per minute?
+   - Does our plan tier support higher limits?
+
+3. **Does TipTap have built-in throttling options?**
+   - Re-read docs for concurrency controls
+   - Max concurrent requests setting?
+   - Request throttling configuration?
 
 ---
 
-## Performance Expectations
+## Performance Expectations (When Working)
 
-| Document Size | Expected Time | Status |
-|--------------|---------------|---------|
-| < 10K words | < 30 seconds | ✅ Fast |
-| 10K - 50K words | 30s - 90s | ✅ Normal |
-| 50K - 100K words | 90s - 180s | ✅ Working |
-| > 100K words | > 3 minutes | ⚠️ Consider AI Agent |
-
----
-
-## Still Having Issues?
-
-If you still encounter rate limiting with `chunkSize: 2`:
-
-1. **Check Your API Tier**: Contact TipTap about rate limits for your account
-2. **Verify Token**: Ensure JWT is valid and not expired
-3. **Check Network**: Slow connections may cause timeouts unrelated to rate limiting
-4. **Try chunkSize: 1**: Even smaller chunks for extreme cases
-5. **Consider AI Agent**: Switch to character-based chunking
+| Document Size | Expected Time | Current Status |
+|--------------|---------------|----------------|
+| < 10K words | < 30 seconds | ✅ Working |
+| 10K - 50K words | 30s - 90s | ⚠️ May work |
+| 50K - 100K words | 90s - 180s | ❌ BROKEN (429) |
+| > 100K words | > 3 minutes | ❌ BROKEN (429) |
 
 ---
 
@@ -219,23 +305,26 @@ If you still encounter rate limiting with `chunkSize: 2`:
 
 ---
 
-## Test Results (October 1, 2025)
+## Test Results History
 
-**Test Method**: Playwright MCP automated browser testing
+### October 1, 2025 - Playwright MCP Tests
 
 **Test Document**: Knights of Mairia_LG_Edit (85,337 words / 488,451 characters)
 
 **Results**:
-- ❌ chunkSize: 2 - Failed at 27 seconds with HTTP 429
-- ❌ Fix made the problem WORSE (54s → 27s)
-- Console logs confirm chunkSize: 2 configuration active
-- JWT authentication successful (not an auth issue)
-- Zero suggestions generated
+- ❌ chunkSize: 2 → Failed at 27 seconds with HTTP 429
+- ❌ chunkSize: 35 → Failed at 74 seconds with HTTP 429
+- Pattern: Larger chunks delay failure but don't prevent it
+- JWT authentication: ✅ Working correctly
+- Console logs confirm: Active configuration being used
+- Zero suggestions generated in all tests
 
-**Conclusion**: Reducing chunk size increases API request rate, triggering rate limits faster.
+**Conclusion**: Adjusting chunk size alone does not solve rate limiting. Need request throttling.
 
 ---
 
 **Last Updated**: October 1, 2025
-**Status**: ❌ BROKEN - Active issue
-**Next Action**: Investigate alternative approaches (see "Next Steps Required" section)
+**Status**: ❌ **BROKEN - ACTIVE ISSUE - NOT RESOLVED**
+**Next Action**: Decide on implementation approach (recommend Option A)
+**Assigned**: Not yet assigned
+**Priority**: 🔴 Critical - blocking large document AI processing
