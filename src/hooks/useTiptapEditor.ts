@@ -107,13 +107,13 @@ export const useTiptapEditor = ({
             token: aiSuggestionConfig.token,
             loadOnStart: aiSuggestionConfig.loadOnStart ?? false,
             reloadOnUpdate: aiSuggestionConfig.reloadOnUpdate ?? false,
-            debounceTimeout: aiSuggestionConfig.debounceTimeout ?? 800,
+            debounceTimeout: aiSuggestionConfig.debounceTimeout ?? 2000,
             // Fix: Use a valid model name instead of "gpt-5-mini"
-            modelName: 'gpt-4o-mini',
-            model: 'gpt-4o-mini',
+            modelName: 'gpt-4o-mini' as const,
+            model: 'gpt-4o-mini' as const,
             // Use TipTap's native chunking system for large documents
             enableCache: true,      // Enable caching to avoid redundant API calls (default: true)
-            chunkSize: 35,          // TEST: Using 35 nodes per chunk for rate limit testing
+            chunkSize: 10,          // TEST: Using 10 nodes per chunk for rate limit testing
             // Add error handler for better debugging
             onLoadSuggestionsError: (error: Error, context: unknown) => {
               console.error('AI Suggestions loading error:', {

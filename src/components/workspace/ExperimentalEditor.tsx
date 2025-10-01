@@ -322,9 +322,16 @@ const ExperimentalEditor = () => {
     }
     
     // Simple polling while loading - no timeout, let it take as long as needed
+    let lastLogTime = 0;
     while (storage.isLoading) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`⏳ AI suggestions loading... (${elapsed}s elapsed)`);
+      const elapsed = (Date.now() - startTime) / 1000;
+
+      // Log every 5 seconds to reduce console noise
+      if (elapsed - lastLogTime >= 5 || lastLogTime === 0) {
+        console.log(`⏳ AI suggestions loading... (${elapsed.toFixed(1)}s elapsed)`);
+        lastLogTime = elapsed;
+      }
+
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
