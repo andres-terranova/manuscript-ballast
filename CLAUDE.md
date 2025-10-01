@@ -4,10 +4,15 @@
 
 ## 🔴 Critical Issues (Fix These First)
 
-### 1. Large Documents Timeout (~2 minutes)
-- **Symptom**: AI Pass fails on 50K+ word docs generating 500+ suggestions
-- **Root Cause**: TipTap API timeout + browser memory limits
-- **Solution**: See `/chunking` agent or docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
+### 1. ❌ Large Documents Rate Limiting - ACTIVE ISSUE
+- **Symptom**: AI Pass fails with 429 rate limit error at ~27 seconds on 85K+ word docs
+- **Attempted Fix**: Changed `chunkSize: 10` to `chunkSize: 2` in src/hooks/useTiptapEditor.ts:116
+- **Result**: Fix did NOT work - error occurs even faster now (27s vs 54s)
+- **Status**: BROKEN - chunkSize change made rate limiting worse
+- **Test Date**: 2025-10-01 via Playwright MCP
+- **Evidence**: Console shows 429 from https://api.tiptap.dev/v1/ai/suggestions after 27s
+- **Next Steps**: Investigate TipTap API rate limits, consider request throttling/batching
+- **Docs**: docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
 
 ### 2. ✅ TipTap JWT Authentication - RESOLVED
 - **Status**: Fixed - server-generated JWT working in production
@@ -19,7 +24,7 @@
 
 ```
 Need to fix something?
-├── 💥 Timeout on large docs → `/chunking` → docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
+├── ❌ Large docs (BROKEN - 429 rate limit at 27s) → docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
 ├── ✅ JWT authentication (RESOLVED) → docs/guides/TIPTAP_JWT_GUIDE.md
 ├── 📍 Wrong suggestion positions → `/prosemirror` → src/lib/suggestionMapper.ts
 ├── 🔧 Editor not working → `/tiptap` → src/components/workspace/ExperimentalEditor.tsx
@@ -91,7 +96,7 @@ supabase db reset                         # Reset database (caution!)
 
 ## 🎯 Current Priorities
 
-1. **Fix timeout on large docs** (500+ suggestions hit ~2 min limit)
+1. **❌ CRITICAL: Fix 429 rate limit on large docs** (85K words fails at 27s - chunkSize fix made it worse)
 2. ✅ ~~**Resolve TipTap JWT rejection**~~ (RESOLVED - simplified JWT structure works)
 3. **Complete ExperimentalEditor migration** (deprecate ManuscriptWorkspace)
 
