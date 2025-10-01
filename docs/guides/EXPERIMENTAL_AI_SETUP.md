@@ -26,8 +26,8 @@ Add the following environment variables to your project:
 
 ```bash
 # Add to your .env file (in project root)
-VITE_TIPTAP_APP_ID=pkry1n5m  # Use your "Content AI App ID" from TipTap dashboard
-VITE_TIPTAP_TOKEN=TKAy9iyz13rrux9P3U4m4ysaYayFE9Kr9Ff36DPFJAER0eGpDU8siu1UXJBUtco  # Use your "Content AI Secret" from TipTap dashboard
+VITE_TIPTAP_APP_ID=<your-app-id>  # Use your "Content AI App ID" from TipTap dashboard
+VITE_TIPTAP_TOKEN=<your-content-ai-secret>  # Use your "Content AI Secret" from TipTap dashboard
 ```
 
 **Important**: 
@@ -174,7 +174,7 @@ AI suggestions are styled with:
 # Good signs:
 Testing TipTap authentication...
 Auth test result: {success: true}
-Configuring AI Suggestion extension with: {appId: "pkry1n5m", hasToken: true, isValidJWT: true}
+Configuring AI Suggestion extension with: {appId: "<your-app-id>", hasToken: true, isValidJWT: true}
 Extensions: [..., "aiSuggestion", ...]
 
 # For large documents, look for:

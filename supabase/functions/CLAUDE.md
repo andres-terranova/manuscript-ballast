@@ -200,8 +200,8 @@ const jwt = await create(
 
 **Environment Variables**:
 ```bash
-TIPTAP_CONTENT_AI_SECRET=<content-ai-secret>
-TIPTAP_APP_ID=pkry1n5m
+TIPTAP_CONTENT_AI_SECRET=<your-content-ai-secret>
+TIPTAP_APP_ID=<your-app-id>
 ```
 
 **Key Discovery**:

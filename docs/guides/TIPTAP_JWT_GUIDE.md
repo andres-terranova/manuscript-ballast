@@ -4,7 +4,7 @@
 
 **Solution**: Simplified JWT generation with server-side edge function
 - JWT Generation: ✅ Server-generated JWT working
-- App ID: `pkry1n5m`
+- App ID: `<your-app-id>`
 - Authentication: ✅ Working with TipTap API
 - UI Integration: ✅ Transparent loading state (no debugging badges)
 - Server-side Implementation: ✅ PRODUCTION READY
@@ -13,10 +13,10 @@
 
 ### **Authentication Confusion - What Each Token Does:**
 
-1. **NPM Registry Token** (`QLxOMgjn...`) - For installing @tiptap-pro packages
-2. **Content AI Secret** (`TkAy9iyz...`) - Used to GENERATE JWTs, not used directly
+1. **NPM Registry Token** - For installing @tiptap-pro packages
+2. **Content AI Secret** - Used to GENERATE JWTs, not used directly
 3. **JWT Token** (`eyJ0eXAi...`) - What TipTap API actually needs
-4. **Conversion Secret** (`2hjv1rnl...`) - For TipTap Conversion API (different service)
+4. **Conversion Secret** - For TipTap Conversion API (different service)
 
 ### **The Real Problem:**
 - ❌ TipTap AI Suggestions API requires **JWT tokens**, not raw secrets
@@ -42,11 +42,11 @@
 ### **Production Setup**:
 ```env
 # Client-side (public)
-VITE_TIPTAP_APP_ID=pkry1n5m
+VITE_TIPTAP_APP_ID=<your-app-id>
 
 # Server-side (Supabase Edge Functions)
-TIPTAP_CONTENT_AI_SECRET=TkAy9iyzi3rrux9P3U4m4ysaYayFE9kCr9Ff36DPFJAErOeGpDU8siu1UXJBUtco
-TIPTAP_APP_ID=pkry1n5m
+TIPTAP_CONTENT_AI_SECRET=<your-content-ai-secret>
+TIPTAP_APP_ID=<your-app-id>
 ```
 
 ### **Current Status**:
@@ -175,11 +175,11 @@ pnpm run dev
 ## 🏆 **PRODUCTION WORKING STATE:**
 ```env
 # Client Environment Variables
-VITE_TIPTAP_APP_ID=pkry1n5m
+VITE_TIPTAP_APP_ID=<your-app-id>
 
 # Supabase Environment Variables (Server-side)
-TIPTAP_CONTENT_AI_SECRET=TkAy9iyzi3rrux9P3U4m4ysaYayFE9kCr9Ff36DPFJAErOeGpDU8siu1UXJBUtco
-TIPTAP_APP_ID=pkry1n5m
+TIPTAP_CONTENT_AI_SECRET=<your-content-ai-secret>
+TIPTAP_APP_ID=<your-app-id>
 ```
 
 ### **User Experience:**

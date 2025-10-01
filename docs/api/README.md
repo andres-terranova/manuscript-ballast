@@ -84,7 +84,7 @@ Body:
   {
     "html": "<p>Document content...</p>",
     "rules": [...],
-    "appId": "pkry1n5m"
+    "appId": "<your-app-id>"
   }
 ```
 
@@ -123,12 +123,12 @@ AiSuggestion.configure({
 **Environment Variables**:
 ```bash
 # Client-side
-VITE_TIPTAP_APP_ID=pkry1n5m
+VITE_TIPTAP_APP_ID=<your-app-id>
 VITE_TIPTAP_JWT=<temporary-jwt>
 
 # Server-side (Supabase edge functions)
 TIPTAP_CONTENT_AI_SECRET=<content-ai-secret>
-TIPTAP_APP_ID=pkry1n5m
+TIPTAP_APP_ID=<your-app-id>
 ```
 
 **Known Issues**:

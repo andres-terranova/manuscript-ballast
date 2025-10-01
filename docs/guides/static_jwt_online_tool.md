@@ -35,4 +35,4 @@ For testing purposes, I generated the signed JWT using online tool http://jwtbu
 
 ### Content AI Secret:
 
-Key: TkAy9iyzi3rrux9P3U4m4ysaYayFE9kCr9Ff36DPFJAErOeGpDU8siu1UXJBUtco
+Key: <your-content-ai-secret>

@@ -64,7 +64,7 @@ console.log('JWT payload:', {
   "nbf": 1758921800,  // Not before (current time)
   "exp": 1759008200,  // Expires (1 hour from now)
   "iss": "https://cloud.tiptap.dev",
-  "aud": "pkry1n5m"   // Your TIPTAP_APP_ID
+  "aud": "<your-app-id>"   // Your TIPTAP_APP_ID
 }
 
 // Signature: HMACSHA256(base64UrlEncode(header) + "." + base64UrlEncode(payload), TIPTAP_CONTENT_AI_SECRET)
