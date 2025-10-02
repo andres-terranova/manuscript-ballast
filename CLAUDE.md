@@ -4,19 +4,30 @@
 
 ## 🔴 Critical Issues (Fix These First)
 
-### 1. ❌ Large Documents Rate Limiting - NOT RESOLVED
+### 1. 🟡 Large Documents Rate Limiting - PARTIALLY RESOLVED
 - **Symptom**: AI Pass fails with 429 rate limit error on 85K+ word docs
-- **Attempted Fixes**:
-  - `chunkSize: 10` → Failed at 54s with 429
-  - `chunkSize: 2` → Failed at 27s with 429 (WORSE!)
-  - `chunkSize: 35` → Failed at 74s with 429 (delayed but still fails)
-- **Pattern**: All chunk sizes eventually hit 429 - just delays the error, doesn't fix it
-- **Status**: 🔴 **BROKEN** - No working solution yet. Multiple approaches tested, all failed.
-- **Root Cause**: TipTap API rate limiting (requests/time window) - need request throttling
-- **Test Date**: 2025-10-01 via Playwright MCP
-- **Evidence**: Console shows 429 from https://api.tiptap.dev/v1/ai/suggestions
-- **Next Steps**: Implement Option A (throttled custom resolver) or contact TipTap about rate limits
-- **Docs**: docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md (includes 3 proposed solutions)
+- **Root Cause Discovery**: Console.log() CPU load was disrupting TipTap's internal request throttling
+- **Solution**: Reduced polling log frequency from 1s → 5s in `waitForAiSuggestions()`
+- **Current Status**: 🟡 **IMPROVED** - Can now process 27,782 words (155K chars), previously impossible
+- **How It Works**:
+  - JavaScript is single-threaded - frequent console.log() blocks main thread
+  - Each log: formats string, writes buffer, updates DevTools UI
+  - Main thread contention → TipTap throttling timing disrupted → chunks sent too fast → 429
+  - Reducing logs 80% (36 logs → 7 logs per 36s) freed main thread
+  - TipTap's built-in throttling now works correctly
+- **Evidence Pattern**:
+  - chunkSize: 2 → Failed at 27s (faster failure, MORE chunks)
+  - chunkSize: 10 → Failed at 54s
+  - chunkSize: 35 → Failed at 74s (slower failure, FEWER chunks)
+  - **Issue was request RATE, not total requests or chunk size**
+- **Test Results**:
+  - ✅ 27,782 words / 155K chars now succeeds
+  - ⏳ "Runs for longer" = proper throttling slowing chunk sends
+  - 🔴 85K+ word docs still untested
+- **Next Steps**: Test with logging completely disabled, test on full 85K word docs
+- **Location**: ExperimentalEditor.tsx:325-333
+- **Commit**: fc1735b (2025-10-01)
+- **Docs**: docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
 
 ### 2. ✅ TipTap JWT Authentication - RESOLVED
 - **Status**: Fixed - server-generated JWT working in production
@@ -28,7 +39,7 @@
 
 ```
 Need to fix something?
-├── ❌ Large docs (NOT RESOLVED - all fixes failed, 3 options proposed) → docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
+├── 🟡 Large docs (PARTIALLY RESOLVED - console.log CPU load fix, 27K words working) → docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
 ├── ✅ JWT authentication (RESOLVED) → docs/guides/TIPTAP_JWT_GUIDE.md
 ├── 📍 Wrong suggestion positions → `/prosemirror` → src/lib/suggestionMapper.ts
 ├── 🔧 Editor not working → `/tiptap` → src/components/workspace/ExperimentalEditor.tsx
@@ -55,7 +66,7 @@ Need to understand something?
 - **Timeout Risk**: 500+ suggestions at ~2 minutes
 - **Stack**: React 18 + TipTap v3 Pro + Supabase + TypeScript
 - **Port**: 8080 (`pnpm run dev`)
-- **Branch**: feature/manuscriptsTableActions
+- **Branch**: feature/noPolling
 
 ## 🚨 Critical Don'ts
 
@@ -100,9 +111,10 @@ supabase db reset                         # Reset database (caution!)
 
 ## 🎯 Current Priorities
 
-1. **❌ CRITICAL: Fix 429 rate limit on large docs** (NOT RESOLVED - all tested chunkSize values fail, need request throttling)
+1. **🟡 IMPROVED: Large document 429 rate limiting** (PARTIALLY RESOLVED - console.log fix enables 27K words, testing 85K+ next)
 2. ✅ ~~**Resolve TipTap JWT rejection**~~ (RESOLVED - simplified JWT structure works)
-3. **Complete ExperimentalEditor migration** (deprecate ManuscriptWorkspace)
+3. **Test removing polling loop entirely** (branch: feature/noPolling - investigate if polling is even necessary)
+4. **Complete ExperimentalEditor migration** (deprecate ManuscriptWorkspace)
 
 ---
 

@@ -137,7 +137,7 @@ TIPTAP_APP_ID=<your-app-id>
 - See [../guides/TIPTAP_JWT_GUIDE.md](../guides/TIPTAP_JWT_GUIDE.md)
 
 **Documentation**:
-- [TipTap Pro Docs](https://tiptap.dev/docs/content-ai)
+- [TipTap Pro Docs](https://tiptap.dev/docs/content-ai/getting-started/overview)
 - [AI Suggestion API](https://tiptap.dev/docs/content-ai/capabilities/suggestion/api-reference)
 
 ---

@@ -113,7 +113,7 @@ export const useTiptapEditor = ({
             model: 'gpt-4o-mini' as const,
             // Use TipTap's native chunking system for large documents
             enableCache: true,      // Enable caching to avoid redundant API calls (default: true)
-            chunkSize: 10,          // TEST: Using 10 nodes per chunk for rate limit testing
+            chunkSize: 5,          // TEST: Using 5 nodes per chunk for rate limit testing
             // Add error handler for better debugging
             onLoadSuggestionsError: (error: Error, context: unknown) => {
               console.error('AI Suggestions loading error:', {
