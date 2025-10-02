@@ -308,46 +308,64 @@ const ExperimentalEditor = () => {
     }
   };
 
-  // Simple async waiting using TipTap's official loading state
+  // Event-based waiting using TipTap's transaction events (no polling)
   const waitForAiSuggestions = async (editor: any): Promise<UISuggestion[]> => {
-    console.log('🔄 Waiting for AI suggestions using extension loading state...');
-    
-    const startTime = Date.now();
-    
-    // Use extensionStorage as documented in TipTap docs
+    console.log('🔄 Waiting for AI suggestions using transaction events...');
+
     const storage = editor.extensionStorage?.aiSuggestion;
     if (!storage) {
       console.error('❌ AI Suggestion extension storage not found');
       return [];
     }
-    
-    // Simple polling while loading - no timeout, let it take as long as needed
-    let lastLogTime = 0;
-    while (storage.isLoading) {
-      const elapsed = (Date.now() - startTime) / 1000;
 
-      // Log every 5 seconds to reduce console noise
-      if (elapsed - lastLogTime >= 5 || lastLogTime === 0) {
-        console.log(`⏳ AI suggestions loading... (${elapsed.toFixed(1)}s elapsed)`);
-        lastLogTime = elapsed;
-      }
+    const startTime = Date.now();
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    const finalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    
-    // Check for errors
-    if (storage.error) {
-      console.error(`❌ AI loading error after ${finalElapsed}s:`, storage.error);
-      return [];
-    }
-    
-    // Get suggestions using the documented method
-    const suggestions = storage.getSuggestions();
-    console.log(`🎉 AI suggestions loaded after ${finalElapsed}s - found ${suggestions.length} suggestions`);
-    
-    return convertAiSuggestionsToUI(editor);
+    return new Promise((resolve, reject) => {
+      let intervalId: NodeJS.Timeout | null = null;
+
+      const checkCompletion = ({ editor }: any) => {
+        const storage = editor.extensionStorage?.aiSuggestion;
+
+        if (!storage) {
+          cleanup();
+          reject(new Error('Extension storage not available'));
+          return;
+        }
+
+        // Check if loading completed
+        if (!storage.isLoading) {
+          cleanup();
+
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+          if (storage.error) {
+            console.error(`❌ AI loading error after ${elapsed}s:`, storage.error);
+            resolve([]);
+          } else {
+            const suggestions = storage.getSuggestions();
+            console.log(`🎉 AI suggestions loaded after ${elapsed}s - found ${suggestions.length} suggestions`);
+            resolve(convertAiSuggestionsToUI(editor));
+          }
+        }
+      };
+
+      const cleanup = () => {
+        editor.off('transaction', checkCompletion);
+        if (intervalId) clearInterval(intervalId);
+      };
+
+      // Listen for transaction events (fires when storage.isLoading changes)
+      editor.on('transaction', checkCompletion);
+
+      // Also log progress every 5s for visibility
+      intervalId = setInterval(() => {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`⏳ AI suggestions loading... (${elapsed}s elapsed)`);
+      }, 5000);
+
+      // Check immediately in case already loaded
+      checkCompletion({ editor });
+    });
   };
 
 
@@ -1366,8 +1384,13 @@ const ExperimentalEditor = () => {
       </Sheet>
 
       {/* Tool Running Progress Modal */}
-      <Dialog open={showToolRunning} onOpenChange={setShowToolRunning}>
-        <DialogContent id="tool-running-modal" className="max-w-md">
+      <Dialog open={showToolRunning}>
+        <DialogContent
+          id="tool-running-modal"
+          className="max-w-md [&>button]:hidden"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <div className="text-center py-6">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">AI Suggestions Loading</h3>
