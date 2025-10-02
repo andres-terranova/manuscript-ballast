@@ -6,7 +6,7 @@ description: "Verify, commit, merge changes into target branch, push to remote, 
 
 Triggering the git-commit-merge agent to:
 1. Run linting and verification checks
-2. Commit all staged changes with a descriptive message
+2. Commit all staged changes with a descriptive message. ALWAYS STAGE ALL CHANGES with git add .
 3. Merge into branch: $ARG1
 4. Push target branch to remote (with confirmation)
 5. Create new branch: $ARG2 (if provided)

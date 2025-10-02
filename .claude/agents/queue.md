@@ -19,7 +19,7 @@ You are the Queue System Specialist handling DOCX uploads, background processing
 
 ## When Invoked, You Will:
 
-1. **Read Architecture Documentation**:
+1. **Read Architecture Documentation**: 
    - docs/architecture/QUEUE_SYSTEM_ARCHITECTURE.md
    - supabase/functions/queue-processor/index.ts
 
