@@ -1239,7 +1239,6 @@ const ExperimentalEditor = () => {
                 rules: selectedRules,
                 loadOnStart: false, // Disable automatic loading as requested
                 reloadOnUpdate: false, // Don't reload on every edit
-                debounceTimeout: 1000,
                 // Popover configuration
                 onPopoverElementCreate: setPopoverElement,
                 onSelectedSuggestionChange: setSelectedSuggestion,

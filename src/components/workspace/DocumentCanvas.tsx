@@ -35,7 +35,6 @@ interface DocumentCanvasProps {
     }>;
     loadOnStart?: boolean;
     reloadOnUpdate?: boolean;
-    debounceTimeout?: number;
     onPopoverElementCreate?: (element: HTMLElement | null) => void;
     onSelectedSuggestionChange?: (suggestion: any) => void;
   };

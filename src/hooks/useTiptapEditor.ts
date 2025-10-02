@@ -31,7 +31,6 @@ interface UseTiptapEditorOptions {
     }>;
     loadOnStart?: boolean;
     reloadOnUpdate?: boolean;
-    debounceTimeout?: number;
     onPopoverElementCreate?: (element: HTMLElement | null) => void;
     onSelectedSuggestionChange?: (suggestion: any) => void;
   };
@@ -107,7 +106,6 @@ export const useTiptapEditor = ({
             token: aiSuggestionConfig.token,
             loadOnStart: aiSuggestionConfig.loadOnStart ?? false,
             reloadOnUpdate: aiSuggestionConfig.reloadOnUpdate ?? false,
-            debounceTimeout: aiSuggestionConfig.debounceTimeout ?? 2000,
             // Fix: Use a valid model name instead of "gpt-5-mini"
             modelName: 'gpt-4o-mini' as const,
             model: 'gpt-4o-mini' as const,
