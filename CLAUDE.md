@@ -27,37 +27,37 @@
 - **Next Steps**: Test with logging completely disabled, test on full 85K word docs
 - **Location**: ExperimentalEditor.tsx:325-333
 - **Commit**: fc1735b (2025-10-01)
-- **Docs**: docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
+- **Docs**: docs/02-technical/large-documents/timeout-guide.md
 
 ### 2. ✅ TipTap JWT Authentication - RESOLVED
 - **Status**: Fixed - server-generated JWT working in production
 - **Solution**: Simplified JWT payload structure
 - **Key Discovery**: TipTap accepts any valid JWT signed with Content AI Secret
-- **Docs**: docs/guides/TIPTAP_JWT_GUIDE.md
+- **Docs**: docs/02-technical/authentication/tiptap-jwt.md
 
 ## 🎯 Quick Decision Tree - What Do You Need?
 
 ```
 Need to fix something?
-├── 🟡 Large docs (PARTIALLY RESOLVED - console.log CPU load fix, 27K words working) → docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
-├── ✅ JWT authentication (RESOLVED) → docs/guides/TIPTAP_JWT_GUIDE.md
-├── 📍 Wrong suggestion positions → `/prosemirror` → src/lib/suggestionMapper.ts
-├── 🔧 Editor not working → `/tiptap` → src/components/workspace/ExperimentalEditor.tsx
-├── 📄 DOCX upload stuck → `/queue` → processing_queue table + edge function logs
+├── 🟡 Large docs (PARTIALLY RESOLVED - console.log CPU load fix, 27K words working) → docs/02-technical/large-documents/
+├── ✅ JWT authentication (RESOLVED) → docs/02-technical/authentication/tiptap-jwt.md
+├── 📍 Wrong suggestion positions → `/prosemirror` → docs/02-technical/troubleshooting/
+├── 🔧 Editor not working → `/tiptap` → docs/03-components/editors/
+├── 📄 DOCX upload stuck → `/queue` → docs/04-backend/queue-system.md
 └── 🗄️ Database/RLS issues → `/supabase` → Use Supabase MCP tools
 
 Need to build something?
-├── ➕ Add suggestion type → src/lib/types.ts + suggestionMapper.ts
+├── ➕ Add suggestion type → AIEditorRules.tsx (add to AI_EDITOR_RULES array)
 ├── 📏 Add style rule → src/lib/styleRuleConstants.ts + styleValidator.ts
-├── 🎨 Modify UI → src/components/workspace/ (use shadcn/ui)
-├── ⚡ Add edge function → supabase/functions/ + deploy command
-└── 🏗️ Major feature → `/architecture` → docs/architecture/README.md
+├── 🎨 Modify UI → docs/03-components/ (use shadcn/ui)
+├── ⚡ Add edge function → docs/04-backend/edge-functions.md
+└── 🏗️ Major feature → `/architecture` → docs/05-architecture/
 
 Need to understand something?
-├── 📖 Complete documentation → DOCUMENTATION_INDEX.md (meta-documentation guide)
-├── 🧩 Component details → src/components/workspace/docs/
-├── 🔧 Utilities → src/lib/docs/
-└── ☁️ Backend → supabase/functions/CLAUDE.md
+├── 📖 Complete documentation → docs/README.md (documentation hub)
+├── 🧩 Component details → docs/03-components/
+├── 🔧 Backend & edge functions → docs/04-backend/
+└── ☁️ Architecture & system design → docs/05-architecture/
 ```
 
 ## 📊 System Specs
@@ -76,7 +76,7 @@ Need to understand something?
 ❌ Expose secrets client-side
 ❌ Use npm/yarn (pnpm only)
 
-## 📂 Claude Code Agents (docs/CLAUDE_AGENTS.md)
+## 📂 Claude Code Agents (docs/07-claude/agents.md)
 
 ```
 Performance & Scale
@@ -118,7 +118,8 @@ supabase db reset                         # Reset database (caution!)
 
 ---
 
-**Need detailed documentation?** → DOCUMENTATION_INDEX.md
-**Working on components?** → src/components/workspace/docs/
-**Working on utilities?** → src/lib/docs/
-**Previous comprehensive guide?** → Git history has 300+ line version
+**Need detailed documentation?** → docs/README.md (documentation hub)
+**Working on components?** → docs/03-components/
+**Working on backend?** → docs/04-backend/
+**Understanding architecture?** → docs/05-architecture/
+**Product planning?** → docs/06-product/

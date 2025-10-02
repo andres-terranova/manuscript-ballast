@@ -30,10 +30,10 @@ const pos = state.doc.resolve(pmPosition).pos;
 ## When Invoked, You Will:
 
 1. **Read Key Files**:
-   - src/lib/suggestionMapper.ts (position mapping logic)
+   - src/lib/suggestionMapper.ts (legacy position mapping - only for ManuscriptWorkspace)
    - src/lib/suggestionsPlugin.ts (decoration rendering)
-   - src/lib/mappingDiagnostics.ts (debugging tools)
-   - docs/guides/quick-starts/debug-position-mapping.md
+   - src/components/workspace/ExperimentalEditor.tsx (TipTap AI position handling)
+   - docs/guides/archive/debug-suggestion-positions.md
 
 2. **Fetch ProseMirror Documentation**:
 ```typescript
@@ -70,15 +70,19 @@ console.log('Doc size:', editor.state.doc.content.size);
 console.log('Node count:', editor.state.doc.nodeSize);
 ```
 
-### Step 3: Use Diagnostic Tools
+### Step 3: Verify Position Accuracy
 
 ```typescript
-import { diagnoseSuggestionMapping } from '@/lib/mappingDiagnostics';
-
+// Manual verification - no diagnostic tools needed in current architecture
 suggestions.forEach(sugg => {
-  const diagnostic = diagnoseSuggestionMapping(sugg, editor.state.doc.toString());
-  if (!diagnostic.isValid) {
-    console.warn('Position mismatch:', diagnostic);
+  const actual = editor.state.doc.textBetween(sugg.from, sugg.to);
+  const isValid = actual === sugg.originalText;
+  if (!isValid) {
+    console.warn('Position mismatch:', {
+      id: sugg.id,
+      expected: sugg.originalText.slice(0, 30),
+      actual: actual.slice(0, 30)
+    });
   }
 });
 ```

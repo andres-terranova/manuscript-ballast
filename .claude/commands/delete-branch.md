@@ -11,9 +11,10 @@ Execute branch deletion with comprehensive safety checks:
 1. **Current Branch Check**
    - Run: `git branch --show-current`
    - BLOCK if deleting current branch (user must switch first)
+   - Error message: "Cannot delete current branch: <branch>"
 
 2. **Protected Branch Check**
-   - BLOCK if branch is: main, master, develop, development, production, staging
+   - BLOCK if branch is: main, devRestore, master, develop, development, production, staging
    - Error message: "Cannot delete protected branch: <branch>"
 
 3. **Branch Existence Check**

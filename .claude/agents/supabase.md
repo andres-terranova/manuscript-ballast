@@ -35,7 +35,6 @@ mcp__supabase__list_migrations()
 
 2. **Read Documentation**:
    - supabase/functions/CLAUDE.md
-   - docs/api/README.md
 
 ## Database Schema (Key Tables)
 
