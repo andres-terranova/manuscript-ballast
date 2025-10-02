@@ -57,6 +57,36 @@ const ExperimentalEditor = () => {
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
+  const aiCancelledRef = useRef(false);
+
+  // Handle cancelling AI suggestions
+  const handleCancelAI = useCallback(() => {
+    const editor = getGlobalEditor();
+    if (!editor) return;
+
+    try {
+      // Set cancellation flag
+      aiCancelledRef.current = true;
+
+      // Abort the ongoing AI suggestion request
+      editor.storage.aiSuggestion.abortController.abort();
+
+      // Close the modal
+      setShowToolRunning(false);
+
+      toast({
+        title: "AI Pass Cancelled",
+        description: "AI suggestion generation has been stopped.",
+      });
+    } catch (error) {
+      console.error('Error cancelling AI suggestions:', error);
+      toast({
+        title: "Cancel Failed",
+        description: "Unable to cancel AI suggestions.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   
@@ -324,6 +354,14 @@ const ExperimentalEditor = () => {
       let intervalId: NodeJS.Timeout | null = null;
 
       const checkCompletion = ({ editor }: any) => {
+        // Check if cancelled
+        if (aiCancelledRef.current) {
+          console.log('🚫 AI suggestions cancelled by user');
+          cleanup();
+          resolve([]); // Resolve with empty array
+          return;
+        }
+
         const storage = editor.extensionStorage?.aiSuggestion;
 
         if (!storage) {
@@ -359,6 +397,13 @@ const ExperimentalEditor = () => {
 
       // Also log progress every 5s for visibility
       intervalId = setInterval(() => {
+        // Check if cancelled
+        if (aiCancelledRef.current) {
+          cleanup();
+          resolve([]);
+          return;
+        }
+
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`⏳ AI suggestions loading... (${elapsed}s elapsed)`);
       }, 5000);
@@ -786,6 +831,9 @@ const ExperimentalEditor = () => {
       console.log('Document length:', documentLength);
       console.log('Is large document:', isLargeDocument);
 
+      // Reset cancellation flag for new AI Pass
+      aiCancelledRef.current = false;
+
       // Check token availability
       if (!tiptapToken || !tiptapAppId) {
         await refreshToken();
@@ -859,7 +907,8 @@ const ExperimentalEditor = () => {
             ? `Processed ${Math.round(documentLength/1000)}K characters successfully. Review suggestions in the editor and change list.`
             : "Review suggestions in the editor and change list."
         });
-      } else {
+      } else if (!aiCancelledRef.current) {
+        // Only show "no suggestions" toast if not cancelled (cancelled toast already shown)
         toast({
           title: "No suggestions generated",
           description: "The AI didn't find any improvements to suggest for this content.",
@@ -1394,9 +1443,16 @@ const ExperimentalEditor = () => {
           <div className="text-center py-6">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">AI Suggestions Loading</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-6">
               Generating AI-powered suggestions for your manuscript...
             </p>
+            <Button
+              variant="destructive"
+              onClick={handleCancelAI}
+              className="mt-2"
+            >
+              Cancel
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
