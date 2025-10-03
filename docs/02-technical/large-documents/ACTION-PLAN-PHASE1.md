@@ -381,223 +381,74 @@ pnpm run dev
 
 ---
 
-## Part 3: Testing & Validation (1-2 hours)
+## ⛔ IMPLEMENTATION CHECKPOINT - Manual Session Switch Required
 
-### Test 3.1: Small Document (1K words) - Baseline
+### Implementation Complete!
 
-- [ ] Open app in browser: `http://localhost:8080`
-- [ ] Open manuscript: **Love Prevails 1st Chapter** (ID: `b080ddf6-f72e-441b-9061-73aa54ef9b02`)
-- [ ] Open browser DevTools → Console tab
-- [ ] Click "Run AI Pass" button
-- [ ] Observe console logs
+Before proceeding to testing, verify:
 
-**Expected Console Output**:
+- [ ] Edge function deployed successfully
+- [ ] Custom resolver added to `useTiptapEditor.ts`
+- [ ] Environment variables configured (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+- [ ] Dev server runs without errors: `pnpm run dev`
+- [ ] Basic curl test of edge function passes (Task 1.4)
+
+### Save Your Work (Optional but Recommended)
+
+```bash
+git add -A
+git commit -m "Phase 1: Implementation complete - ready for UAT"
 ```
-🔄 Custom Resolver: Processing X chunks (7145 chars)
-📝 Chunk 1/X (... chars)
-✅ Chunk 1 complete: Y suggestions
-✅ Complete: Y suggestions in ...ms
-```
 
-**Validation**:
-- [ ] No errors in console
-- [ ] Suggestions appear in editor
-- [ ] Can accept/reject suggestions
+### 🔄 Human Action Required: Switch Claude Sessions
 
-### ✅ CHECKPOINT 2: Baseline Validation
+**Why**: Testing requires chrome-devtools MCP, which is not available in this implementation session.
 
-**If test fails**:
-1. Check edge function logs: `supabase functions logs ai-suggestions-html`
-2. Check browser console for errors
-3. Verify Supabase URL and anon key are correct
-4. Test edge function directly with curl (Task 1.4)
+**What to do**:
+1. **Stop this Claude session** (implementation complete)
+2. **Launch new Claude session** with chrome-devtools MCP enabled
+3. **Give new Claude this prompt**:
+   ```
+   Execute the UAT testing protocol for Phase 1 implementation.
+   Document: docs/02-technical/large-documents/UAT-PHASE1.md
 
-**If test passes**: Proceed to medium document
+   Prerequisites: Implementation already complete (edge function deployed, custom resolver added).
+   Run all test suites and report results at each checkpoint.
+   ```
+
+**The testing Claude will handle**:
+- All browser-based testing (Test Suites 1-6)
+- Position validation with chrome-devtools MCP
+- Performance metrics collection
+- Final test report generation
 
 ---
 
-### Test 3.2: Medium Document (27K words) - Rate Limit Test
+## Part 3: Testing Protocol Reference
 
-- [ ] Open manuscript: **Tip of the Spear** (ID: `0e972f2d-c88b-4a0c-8bbc-3213d7958b1c`)
-- [ ] Clear browser console
-- [ ] Click "Run AI Pass"
-- [ ] Monitor console for 2.5s delays between chunks
+**Testing is handled in separate document**: `docs/02-technical/large-documents/UAT-PHASE1.md`
 
-**Expected Behavior**:
-- Processing takes ~1-3 minutes (depending on chunk count)
-- See "⏳ Waiting 2.5s before next chunk..." between chunks
-- No 429 rate limit errors
-- All chunks complete successfully
+### Critical Checkpoints Summary:
 
-**Validation Checklist**:
-- [ ] No 429 errors (rate limiting)
-- [ ] All chunks processed
-- [ ] Memory usage acceptable: Check `performance.memory.usedJSHeapSize`
+- **CHECKPOINT 1**: Small document (1K words) - Baseline validation
+- **CHECKPOINT 2**: Medium document (27K words) - Rate limiting test
+- **CHECKPOINT 3**: Large document (85K words) - Position accuracy MUST = 100% ⭐
+- **CHECKPOINT 4**: Accept/Reject functionality
 
-**Memory Check** (Browser Console):
-```javascript
-const memoryMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
-console.log(`Memory usage: ${memoryMB} MB`);
-// Should be < 500 MB
-```
+### Success Criteria (from UAT):
+- [ ] Position accuracy: 100.0%
+- [ ] Memory usage: < 500MB
+- [ ] No browser timeout (processing completes)
+- [ ] No 429 rate limit errors
+- [ ] Accept/reject functionality works
 
-### ✅ CHECKPOINT 3: Rate Limiting & Memory
-
-**If 429 errors occur**:
-- Increase delay between chunks (change 2500 to 3000 or higher)
-- Check OpenAI API rate limits
-
-**If memory exceeds 500MB**:
-- Reduce `chunkSize` from 5 to 3
-- Monitor if it helps
-
-**If test passes**: Proceed to large document
+**When UAT completes**: Testing Claude will provide results. Return to Part 4 below for decision making.
 
 ---
 
-### Test 3.3: Large Document (85K words) - Critical Test ⭐
+## Part 4: Decision Point - Ship or Continue?
 
-- [ ] Open manuscript: **Knights of Mairia** (ID: `a44cbca8-9748-44b2-9775-73cb77de853c`)
-- [ ] Clear browser console
-- [ ] **Set up position validation** (copy script below to console, don't run yet)
-- [ ] Click "Run AI Pass"
-- [ ] Wait for completion (~5-15 minutes)
-
-**Position Validation Script** (Prepare in Console):
-```javascript
-// DO NOT RUN until AI Pass completes
-function validatePositions() {
-  const editor = window.__editor;
-  if (!editor) {
-    console.error('Editor not found on window.__editor');
-    return;
-  }
-
-  const storage = editor.extensionStorage?.aiSuggestion;
-  const suggestions = storage.getSuggestions();
-
-  console.log(`\n=== POSITION VALIDATION (${suggestions.length} suggestions) ===\n`);
-
-  let successCount = 0;
-  let failCount = 0;
-
-  suggestions.forEach((s, idx) => {
-    const actual = editor.state.doc.textBetween(s.deleteRange.from, s.deleteRange.to);
-    const expected = s.deleteText;
-    const match = actual === expected;
-
-    if (match) {
-      successCount++;
-    } else {
-      failCount++;
-      console.error(`❌ Mismatch #${idx + 1}:`, {
-        id: s.id,
-        expected: expected.substring(0, 50) + '...',
-        actual: actual.substring(0, 50) + '...',
-        positions: { from: s.deleteRange.from, to: s.deleteRange.to }
-      });
-    }
-  });
-
-  console.log(`\n=== RESULTS ===`);
-  console.log(`✅ Success: ${successCount} / ${suggestions.length}`);
-  console.log(`❌ Failed: ${failCount} / ${suggestions.length}`);
-  console.log(`📊 Accuracy: ${((successCount / suggestions.length) * 100).toFixed(1)}%`);
-
-  if (failCount === 0) {
-    console.log(`\n🎉 PERFECT! All positions are accurate!`);
-  } else {
-    console.log(`\n⚠️  Position mapping has issues - see errors above`);
-  }
-
-  return { successCount, failCount, total: suggestions.length };
-}
-```
-
-**After AI Pass completes**:
-- [ ] Run validation: `validatePositions()`
-- [ ] Check results
-
-**Expected Results**:
-```
-=== RESULTS ===
-✅ Success: X / X
-❌ Failed: 0 / X
-📊 Accuracy: 100.0%
-
-🎉 PERFECT! All positions are accurate!
-```
-
-### ✅ CHECKPOINT 4: Critical Validation ⭐
-
-**Success Criteria** (ALL must pass):
-- [ ] ✅ No browser timeout (processing completes within 15 minutes)
-- [ ] ✅ Position accuracy: 100% (validatePositions shows 0 failures)
-- [ ] ✅ No 429 rate limit errors
-- [ ] ✅ Browser memory < 500MB
-- [ ] ✅ Suggestions visible in editor
-- [ ] ✅ Accept/reject functionality works
-
-**If position accuracy < 100%**:
-1. ❌ **STOP - Critical issue with HTML matching**
-2. Examine failed suggestions in console
-3. Check if HTML format from edge function matches document
-4. May need to adjust LLM prompt or HTML extraction
-5. Consult Phase 2 may not be viable if this fails
-
-**If browser timeout occurs**:
-1. Check if individual chunks are timing out
-2. Verify chunk processing time in console logs
-3. May need to reduce chunk size further
-
-**If memory exceeds 500MB**:
-1. Check for memory leaks in console
-2. Consider reducing chunk size
-3. Monitor with: `performance.memory.usedJSHeapSize`
-
-**If test passes**: Phase 1 is SUCCESSFUL! ✅
-
----
-
-### Test 3.4: Accept/Reject Functionality
-
-- [ ] Click on a suggestion in the editor
-- [ ] Test "Accept" button → suggestion should apply
-- [ ] Test "Reject" button → suggestion should disappear
-- [ ] Verify no position drift after accepting multiple suggestions
-
-### Test 3.5: Edge Cases
-
-- [ ] Test with special characters (Unicode, em dashes, etc.)
-- [ ] Test with nested HTML (lists, tables if present)
-- [ ] Test accept suggestion → run AI Pass again (positions should still work)
-
----
-
-## Part 4: Performance Metrics Collection
-
-### Task 4.1: Gather Metrics
-
-- [ ] Record metrics from Knights of Mairia test:
-
-```javascript
-// Run in browser console after AI Pass
-const metrics = {
-  documentSize: 488451, // chars
-  chunkCount: '?', // from console logs
-  suggestionCount: '?', // from validatePositions()
-  totalTime: '?', // from console logs (ms)
-  memoryUsage: (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + ' MB',
-  positionAccuracy: '?%' // from validatePositions()
-};
-console.table(metrics);
-```
-
-**Save these metrics** - they'll inform Phase 2 decisions
-
----
-
-## Part 5: Decision Point - Ship or Continue?
+**After UAT testing completes** (see UAT-PHASE1.md for test results)
 
 ### Evaluate Phase 1 Results
 

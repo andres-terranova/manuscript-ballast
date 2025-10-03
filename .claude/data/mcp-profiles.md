@@ -1,6 +1,6 @@
 # MCP Profile Registry
 
-**Last Updated**: 2025-10-03
+**Last Updated**: 2025-10-03 (claude-tester added)
 
 This file contains a static reference of all configured MCP profiles for quick retrieval.
 
@@ -57,6 +57,13 @@ This file contains a static reference of all configured MCP profiles for quick r
 - **Use Case**: Building features requiring database + code research
 - **Context Savings**: ~20-25k tokens
 
+### 8. claude-tester
+- **Alias**: `claude-tester`
+- **Config**: `~/.claude/configs/claude-tester.json`
+- **MCPs**: chrome-devtools, exa (with API key), supabase
+- **Use Case**: Testing with browser automation, search, and database
+- **Context Savings**: ~15-20k tokens
+
 ## Quick Reference
 
 | Profile | Alias | MCPs | Best For |
@@ -68,6 +75,7 @@ This file contains a static reference of all configured MCP profiles for quick r
 | lightweight | `claude-light` | context7, exa* | Research (broken) |
 | research | `claude-research` | context7, exa | Research |
 | claude-build | `claude-build` | supabase, exa | Feature development |
+| claude-tester | `claude-tester` | chrome-devtools, exa, supabase | Testing + automation |
 
 *Exa API key missing in lightweight profile
 
