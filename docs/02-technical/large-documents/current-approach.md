@@ -1,27 +1,70 @@
-# Large Document AI Processing: Current Approach & Next Implementation Plan
+# Large Document AI Processing: Current Approach & Learning Journey
 
-### NOTE:
+## Document Purpose
 
-This document needs revising as of October 2, 2025. This documents the historical journey of solving RATE LIMITING issues. The current blocker for 85K+ word documents is Chrome's 2-minute BROWSER TIMEOUT, which requires a different approach (custom resolver). See timeout-guide.md for current status. If you read this file - acknowledge to the user that you know this file needs updating.
+This file documents the **complete journey** from initial rate limiting issues through to the current browser timeout challenge. It serves as an educational resource showing:
 
-## 📊 Current State (October 2025)
+1. How we identified and solved rate limiting for medium documents (< 27K words)
+2. Why early custom resolver attempts failed (targeting wrong problem)
+3. The current challenge: browser timeout for large documents (85K+ words)
+4. The path forward: job queue pattern vs. custom resolver
 
-**Two Separate Problems Identified**:
+**For implementation details**, see `/Users/andresterranova/manuscript-ballast/docs/02-technical/large-documents/timeout-guide.md`
 
-1. **✅ RESOLVED: Rate Limiting (Medium Documents)**
-   - **Problem**: 429 errors on 27K word documents
-   - **Root Cause**: Console.log() CPU load disrupting TipTap throttling
-   - **Solution**: Reduced polling logs from 1s → 5s frequency
-   - **Result**: 27,782 words / 155K chars now succeeds
-   - **Status**: Working with native TipTap (chunkSize: 5)
+---
 
-2. **❌ ACTIVE: Browser Timeout (Large Documents 85K+)**
-   - **Problem**: Chrome hard timeout at ~2 minutes kills long requests
-   - **Root Cause**: Cannot extend XMLHttpRequest/Fetch timeout via config
-   - **Solution**: Custom apiResolver to process chunks in short requests
-   - **Status**: Planned - See timeout-guide.md
+## 📊 Current State (October 3, 2025)
 
-**Key Insight**: The custom resolvers documented below failed because they targeted RATE LIMITING (wrong approach). The new custom resolver targets BROWSER TIMEOUT (correct approach for 85K+ docs).
+### Two Separate Problems, Two Different Solutions
+
+#### 1. ✅ RESOLVED: Rate Limiting (Medium Documents)
+
+- **Scope**: Documents up to 27K words (~155K characters)
+- **Problem**: 429 Too Many Requests errors from TipTap Content AI
+- **Root Cause**: Console.log() CPU load blocking main thread, disrupting TipTap's internal request throttling
+- **Solution**: Reduced polling log frequency from 1s → 5s in `waitForAiSuggestions()`
+- **Result**: Native TipTap now handles 27,782 words successfully
+- **Status**: Production-ready with `chunkSize: 5`
+- **Commit**: fc1735b (2025-10-01)
+
+**How It Works**:
+- JavaScript is single-threaded - excessive console.log() creates CPU contention
+- Each log: formats strings, writes buffers, updates DevTools UI
+- Main thread contention → TipTap throttling timing disrupted → chunks sent too fast → 429
+- Reducing logs 80% (36 logs → 7 logs per 36s) freed main thread
+- TipTap's built-in throttling now works correctly
+
+#### 2. ❌ ACTIVE: Browser Timeout (Large Documents 85K+)
+
+- **Scope**: Documents over 85K words (~488K+ characters)
+- **Problem**: Chrome's hard 2-minute timeout kills long-running HTTP requests
+- **Root Cause**: Browser timeout is not configurable via JavaScript (security limitation)
+- **Impact**: AI Pass fails mid-processing, no results returned
+- **Proposed Solution**: Job queue pattern (recommended) or custom apiResolver
+- **Status**: Design complete, implementation pending
+
+**Job Queue Pattern** (Recommended):
+- Reuses existing DOCX queue infrastructure (`/Users/andresterranova/manuscript-ballast/supabase/functions/queue-processor/`)
+- Moves processing entirely to edge functions (no browser timeout)
+- Client polls for job completion status
+- Completely bypasses browser limitations
+- See `/Users/andresterranova/manuscript-ballast/docs/02-technical/large-documents/timeout-guide.md` for implementation details
+
+**Custom apiResolver Pattern** (Alternative):
+- Breaks long request into many short requests (< 2 min each)
+- Processes chunks sequentially in client
+- More complex state management
+- Still subject to browser constraints
+- Only needed if real-time progress feedback is critical
+
+### Key Insight
+
+**The early custom resolvers documented below failed because they targeted RATE LIMITING** (wrong problem). We now know:
+
+- **Rate limiting** = Too many requests too fast → Fixed by console.log reduction → Native TipTap works
+- **Browser timeout** = Single request too long → Requires job queue or chunked custom resolver → New approach needed
+
+These are fundamentally different problems requiring different solutions.
 
 ---
 
@@ -99,28 +142,40 @@ editor.chain().loadAiSuggestions().run();
 
 ### Implementation Phases
 
-#### Phase 1: Completed ✅
+#### Phase 1: Native TipTap - Completed ✅
 - Removed all custom resolver logic
 - Configured native TipTap chunking
 - Fixed TypeScript errors
 - Updated documentation
+- **Result**: Clean baseline for medium documents
 
-#### Phase 2: Current Optimization Options
-- ✅ Console.log fix applied (Oct 1, 2025) - Enabled 27K word processing
-- 🔄 Possible: Dynamic chunkSize based on document size
-  - Small docs (<10K words): chunkSize: 3-5
-  - Medium docs (10K-27K): chunkSize: 5-10
-  - Large docs (27K+): Needs custom resolver for browser timeout
-- Monitor performance with current chunkSize: 5
+#### Phase 2: Rate Limiting Resolution - Completed ✅
+- ✅ Console.log fix applied (Oct 1, 2025) - Reduced from 1s → 5s polling
+- ✅ Identified CPU contention as root cause
+- ✅ Enabled 27,782 word / 155K character processing
+- ✅ Native TipTap with `chunkSize: 5` production-ready
+- **Result**: Medium documents (< 27K words) fully operational
 
-#### Phase 3: Custom Resolver (IN PROGRESS for 85K+ docs)
-Custom apiResolver required for:
+#### Phase 3: Large Document Solution - Design Complete, Pending Implementation
+
+**Recommended: Job Queue Pattern**
+- Reuses existing DOCX processing infrastructure
+- No browser timeout (processing in edge functions)
+- Simpler client code (just poll for status)
+- Better scalability and error recovery
+- Implementation guide: `/Users/andresterranova/manuscript-ballast/docs/02-technical/large-documents/timeout-guide.md`
+
+**Alternative: Custom apiResolver Pattern**
+- Only if real-time progress feedback is critical
+- Complex state management in client
+- Still constrained by browser limitations
+- Implementation guide: `/Users/andresterranova/manuscript-ballast/docs/02-technical/large-documents/timeout-guide.md`
+
+**Use Cases for Either Approach**:
 - ✅ **85K+ word documents** - Browser timeout bypass (PRIMARY USE CASE)
 - Different LLM integration (non-TipTap APIs)
 - Business-specific suggestion logic
 - Specialized document types
-
-See timeout-guide.md for implementation details.
 
 ### Performance Expectations
 
@@ -137,23 +192,78 @@ See timeout-guide.md for implementation details.
 3. **Simplicity wins** - Complex custom logic often creates more problems
 4. **Read the docs thoroughly** - TipTap has extensive chunking documentation we initially missed
 
-### Future Research Priorities
+### Next Steps & Research Priorities
 
 1. ✅ **COMPLETED**: Console.log CPU load fix enabled 27K word processing
-2. **IN PROGRESS**: Custom resolver for 85K+ word browser timeout bypass
-3. **POTENTIAL**: Dynamic chunkSize adjustment based on document size
-4. **Evaluate caching effectiveness** in production with various document sizes
+2. ✅ **COMPLETED**: Identified browser timeout as blocker for 85K+ docs
+3. **NEXT**: Implement job queue pattern for 85K+ word documents
+   - Leverage existing DOCX processing infrastructure
+   - Bypass browser timeout entirely
+   - See `/Users/andresterranova/manuscript-ballast/docs/02-technical/large-documents/timeout-guide.md`
+4. **POTENTIAL**: Dynamic chunkSize adjustment based on document size
+   - Small docs (< 10K words): `chunkSize: 3-5`
+   - Medium docs (10K-27K): `chunkSize: 5-10`
+   - Large docs (27K+): Route to job queue
+5. **MONITOR**: Cache effectiveness with current `chunkSize: 5` in production
 
-## Conclusion
+## Conclusion: Learning Journey & Current State
 
-The journey documented in this file solved the **rate limiting problem** by returning to native TipTap features and fixing console.log CPU contention. Key lessons:
+This document chronicles the evolution from rate limiting issues to browser timeout challenges, demonstrating how proper problem diagnosis leads to appropriate solutions.
 
-1. **Native features first** - For medium documents (27K words), native TipTap with console.log fix works perfectly
-2. **Don't fight the framework** - Failed custom resolvers for rate limiting proved this
-3. **Custom resolver has its place** - Now needed for 85K+ documents to bypass browser timeout (different problem, different solution)
+### What We Learned
 
-**Current Recommendation**:
-- Medium docs (< 27K words): ✅ Use native TipTap (chunkSize: 5, console.log fix applied)
-- Large docs (85K+ words): 🔄 Implement custom apiResolver (see timeout-guide.md)
+**Rate Limiting (Medium Docs)**:
+- **Problem**: 429 errors on 27K word documents
+- **Failed Approach**: Custom resolvers with manual chunking (fought against TipTap's architecture)
+- **Success**: Console.log CPU fix + native TipTap features
+- **Lesson**: Trust the framework, identify root causes (CPU contention, not API design)
 
-This isn't contradictory - the failed custom resolvers targeted the wrong problem (rate limiting). The new custom resolver targets the right problem (browser timeout).
+**Browser Timeout (Large Docs)**:
+- **Problem**: Chrome's 2-minute hard timeout on 85K+ word documents
+- **Key Discovery**: This is a fundamentally different problem than rate limiting
+- **Solution**: Job queue pattern (moves processing to edge functions, no browser constraints)
+- **Lesson**: Early custom resolvers weren't wrong in concept, they targeted the wrong problem
+
+### Current Production Recommendations
+
+#### Medium Documents (< 27K words): ✅ Production Ready
+```typescript
+// Native TipTap configuration
+AiSuggestion.configure({
+  enableCache: true,
+  chunkSize: 5,
+})
+
+// Polling with reduced log frequency
+waitForAiSuggestions() {
+  const pollInterval = setInterval(() => {
+    // Log every 5s instead of 1s (CPU optimization)
+  }, 5000);
+}
+```
+
+**Status**: Fully operational, tested up to 27,782 words / 155K characters
+
+#### Large Documents (85K+ words): 🔄 Implementation Pending
+
+**Recommended: Job Queue Pattern**
+- Reuses existing DOCX queue infrastructure
+- Completely bypasses browser timeout
+- Simpler client implementation (poll for status)
+- Better error recovery and scalability
+
+**Alternative: Custom apiResolver**
+- Only if real-time progress feedback is critical
+- Complex state management required
+- Still subject to browser constraints
+
+**Implementation Guide**: `/Users/andresterranova/manuscript-ballast/docs/02-technical/large-documents/timeout-guide.md`
+
+### The Path Forward
+
+1. ✅ **Solved**: Rate limiting for medium documents via CPU optimization
+2. ✅ **Identified**: Browser timeout as the true blocker for large documents
+3. 🔄 **Next**: Implement job queue pattern for 85K+ word documents
+4. 📊 **Monitor**: Production performance with current configuration
+
+**Key Insight**: The failed custom resolvers documented in this file were not failures in design - they were correctly identifying that TipTap's native approach had limitations. They failed because they targeted rate limiting (wrong diagnosis) instead of browser timeout (correct diagnosis). Now that we understand the real problem, a custom approach (job queue or apiResolver) makes sense for large documents, while native TipTap remains optimal for medium documents.
