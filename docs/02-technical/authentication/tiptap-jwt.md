@@ -66,12 +66,12 @@ TIPTAP_APP_ID=<your-app-id>
 - [x] Created Supabase edge function (`generate-tiptap-jwt`)
 - [x] Uses HS256 algorithm with exact payload structure
 - [x] Signs with Content AI Secret (secure, server-only)
-- [x] 1-hour token expiration
+- [x] 24-hour token expiration (prevents editor reload during long AI Pass operations)
 
 #### **Phase 2: Client-side JWT Management** ✅
 - [x] Created `useTiptapJWT` hook for automatic token refresh
 - [x] Implements in-memory token caching
-- [x] 5-minute buffer before expiration
+- [x] 5-minute buffer before expiration (refresh at 23h 55m)
 - [x] Graceful error handling and retry logic
 
 #### **Phase 3: Integration** ✅
@@ -100,7 +100,7 @@ TIPTAP_APP_ID=<your-app-id>
   // Payload (Simple structure)
   "iss": "https://cloud.tiptap.dev",
   "iat": 1758921800,      // issued at timestamp
-  "exp": 1759008200,      // 1 hour expiration
+  "exp": 1759008200,      // 24 hour expiration (prevents editor reload during long operations)
   "sub": "user-session-identifier"
 }
 ```

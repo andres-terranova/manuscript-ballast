@@ -24,7 +24,7 @@ This guide walks through deploying the Manuscript Ballast application to Vercel.
 - ✅ `TIPTAP_CONTENT_AI_SECRET` is NOT exposed client-side
 - ✅ Only used in Supabase edge function `generate-tiptap-jwt/index.ts`
 - ✅ JWT generation happens server-side
-- ✅ Client receives time-limited JWTs (1-hour expiry)
+- ✅ Client receives time-limited JWTs (24-hour expiry)
 - ✅ Sensitive operations happen via Supabase edge functions
 
 **Client-side Environment Variables:**
