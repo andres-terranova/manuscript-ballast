@@ -41,7 +41,7 @@ serve(async (req) => {
     const userId = requestData.userId || 'anonymous'
 
     const now = Math.floor(Date.now() / 1000)
-    const expiresIn = 3600 // 1 hour
+    const expiresIn = 86400 // 24 hours (prevents editor reload during long AI Pass operations)
 
     // Create simple JWT payload - TipTap accepts any valid JWT signed with Content AI Secret
     // Verified working with online JWT builder (docs/guides/static_jwt_online_tool.md)

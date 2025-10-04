@@ -160,7 +160,7 @@ Body: {}
 {
   "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
   "expiresAt": 1759008200,  // Unix timestamp
-  "expiresIn": 3600          // Seconds until expiration
+  "expiresIn": 86400         // Seconds until expiration (24 hours)
 }
 
 // Error
@@ -181,7 +181,7 @@ Body: {}
 {
   "iss": "https://cloud.tiptap.dev",
   "iat": 1758921800,  // Issued at
-  "exp": 1759008200,  // Expires (1 hour)
+  "exp": 1759008200,  // Expires (24 hours - prevents editor reload during long AI Pass operations)
   "sub": "user-session-identifier"
 }
 ```

@@ -663,6 +663,373 @@ supabase secrets set OPENAI_API_KEY=sk-...
 
 ---
 
+## Performance Optimization Variables
+
+**Purpose**: Document tunable parameters for post-launch performance optimization
+
+### Current Configuration (as of Oct 3, 2025)
+```typescript
+// In src/hooks/useTiptapEditor.ts
+{
+  chunkSize: 20,              // Nodes per chunk
+  throttleDelay: 2500,        // ms between chunks
+  enableCache: true,          // TipTap caching
+  model: 'gpt-4o-mini',       // OpenAI model
+  processingStrategy: 'sequential'  // One chunk at a time
+}
+```
+
+### Tunable Variables for Experimentation
+
+#### 1. Chunk Size (Current: 20)
+**What it does**: Controls how many nodes are grouped per API call
+**Trade-offs**:
+- Smaller (5-10): More chunks = longer total time, but safer for rate limits
+- Larger (35-50-100): Fewer chunks = faster processing, higher rate limit risk
+
+**Test values to try**:
+- `chunkSize: 35` - 75% faster than 20
+- `chunkSize: 50` - ~2.5x faster than 20
+- `chunkSize: 100` - ~5x faster, highest risk
+
+#### 2. Throttle Delay (Current: 2500ms)
+**What it does**: Wait time between chunk requests to prevent rate limiting
+**Trade-offs**:
+- Lower (1000-1500ms): Faster processing, more 429 errors
+- Higher (3000-5000ms): Slower processing, zero 429 errors
+
+**Test values to try**:
+- `1000ms` - 60% faster, monitor for 429s
+- `1500ms` - 40% faster, low risk
+- `3000ms` - 20% slower, maximum safety
+- `5000ms` - 50% slower, extreme safety
+
+#### 3. Processing Strategy (Current: Sequential) ⭐ **HIGH IMPACT OPTIMIZATION**
+
+**What it does**: How chunks are processed
+
+**Current Implementation: Sequential** ❌
+```typescript
+// Current approach in useTiptapEditor.ts (lines 132-175)
+for (const [index, chunk] of htmlChunks.entries()) {
+  const response = await fetch(...); // Wait for each chunk
+  // Process response
+  await new Promise(resolve => setTimeout(resolve, 2500)); // 2.5s delay
+}
+```
+
+**Problem with Sequential Processing:**
+- For 100 chunks: (100 × 25s avg) + (99 × 2.5s delay) = **~42 minutes minimum**
+- Only 1 chunk active at a time, underutilizing OpenAI API capacity
+- TipTap documentation explicitly recommends parallel processing for large documents
+
+**Recommended: Parallel Batch Processing** ✅
+```typescript
+// Process chunks in parallel batches
+const BATCH_SIZE = 5; // Process 5 chunks simultaneously
+const allSuggestions = [];
+
+for (let i = 0; i < htmlChunks.length; i += BATCH_SIZE) {
+  const batch = htmlChunks.slice(i, i + BATCH_SIZE);
+
+  // Process entire batch in parallel
+  const batchPromises = batch.map(chunk =>
+    fetch(`${supabaseUrl}/functions/v1/ai-suggestions-html`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        html: chunk.html,
+        chunkId: chunk.id,
+        rules: rules
+      })
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return { chunkId: chunk.id, suggestions: data.suggestions };
+    })
+  );
+
+  // Wait for all chunks in this batch to complete
+  const batchResults = await Promise.allSettled(batchPromises);
+
+  // Collect successful results
+  batchResults.forEach(result => {
+    if (result.status === 'fulfilled') {
+      allSuggestions.push(...result.value.suggestions);
+    } else {
+      console.error('Chunk failed:', result.reason);
+    }
+  });
+
+  // Optional: Small delay between batches (can be removed if no rate limiting)
+  if (i + BATCH_SIZE < htmlChunks.length) {
+    await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s between batches
+  }
+}
+
+return { items: allSuggestions };
+```
+
+**Performance Improvements:**
+
+| Approach | 100 Chunks | 85K Words Doc | Speed Improvement |
+|----------|------------|---------------|-------------------|
+| Sequential (current) | ~42 minutes | ~1+ hour | Baseline |
+| Batch Size 3 | ~14 minutes | ~20 minutes | **3x faster** |
+| Batch Size 5 | ~8 minutes | ~12 minutes | **5x faster** ⭐ |
+| Batch Size 10 | ~4 minutes | ~6 minutes | **10x faster** |
+
+**Risk Assessment:**
+
+**OpenAI Rate Limits (Tier 1):**
+- Requests per minute: 3,500 RPM
+- Tokens per minute: 200,000 TPM
+
+**Our Usage:**
+- Batch size 5 = 5 parallel requests
+- Each request ~2-3 rules × 1 chunk
+- Total: ~10-15 API calls per batch in parallel
+- **Well within limits** ✅
+
+**Supabase Edge Function:**
+- Each chunk still completes within 150s timeout
+- Parallel processing doesn't affect individual chunk timeout
+- **No additional risk** ✅
+
+**Error Handling:**
+- Use `Promise.allSettled()` instead of `Promise.all()`
+- Failed chunks don't stop entire batch
+- Collect partial results even if some chunks fail
+
+**Recommended Testing Strategy:**
+
+1. **Test with Batch Size 3** (conservative)
+   - Medium doc (27K words)
+   - Monitor for 429 rate limit errors
+   - Measure time improvement
+
+2. **Test with Batch Size 5** (optimal)
+   - Large doc (85K words)
+   - Expected: 10-15 minutes vs 1+ hour
+   - Monitor OpenAI API usage
+
+3. **Test with Batch Size 10** (aggressive)
+   - Only if Batch Size 5 succeeds with no errors
+   - Maximum speed improvement
+   - Higher risk of rate limiting
+
+**Implementation Priority:** 🔥 **HIGH** - This single change could make Phase 1 production-viable
+
+**Alternative: Agent-first Processing** (Lower Priority)
+```typescript
+// Run all chunks for agent 1, then agent 2
+// Benefit: Can resume if interrupted, cleaner error recovery
+for (const agent of agents) {
+  for (const chunk of chunks) {
+    await processChunk(chunk, agent);
+  }
+}
+```
+
+#### 4. Model Selection (Current: gpt-4o-mini)
+**What it does**: Which LLM to use for suggestions
+**Options**:
+- `gpt-4o-mini` (current): Balanced speed/quality
+- `gpt-3.5-turbo`: Faster, lower quality
+- `gpt-4o`: Slower, higher quality
+
+#### 5. Cache Strategy (Current: enableCache: true)
+**What it does**: TipTap's internal caching to avoid redundant calls
+**Investigation needed**:
+- How much does this actually help?
+- Does it cache across sessions?
+- Can we configure cache TTL?
+
+### Recommended Optimization Path
+
+**Phase 1**: 🔥 **Implement Parallel Batch Processing** (HIGHEST IMPACT)
+1. Start with `BATCH_SIZE: 3` on medium doc (27K words)
+2. Monitor for 429 rate limit errors
+3. If successful → test `BATCH_SIZE: 5` on large doc (85K words)
+4. **Expected result: 85K doc in 10-15 minutes instead of 1+ hour**
+
+**Phase 2**: Fine-tune chunk size (after parallel processing working)
+1. Test `chunkSize: 15` with parallel processing
+2. Balance: larger chunks = fewer batches, but higher timeout risk
+3. Monitor individual chunk execution times
+
+**Phase 3**: Optimize delays (if needed)
+1. Test reducing inter-batch delay from 500ms → 0ms
+2. Only if no rate limiting observed
+3. Could save additional 1-2 minutes on large docs
+
+**Why Parallel Processing First:**
+- ✅ Biggest performance improvement (5-10x faster)
+- ✅ TipTap explicitly recommends this approach
+- ✅ Low risk (well within OpenAI rate limits)
+- ✅ Could make Phase 1 production-viable without external storage
+- ✅ Simple code change (see implementation above)
+
+---
+
+## Alternative Approach: External Storage + Programmatic Loading
+
+**Source**: [TipTap Docs - Set Suggestions Programmatically](https://tiptap.dev/docs/content-ai/capabilities/suggestion/features/configure-when-to-load-suggestions#set-suggestions-programmatically)
+
+### The Concept
+
+Instead of processing in-browser, store suggestions externally and load programmatically:
+
+**Flow**:
+1. User clicks "Run AI Pass"
+2. Job sent to edge function/queue (no browser blocking)
+3. Edge function processes chunks asynchronously
+4. Suggestions stored in Supabase `ai_suggestions` table
+5. When user opens document: `editor.commands.setAISuggestions(storedSuggestions)`
+
+**Code Example**:
+```typescript
+// After edge function completes, store in DB
+await supabase.from('ai_suggestions').insert({
+  manuscript_id: manuscript.id,
+  suggestions: allSuggestions,
+  created_at: new Date()
+});
+
+// When editor loads, retrieve and set
+const { data } = await supabase
+  .from('ai_suggestions')
+  .select('suggestions')
+  .eq('manuscript_id', manuscript.id)
+  .single();
+
+if (data?.suggestions) {
+  editor.commands.setAISuggestions(data.suggestions);
+}
+```
+
+### Advantages
+- ✅ No browser timeout risk (processing happens server-side)
+- ✅ User can close browser/sleep computer
+- ✅ Suggestions persist between sessions
+- ✅ Could reuse suggestions across document versions
+- ✅ Simpler than full Phase 2 (no job queue complexity)
+
+### Research Questions
+1. Does `setAISuggestions()` accept same format as our edge function?
+2. How does it handle position mapping for changed documents?
+3. Can we trigger it after document loads in `useEffect`?
+4. Does it work with our custom resolver or bypass it?
+
+### Implementation Estimate
+- **Complexity**: Medium (2-3 days)
+- **Database**: Add `ai_suggestions` table
+- **Edge function**: Modify to store results
+- **Frontend**: Add `setAISuggestions()` on load
+- **Risk**: Low (can fall back to current approach)
+
+### When to Consider
+- If browser session requirement is a blocker
+- If users frequently close/reopen documents
+- If Phase 2 queue system is overkill
+- As intermediate step before full Phase 2
+
+---
+
+## 🔬 UAT Research Findings (Oct 3, 2025)
+
+### Supabase Edge Function Timeout Limits (Confirmed)
+
+**Official Documentation:** [Supabase Edge Functions Limits](https://supabase.com/docs/guides/functions/limits)
+
+**Hard Limits (Unchangeable):**
+- **Request idle timeout: 150 seconds** ← **CRITICAL CONSTRAINT**
+- **Free plan wall clock: 150 seconds**
+- **Paid plan wall clock: 400 seconds** (but idle timeout still 150s)
+- **Maximum Memory: 256MB**
+- **Maximum CPU Time: 2 seconds**
+
+**Key Quote:**
+> "If an Edge Function doesn't send a response before the timeout, 504 Gateway Timeout will be returned"
+
+**UAT Test Results:**
+- ✅ `chunkSize=5`: Chunks complete in 12-25s (safe margin)
+- ❌ `chunkSize=20`: One chunk hit 150s timeout → 504 error → entire process failed
+- 🔄 `chunkSize=10`: Currently testing (chunks running 16-32s, looking good)
+
+**Root Cause:**
+Each individual chunk must complete within **< 150 seconds**, including:
+- OpenAI API processing time
+- Network latency
+- Edge function overhead
+- HTML parsing/formatting
+
+**Workarounds (None Viable for Production):**
+1. **Self-hosting Edge Runtime** - Complex infrastructure requirement
+2. **Smaller chunks** - Increases total processing time exponentially
+3. **Paid plan** - Wall clock extends to 400s, but **idle timeout still 150s**
+
+**Conclusion:**
+Browser-based processing with edge functions has a **fundamental 150-second per-chunk limit** that cannot be avoided.
+
+### TipTap AI Suggestions Research
+
+**Key Findings from TipTap Documentation:**
+
+1. **`setAISuggestions()` Available** ✅
+   - Can programmatically load suggestions from external storage
+   - Documented in TipTap Content AI docs
+   - Bypasses real-time processing requirement
+
+2. **Custom Resolvers Supported** ✅ (Already using)
+   - `apiResolver` allows custom API endpoints
+   - Full control over chunk processing
+   - No built-in timeout handling
+
+3. **No Timeout Solutions in TipTap**
+   - TipTap assumes API calls complete quickly (< 30s)
+   - No streaming/resumable processing support
+   - No background processing capabilities
+   - No mention of handling long-running operations
+
+**Recommended Approach:**
+Based on research, the **External Storage + `setAISuggestions()` approach** (documented above) is the most viable solution for production. It eliminates:
+- Browser timeout risk
+- Edge function 150s limit
+- User must keep browser open requirement
+
+### chunkSize Optimization Research
+
+**Tested Configurations:**
+
+| chunkSize | Result | Processing Time | Failure Point | Notes |
+|-----------|--------|----------------|---------------|-------|
+| 5 | ✅ Success | 39.7 min (27K words) | None | Safest, but slowest |
+| 10 | 🔄 Testing | TBD | TBD | Middle ground |
+| 20 | ❌ Failed | 43 min (failed at chunk 92) | 150s timeout on 1 chunk | Too risky |
+
+**Analysis:**
+- Smaller chunks = safer but slower (more chunks × 2.5s delays)
+- Larger chunks = faster but unpredictable (complex content can timeout)
+- **Sweet spot appears to be 10-15 nodes per chunk**
+
+**Throttle Delay Testing:**
+- Current: 2500ms (2.5s) between chunks
+- No 429 rate limiting observed at this rate
+- Could potentially reduce to 1500ms for faster processing
+- Risk: More 429 errors from OpenAI
+
+**Recommendation:**
+- Use `chunkSize=10` for production (if continuing browser-based approach)
+- Monitor chunk execution times
+- Implement fallback/retry for 504 timeouts
+- Consider external storage approach for documents > 50K words
+
+---
+
 **Implementation Status**: Ready to Execute
 **Estimated Time**: 2-3 hours
 **Last Updated**: October 3, 2025
