@@ -101,7 +101,7 @@ function chunkText(text: string, chunkSize: number = 4000): string[] {
   return chunks;
 }
 
-async function generateSuggestions(text: string, scope: string, rules: string[]): Promise<any> {
+async function generateSuggestions(text: string, scope: string, rules: string[]): Promise<{ suggestions: unknown[] }> {
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiApiKey) {
     throw new Error('OpenAI API key not configured');
@@ -218,7 +218,7 @@ serve(async (req) => {
     const chunks = chunkText(text);
     console.log(`Processing ${text.length} characters in ${chunks.length} chunks`);
 
-    let allSuggestions: any[] = [];
+    const allSuggestions: unknown[] = [];
     let currentOffset = 0;
 
     // Process chunks with timeout
@@ -230,7 +230,7 @@ serve(async (req) => {
         );
 
         // Shift indices by current offset
-        const shiftedSuggestions = result.suggestions.map((suggestion: any) => ({
+        const shiftedSuggestions = result.suggestions.map((suggestion: Record<string, unknown>) => ({
           ...suggestion,
           start: suggestion.start + currentOffset,
           end: suggestion.end + currentOffset,

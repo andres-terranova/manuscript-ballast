@@ -26,7 +26,7 @@ export class SegmentMapper {
   private analysisHash: string = '';
   
   constructor(
-    private editor: any,
+    private editor: unknown,
     private plainText: string
   ) {
     this.analysisHash = this.computeHash(plainText);
@@ -51,7 +51,7 @@ export class SegmentMapper {
     const segments: TextSegment[] = [];
     let textIndex = 0;
 
-    doc.descendants((node: any, pos: number) => {
+    doc.descendants((node: unknown, pos: number) => {
       if (node.isText && node.text) {
         const textLength = node.text.length;
         if (textLength > 0) {

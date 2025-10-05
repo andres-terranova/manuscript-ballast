@@ -77,7 +77,7 @@ export class AIEditorRulesService {
     ruleId: string,
     updates: UpdateRuleInput
   ): Promise<void> {
-    const dbUpdates: any = {};
+    const dbUpdates: Record<string, unknown> = {};
 
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.prompt !== undefined) dbUpdates.prompt = updates.prompt;

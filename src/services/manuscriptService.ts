@@ -54,9 +54,9 @@ export class ManuscriptService {
       original_filename: input.original_filename || null,
       file_size: input.file_size || null,
       processing_status: input.docx_file_path ? 'pending' as const : 'completed' as const,
-      style_rules: (input.style_rules || []) as any,
-      suggestions: [] as any,
-      comments: [] as any,
+      style_rules: (input.style_rules || []) as unknown,
+      suggestions: [] as unknown,
+      comments: [] as unknown,
       excerpt,
       word_count: wordCount,
       character_count: characterCount
@@ -79,7 +79,7 @@ export class ManuscriptService {
   // Update an existing manuscript
   static async updateManuscript(id: string, updates: ManuscriptUpdateInput): Promise<ManuscriptDB> {
     // Calculate derived fields if content is being updated
-    const updateData = { ...updates } as any;
+    const updateData = { ...updates } as Record<string, unknown>;
     if (updates.content_text !== undefined) {
       updateData.word_count = this.calculateWordCount(updates.content_text);
       updateData.character_count = updates.content_text.length;
@@ -244,7 +244,7 @@ export class ManuscriptService {
   // Get processing status for a manuscript
   static async getProcessingStatus(manuscriptId: string): Promise<{
     status: string;
-    progress?: any;
+    progress?: Record<string, unknown>;
     error?: string;
   }> {
     const { data, error } = await supabase
@@ -272,7 +272,7 @@ export class ManuscriptService {
   }
 
   // Get AI suggestion results for a manuscript
-  static async getAISuggestionResults(manuscriptId: string): Promise<any[]> {
+  static async getAISuggestionResults(manuscriptId: string): Promise<unknown[]> {
     const { data, error } = await supabase
       .from('ai_suggestion_results')
       .select('suggestions, total_suggestions, created_at')
@@ -294,7 +294,7 @@ export class ManuscriptService {
 
   // Load suggestions from completed queue job
   static async loadSuggestionsFromQueue(manuscriptId: string): Promise<{
-    suggestions: any[];
+    suggestions: unknown[];
     jobStatus: string;
     totalSuggestions: number;
   }> {

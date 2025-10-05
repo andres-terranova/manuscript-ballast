@@ -5,7 +5,7 @@ import { useManuscripts } from '../contexts/ManuscriptsContext';
 interface ProcessingStatus {
   manuscriptId: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress?: any;
+  progress?: Record<string, unknown>;
   error?: string;
 }
 
@@ -75,7 +75,6 @@ export function useQueueProcessor() {
 
   // Simplified polling with no state dependencies to fix stale closure issues
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
     let isCurrentlyProcessing = false;
 
     const poll = async () => {
@@ -136,13 +135,11 @@ export function useQueueProcessor() {
     poll();
 
     // Set up stable 10-second interval
-    intervalId = setInterval(poll, 10000);
+    const intervalId = setInterval(poll, 10000);
 
     return () => {
       console.log('Cleaning up queue processor polling');
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
+      clearInterval(intervalId);
     };
   }, []); // No dependencies - creates stable, persistent interval
 

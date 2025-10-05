@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
+import type { Editor as TiptapEditor } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -102,7 +104,7 @@ const Editor = () => {
   
   // AI Suggestion Popover state
   const [popoverElement, setPopoverElement] = useState<HTMLElement | null>(null);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<UISuggestion | null>(null);
   const [processingAction, setProcessingAction] = useState(false);
   
   // Style checks state
@@ -293,14 +295,14 @@ const Editor = () => {
   }, [showChecks]);
 
   // Helper functions for TipTap operations
-  const withEditorTransaction = (editor: any, fn: (tr: any) => void) => {
+  const withEditorTransaction = (editor: TiptapEditor, fn: (tr: Transaction) => void) => {
     const { state, view } = editor;
-    let tr = state.tr;
+    const tr = state.tr;
     fn(tr);
     view.dispatch(tr);
   };
 
-  const getPMText = (editor: any, from: number, to: number): string => {
+  const getPMText = (editor: TiptapEditor, from: number, to: number): string => {
     const { state } = editor;
     return state.doc.textBetween(from, to, "\n", "\n");
   };
@@ -325,7 +327,7 @@ const Editor = () => {
   };
 
   // Convert AI suggestions to UISuggestion format for ChangeList
-  const convertAiSuggestionsToUI = (editor: any): UISuggestion[] => {
+  const convertAiSuggestionsToUI = (editor: TiptapEditor): UISuggestion[] => {
     try {
       // Use extensionStorage as documented in TipTap docs
       const aiStorage = editor.extensionStorage?.aiSuggestion;
@@ -340,8 +342,8 @@ const Editor = () => {
         : [];
         
       console.log(`📝 Converting ${aiSuggestions.length} AI suggestions to UI format`);
-      
-      return aiSuggestions.map((suggestion: any, index: number) => {
+
+      return aiSuggestions.map((suggestion: unknown, index: number) => {
         // Extract rule information from the TipTap suggestion
         const ruleId = suggestion.rule?.id || suggestion.ruleId;
         const ruleTitle = suggestion.rule?.title || getRuleTitle(ruleId);
@@ -375,7 +377,7 @@ const Editor = () => {
   };
 
   // Event-based waiting using TipTap's transaction events (no polling)
-  const waitForAiSuggestions = async (editor: any): Promise<UISuggestion[]> => {
+  const waitForAiSuggestions = async (editor: TiptapEditor): Promise<UISuggestion[]> => {
     console.log('🔄 Waiting for AI suggestions using transaction events...');
 
     const storage = editor.extensionStorage?.aiSuggestion;
@@ -389,7 +391,7 @@ const Editor = () => {
     return new Promise((resolve, reject) => {
       let intervalId: NodeJS.Timeout | null = null;
 
-      const checkCompletion = ({ editor }: any) => {
+      const checkCompletion = ({ editor }: { editor: TiptapEditor }) => {
         // Check if cancelled
         if (aiCancelledRef.current) {
           console.log('🚫 AI suggestions cancelled by user');
@@ -509,7 +511,7 @@ const Editor = () => {
     // Check if this is an AI suggestion
     const aiStorage = editor.storage?.aiSuggestion;
     const aiSuggestions = typeof aiStorage?.getSuggestions === 'function' ? aiStorage.getSuggestions() : [];
-    const aiSuggestion = aiSuggestions.find((s: any) => s.id === suggestionId);
+    const aiSuggestion = aiSuggestions.find((s: { id: string }) => s.id === suggestionId);
     
     if (aiSuggestion) {
       console.log('Applying AI suggestion:', aiSuggestion);
@@ -610,7 +612,7 @@ const Editor = () => {
     // Check if this is an AI suggestion
     const aiStorage = editor.storage?.aiSuggestion;
     const aiSuggestions = typeof aiStorage?.getSuggestions === 'function' ? aiStorage.getSuggestions() : [];
-    const aiSuggestion = aiSuggestions.find((s: any) => s.id === suggestionId);
+    const aiSuggestion = aiSuggestions.find((s: { id: string }) => s.id === suggestionId);
     
     if (aiSuggestion) {
       console.log('Rejecting AI suggestion:', aiSuggestion);
@@ -814,8 +816,8 @@ const Editor = () => {
     if (!editor) return;
 
     const originalDispatch = editor.view.dispatch;
-    
-    editor.view.dispatch = (tr: any) => {
+
+    editor.view.dispatch = (tr: Transaction) => {
       originalDispatch(tr);
       
       if (tr.docChanged && suggestions.length > 0) {
@@ -951,7 +953,7 @@ const Editor = () => {
           variant: "default"
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('AI suggestions failed:', e);
 
       let title = "AI suggestions failed";
@@ -1267,7 +1269,7 @@ const Editor = () => {
                   backgroundColor: rule.backgroundColor,
                 }));
 
-              const config: any = {
+              const config: Record<string, unknown> = {
                 enabled: true,
                 // Using fresh JWT token directly
                 appId: tiptapAppId,

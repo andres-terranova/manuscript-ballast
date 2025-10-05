@@ -1,5 +1,6 @@
 import { useEditor } from '@tiptap/react';
 import { useCallback, useRef } from 'react';
+import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
@@ -32,7 +33,7 @@ interface UseTiptapEditorOptions {
     loadOnStart?: boolean;
     reloadOnUpdate?: boolean;
     onPopoverElementCreate?: (element: HTMLElement | null) => void;
-    onSelectedSuggestionChange?: (suggestion: any) => void;
+    onSelectedSuggestionChange?: (suggestion: unknown) => void;
   };
 }
 
@@ -47,7 +48,7 @@ export const useTiptapEditor = ({
   aiSuggestionConfig
 }: UseTiptapEditorOptions) => {
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<Editor | null>(null);
   
   const debouncedUpdate = useCallback((html: string, text: string) => {
     if (updateTimeoutRef.current) {
@@ -114,7 +115,7 @@ export const useTiptapEditor = ({
             chunkSize: 10,          // TEST: Using 10 nodes per chunk (was 20, failed with 150s timeout)
 
             // 🆕 CUSTOM RESOLVER FOR LARGE DOCUMENTS
-            async resolver({ defaultResolver, rules, ...options }: any) {
+            async resolver({ defaultResolver, rules, ...options }: { defaultResolver: (opts: unknown) => Promise<unknown>; rules: unknown; [key: string]: unknown }) {
               const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
               const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -122,7 +123,7 @@ export const useTiptapEditor = ({
                 ...options,
                 rules,
 
-                apiResolver: async ({ html, htmlChunks, rules }: any) => {
+                apiResolver: async ({ html, htmlChunks, rules }: { html: string; htmlChunks: Array<{ html: string; id: string }>; rules: Array<{ id: string; prompt: string; title: string }> }) => {
                   const allSuggestions = [];
                   const startTime = Date.now();
 
@@ -153,7 +154,7 @@ export const useTiptapEditor = ({
                         body: JSON.stringify({
                           html: chunk.html,
                           chunkId: chunk.id,
-                          rules: rules.map((r: any) => ({
+                          rules: rules.map((r) => ({
                             id: r.id,
                             prompt: r.prompt,
                             title: r.title
@@ -222,13 +223,13 @@ export const useTiptapEditor = ({
               console.error('AI Suggestions loading error:', {
                 error: error,
                 message: error.message,
-                status: (error as any).status,
+                status: (error as { status?: number }).status,
                 context: context,
                 timestamp: new Date().toISOString()
               });
             },
             // Add custom suggestion decoration for popover
-            getCustomSuggestionDecoration: ({ suggestion, isSelected, getDefaultDecorations }: { suggestion: any; isSelected: boolean; getDefaultDecorations: () => any[] }) => {
+            getCustomSuggestionDecoration: ({ suggestion, isSelected, getDefaultDecorations }: { suggestion: unknown; isSelected: boolean; getDefaultDecorations: () => unknown[] }) => {
               const decorations = getDefaultDecorations();
 
               // Add popover element when suggestion is selected

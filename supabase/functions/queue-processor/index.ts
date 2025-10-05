@@ -10,7 +10,7 @@ interface QueueJob {
   id: string;
   manuscript_id: string;
   job_type: string;
-  progress_data: any;
+  progress_data: Record<string, unknown>;
   attempts: number;
   max_attempts: number;
 }
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
 /**
  * Process DOCX job from queue
  */
-async function processDocxJob(supabase: any, job: QueueJob) {
+async function processDocxJob(supabase: unknown, job: QueueJob) {
   console.log(`Processing DOCX for manuscript ${job.manuscript_id}`);
 
   // Get manuscript details
@@ -368,7 +368,7 @@ function createExcerpt(plainText: string, maxLength: number = 200): string {
 /**
  * Process AI suggestions job from queue
  */
-async function processAISuggestionsJob(supabase: any, job: QueueJob) {
+async function processAISuggestionsJob(supabase: unknown, job: QueueJob) {
   console.log(`Processing AI suggestions for manuscript ${job.manuscript_id}`);
 
   // Get manuscript details
@@ -456,7 +456,7 @@ async function processAISuggestionsJob(supabase: any, job: QueueJob) {
 /**
  * Store AI suggestion results in database
  */
-async function storeAISuggestionResults(supabase: any, manuscriptId: string, jobId: string, suggestions: any[]) {
+async function storeAISuggestionResults(supabase: unknown, manuscriptId: string, jobId: string, suggestions: unknown[]) {
   const { error } = await supabase
     .from('ai_suggestion_results')
     .insert({

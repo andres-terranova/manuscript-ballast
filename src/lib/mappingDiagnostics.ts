@@ -7,7 +7,7 @@ export type DiagnosticEvent = {
   success: boolean;
   itemCount: number;
   timingMs: number;
-  details?: any;
+  details?: unknown;
 };
 
 export type MappingStats = {

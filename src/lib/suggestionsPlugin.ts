@@ -172,7 +172,7 @@ export const SuggestionsExtension = Extension.create({
         },
         
         // Helper to get current plugin positions
-        getPositions(state: any): PluginSuggestion[] {
+        getPositions(state: unknown): PluginSuggestion[] {
           const pluginState = this.getState(state);
           return pluginState?.positions || [];
         }
