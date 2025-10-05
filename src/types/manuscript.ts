@@ -54,7 +54,11 @@ export interface Manuscript {
   docxFilePath: string;
   originalFilename: string;
   fileSize: number;
-  
+
+  // Metadata
+  wordCount: number;
+  characterCount: number;
+
   // Derived data
   changes?: ChangeData[];
   comments?: CommentData[];
@@ -157,7 +161,11 @@ export function dbToFrontend(dbManuscript: ManuscriptDB): Manuscript {
     docxFilePath: dbManuscript.docx_file_path,
     originalFilename: dbManuscript.original_filename,
     fileSize: dbManuscript.file_size,
-    
+
+    // Metadata
+    wordCount: dbManuscript.word_count,
+    characterCount: dbManuscript.character_count,
+
     // Convert suggestions to changes for backward compatibility
     changes: dbManuscript.suggestions.map(s => ({
       id: s.id,

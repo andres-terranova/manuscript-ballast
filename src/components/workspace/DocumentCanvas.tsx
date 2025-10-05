@@ -14,7 +14,7 @@ import type { CheckItem } from "@/lib/styleValidator";
 import type { SuggestionType } from "@/lib/types";
 
 interface DocumentCanvasProps {
-  manuscript: any;
+  manuscript: unknown;
   suggestions?: UISuggestion[];
   isReadOnly?: boolean;
   onCreateSuggestion?: (data: { mode: SuggestionType; after: string; note: string }) => void;
@@ -35,9 +35,8 @@ interface DocumentCanvasProps {
     }>;
     loadOnStart?: boolean;
     reloadOnUpdate?: boolean;
-    debounceTimeout?: number;
     onPopoverElementCreate?: (element: HTMLElement | null) => void;
-    onSelectedSuggestionChange?: (suggestion: any) => void;
+    onSelectedSuggestionChange?: (suggestion: unknown) => void;
   };
 }
 

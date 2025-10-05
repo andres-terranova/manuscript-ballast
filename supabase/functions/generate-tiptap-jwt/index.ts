@@ -1,0 +1,86 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import * as jose from 'https://deno.land/x/jose@v5.1.0/index.ts'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    const TIPTAP_CONTENT_AI_SECRET = Deno.env.get('TIPTAP_CONTENT_AI_SECRET')
+    const TIPTAP_APP_ID = Deno.env.get('TIPTAP_APP_ID')
+
+    if (!TIPTAP_CONTENT_AI_SECRET || !TIPTAP_APP_ID) {
+      console.error('Missing TipTap environment variables')
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    const requestData = await req.json()
+    const userId = requestData.userId || 'anonymous'
+
+    const now = Math.floor(Date.now() / 1000)
+    const expiresIn = 86400 // 24 hours (prevents editor reload during long AI Pass operations)
+
+    // Create simple JWT payload - TipTap accepts any valid JWT signed with Content AI Secret
+    // Verified working with online JWT builder (docs/guides/static_jwt_online_tool.md)
+    const payload = {
+      iss: "manuscript-ballast-server",
+      iat: now,
+      exp: now + expiresIn,
+      sub: userId
+    }
+
+    // Create JWT using the Content AI Secret
+    const secret = new TextEncoder().encode(TIPTAP_CONTENT_AI_SECRET)
+    const jwt = await new jose.SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .sign(secret)
+
+    console.log('Generated JWT for user:', userId)
+    console.log('JWT expires at:', new Date((now + expiresIn) * 1000).toISOString())
+
+    return new Response(
+      JSON.stringify({
+        jwt,
+        appId: TIPTAP_APP_ID,
+        expiresIn,
+        expiresAt: now + expiresIn
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    )
+  } catch (error) {
+    console.error('Error generating JWT:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to generate JWT', details: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    )
+  }
+})

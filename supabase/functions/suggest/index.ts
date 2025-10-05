@@ -68,40 +68,40 @@ function checkRateLimit(clientId: string): boolean {
   return true;
 }
 
-function chunkText(text: string): string[] {
-  // Reduce threshold to 5000 chars to handle large texts better
-  if (text.length <= 5000) {
+function chunkText(text: string, chunkSize: number = 4000): string[] {
+  // Use configurable chunk size (default 4000 chars)
+  if (text.length <= chunkSize) {
     return [text];
   }
-  
+
   const chunks: string[] = [];
   const paragraphs = text.split('\n\n');
   let currentChunk = '';
-  
+
   for (const paragraph of paragraphs) {
-    // Use smaller chunk size of 2000 chars for faster processing
-    if (currentChunk.length + paragraph.length + 2 > 2000 && currentChunk.length > 0) {
+    if (currentChunk.length + paragraph.length + 2 > chunkSize && currentChunk.length > 0) {
       chunks.push(currentChunk.trim());
       currentChunk = paragraph;
     } else {
       currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
     }
   }
-  
+
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
-  
-  // Limit total chunks to prevent timeouts
-  if (chunks.length > 20) {
-    console.log(`Text too large (${chunks.length} chunks), limiting to first 20 chunks`);
-    return chunks.slice(0, 20);
+
+  // Dynamic max chunks based on document size (no arbitrary 20-chunk limit)
+  const maxChunks = Math.min(150, Math.ceil(text.length / 2000)); // Allow up to 150 chunks
+  if (chunks.length > maxChunks) {
+    console.log(`Text too large (${chunks.length} chunks), limiting to first ${maxChunks} chunks`);
+    return chunks.slice(0, maxChunks);
   }
-  
+
   return chunks;
 }
 
-async function generateSuggestions(text: string, scope: string, rules: string[]): Promise<any> {
+async function generateSuggestions(text: string, scope: string, rules: string[]): Promise<{ suggestions: unknown[] }> {
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiApiKey) {
     throw new Error('OpenAI API key not configured');
@@ -218,7 +218,7 @@ serve(async (req) => {
     const chunks = chunkText(text);
     console.log(`Processing ${text.length} characters in ${chunks.length} chunks`);
 
-    let allSuggestions: any[] = [];
+    const allSuggestions: unknown[] = [];
     let currentOffset = 0;
 
     // Process chunks with timeout
@@ -230,7 +230,7 @@ serve(async (req) => {
         );
 
         // Shift indices by current offset
-        const shiftedSuggestions = result.suggestions.map((suggestion: any) => ({
+        const shiftedSuggestions = result.suggestions.map((suggestion: Record<string, unknown>) => ({
           ...suggestion,
           start: suggestion.start + currentOffset,
           end: suggestion.end + currentOffset,

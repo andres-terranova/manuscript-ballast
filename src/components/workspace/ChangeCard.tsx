@@ -14,6 +14,7 @@ interface ChangeCardProps {
   isBusy?: boolean;
   onSuggestionClick: (suggestionId: string) => void;
   getNextFocusableCard: (index: number) => string;
+  onTriggerPopover?: (suggestionId: string) => void;
 }
 
 const getSuggestionIcon = (type: SuggestionType) => {
@@ -59,14 +60,15 @@ const getSuggestionRuleColor = (ruleId: string | undefined): string => {
   return ruleColorMap[ruleId || ''] || '#6B7280';
 };
 
-export const ChangeCard = memo<ChangeCardProps>(({ 
-  suggestion, 
-  index, 
-  onAccept, 
-  onReject, 
-  isBusy = false, 
-  onSuggestionClick, 
-  getNextFocusableCard 
+export const ChangeCard = memo<ChangeCardProps>(({
+  suggestion,
+  index,
+  onAccept,
+  onReject,
+  isBusy = false,
+  onSuggestionClick,
+  getNextFocusableCard,
+  onTriggerPopover
 }) => {
   const handleCardKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
+import type { Editor as TiptapEditor } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,6 +23,7 @@ import { useActiveStyleRules } from "@/hooks/useActiveStyleRules";
 import { type CheckItem, runDeterministicChecks } from "@/lib/styleValidator";
 import { testTiptapAuth, validateJWTFormat } from "@/utils/testTiptapAuth";
 import { SuggestionPopover } from "./SuggestionPopover";
+import { useTiptapJWT } from "@/hooks/useTiptapJWT";
 
 import { 
   RotateCcw, 
@@ -38,9 +41,11 @@ import { ChangeList } from "./ChangeList";
 import { ChecksList } from "./ChecksList";
 import { ProcessingStatus } from "./ProcessingStatus";
 import AIEditorRuleSelector from "./AIEditorRuleSelector";
-import { AI_EDITOR_RULES, type AIEditorRule } from "./AIEditorRules";
+import type { AIEditorRule } from "@/types/aiEditorRules";
+import { supabase } from "@/integrations/supabase/client";
+import { ManuscriptService } from "@/services/manuscriptService";
 
-const ExperimentalEditor = () => {
+const Editor = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -54,6 +59,36 @@ const ExperimentalEditor = () => {
   const [showRunAIModal, setShowRunAIModal] = useState(false);
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
+  const aiCancelledRef = useRef(false);
+
+  // Handle cancelling AI suggestions
+  const handleCancelAI = useCallback(() => {
+    const editor = getGlobalEditor();
+    if (!editor) return;
+
+    try {
+      // Set cancellation flag
+      aiCancelledRef.current = true;
+
+      // Abort the ongoing AI suggestion request
+      editor.storage.aiSuggestion.abortController.abort();
+
+      // Close the modal
+      setShowToolRunning(false);
+
+      toast({
+        title: "AI Pass Cancelled",
+        description: "AI suggestion generation has been stopped.",
+      });
+    } catch (error) {
+      console.error('Error cancelling AI suggestions:', error);
+      toast({
+        title: "Cancel Failed",
+        description: "Unable to cancel AI suggestions.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   
@@ -69,7 +104,7 @@ const ExperimentalEditor = () => {
   
   // AI Suggestion Popover state
   const [popoverElement, setPopoverElement] = useState<HTMLElement | null>(null);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<UISuggestion | null>(null);
   const [processingAction, setProcessingAction] = useState(false);
   
   // Style checks state
@@ -86,7 +121,24 @@ const ExperimentalEditor = () => {
 
   // Style Rules Management
   const activeStyleRules = useActiveStyleRules(manuscript?.id || "");
-  
+
+
+  // TipTap Authentication using production JWT system
+  const { token: tiptapToken, appId: tiptapAppId, isLoading: jwtLoading, error: jwtError, refreshToken } = useTiptapJWT();
+
+  // Debug authentication state
+  useEffect(() => {
+    console.log('🔑 TipTap Auth:', {
+      hasAppId: !!tiptapAppId,
+      hasToken: !!tiptapToken,
+      jwtLoading,
+      jwtError,
+      appId: tiptapAppId,
+      tokenLength: tiptapToken?.length || 0,
+      status: tiptapToken ? '🟢 Server JWT Active' : '⚠️ No Token'
+    });
+  }, [tiptapAppId, tiptapToken, jwtLoading, jwtError]);
+
   // Read-only state derived from manuscript status
   const isReviewed = manuscript?.status === "Reviewed";
 
@@ -94,8 +146,9 @@ const ExperimentalEditor = () => {
   const [aiSuggestionsEnabled, setAiSuggestionsEnabled] = useState(false);
   
   // AI Editor Rules state
-  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>(['copy-editor', 'line-editor']);
-  const [availableRules, setAvailableRules] = useState<AIEditorRule[]>(AI_EDITOR_RULES);
+  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
+  const [availableRules, setAvailableRules] = useState<AIEditorRule[]>([]);
+  const [rulesInitialized, setRulesInitialized] = useState(false);
   
   const handleOpenStyleRules = () => {
     setTempStyleRules(activeStyleRules);
@@ -140,12 +193,47 @@ const ExperimentalEditor = () => {
       console.log('No editor found');
       return;
     }
-    
+
     console.log('Running checks with rules:', activeStyleRules);
     const results = runDeterministicChecks(editor, activeStyleRules);
     console.log('Check results:', results);
     refreshChecksWithResults(results);
   };
+
+  const updateEditorRules = useCallback((rules: AIEditorRule[]) => {
+    const editor = getGlobalEditor();
+    if (!editor) {
+      console.warn('Editor not available for rule update');
+      return;
+    }
+
+    try {
+      // Get only enabled rules
+      const enabledRules = rules
+        .filter(r => r.enabled)
+        .map(rule => ({
+          id: rule.id,
+          title: rule.title,
+          prompt: rule.prompt,
+          color: rule.color,
+          backgroundColor: rule.backgroundColor,
+        }));
+
+      // Update editor with new rules
+      editor.chain()
+        .setAiSuggestionRules(enabledRules)
+        .run();
+
+      console.log('✅ Editor rules updated:', enabledRules.length, 'enabled rules');
+    } catch (error) {
+      console.error('Failed to update editor rules:', error);
+      toast({
+        title: "Editor Update Failed",
+        description: "Rules were saved but editor needs refresh.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   const handleJumpToCheck = (check: CheckItem) => {
     const el = document.getElementById(`check-span-${check.id}`);
@@ -207,14 +295,14 @@ const ExperimentalEditor = () => {
   }, [showChecks]);
 
   // Helper functions for TipTap operations
-  const withEditorTransaction = (editor: any, fn: (tr: any) => void) => {
+  const withEditorTransaction = (editor: TiptapEditor, fn: (tr: Transaction) => void) => {
     const { state, view } = editor;
-    let tr = state.tr;
+    const tr = state.tr;
     fn(tr);
     view.dispatch(tr);
   };
 
-  const getPMText = (editor: any, from: number, to: number): string => {
+  const getPMText = (editor: TiptapEditor, from: number, to: number): string => {
     const { state } = editor;
     return state.doc.textBetween(from, to, "\n", "\n");
   };
@@ -239,7 +327,7 @@ const ExperimentalEditor = () => {
   };
 
   // Convert AI suggestions to UISuggestion format for ChangeList
-  const convertAiSuggestionsToUI = (editor: any): UISuggestion[] => {
+  const convertAiSuggestionsToUI = (editor: TiptapEditor): UISuggestion[] => {
     try {
       // Use extensionStorage as documented in TipTap docs
       const aiStorage = editor.extensionStorage?.aiSuggestion;
@@ -254,8 +342,8 @@ const ExperimentalEditor = () => {
         : [];
         
       console.log(`📝 Converting ${aiSuggestions.length} AI suggestions to UI format`);
-      
-      return aiSuggestions.map((suggestion: any, index: number) => {
+
+      return aiSuggestions.map((suggestion: unknown, index: number) => {
         // Extract rule information from the TipTap suggestion
         const ruleId = suggestion.rule?.id || suggestion.ruleId;
         const ruleTitle = suggestion.rule?.title || getRuleTitle(ruleId);
@@ -288,39 +376,79 @@ const ExperimentalEditor = () => {
     }
   };
 
-  // Simple async waiting using TipTap's official loading state
-  const waitForAiSuggestions = async (editor: any): Promise<UISuggestion[]> => {
-    console.log('🔄 Waiting for AI suggestions using extension loading state...');
-    
-    const startTime = Date.now();
-    
-    // Use extensionStorage as documented in TipTap docs
+  // Event-based waiting using TipTap's transaction events (no polling)
+  const waitForAiSuggestions = async (editor: TiptapEditor): Promise<UISuggestion[]> => {
+    console.log('🔄 Waiting for AI suggestions using transaction events...');
+
     const storage = editor.extensionStorage?.aiSuggestion;
     if (!storage) {
       console.error('❌ AI Suggestion extension storage not found');
       return [];
     }
-    
-    // Simple polling while loading - no timeout, let it take as long as needed
-    while (storage.isLoading) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`⏳ AI suggestions loading... (${elapsed}s elapsed)`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    const finalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    
-    // Check for errors
-    if (storage.error) {
-      console.error(`❌ AI loading error after ${finalElapsed}s:`, storage.error);
-      return [];
-    }
-    
-    // Get suggestions using the documented method
-    const suggestions = storage.getSuggestions();
-    console.log(`🎉 AI suggestions loaded after ${finalElapsed}s - found ${suggestions.length} suggestions`);
-    
-    return convertAiSuggestionsToUI(editor);
+
+    const startTime = Date.now();
+
+    return new Promise((resolve, reject) => {
+      let intervalId: NodeJS.Timeout | null = null;
+
+      const checkCompletion = ({ editor }: { editor: TiptapEditor }) => {
+        // Check if cancelled
+        if (aiCancelledRef.current) {
+          console.log('🚫 AI suggestions cancelled by user');
+          cleanup();
+          resolve([]); // Resolve with empty array
+          return;
+        }
+
+        const storage = editor.extensionStorage?.aiSuggestion;
+
+        if (!storage) {
+          cleanup();
+          reject(new Error('Extension storage not available'));
+          return;
+        }
+
+        // Check if loading completed
+        if (!storage.isLoading) {
+          cleanup();
+
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+          if (storage.error) {
+            console.error(`❌ AI loading error after ${elapsed}s:`, storage.error);
+            resolve([]);
+          } else {
+            const suggestions = storage.getSuggestions();
+            console.log(`🎉 AI suggestions loaded after ${elapsed}s - found ${suggestions.length} suggestions`);
+            resolve(convertAiSuggestionsToUI(editor));
+          }
+        }
+      };
+
+      const cleanup = () => {
+        editor.off('transaction', checkCompletion);
+        if (intervalId) clearInterval(intervalId);
+      };
+
+      // Listen for transaction events (fires when storage.isLoading changes)
+      editor.on('transaction', checkCompletion);
+
+      // Also log progress every 5s for visibility
+      intervalId = setInterval(() => {
+        // Check if cancelled
+        if (aiCancelledRef.current) {
+          cleanup();
+          resolve([]);
+          return;
+        }
+
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`⏳ AI suggestions loading... (${elapsed}s elapsed)`);
+      }, 5000);
+
+      // Check immediately in case already loaded
+      checkCompletion({ editor });
+    });
   };
 
 
@@ -342,18 +470,38 @@ const ExperimentalEditor = () => {
 
   const handlePopoverReject = (suggestionId: string) => {
     if (processingAction) return; // Prevent double-clicks
-    
+
     console.log('🎯 Popover Reject clicked:', suggestionId);
     setProcessingAction(true);
-    
+
     // Clear popover immediately
     setPopoverElement(null);
     setSelectedSuggestion(null);
-    
+
     // Execute action and reset state
     handleRejectSuggestion(suggestionId);
     setTimeout(() => setProcessingAction(false), 500);
   };
+
+  // Handle triggering popover from change list clicks
+  const handleTriggerPopover = useCallback((suggestionId: string) => {
+    const editor = getGlobalEditor();
+    if (!editor) {
+      console.warn('Editor not available for popover trigger');
+      return;
+    }
+
+    console.log('🎯 Triggering popover for suggestion:', suggestionId);
+
+    // Use TipTap's native command to select the AI suggestion
+    // This will trigger the existing popover system automatically
+    if (editor.commands.selectAiSuggestion) {
+      const result = editor.commands.selectAiSuggestion(suggestionId);
+      console.log('TipTap selectAiSuggestion result:', result);
+    } else {
+      console.warn('selectAiSuggestion command not available');
+    }
+  }, []);
 
   // Accept/Reject handlers for AI suggestions
   const handleAcceptSuggestion = async (suggestionId: string) => {
@@ -363,7 +511,7 @@ const ExperimentalEditor = () => {
     // Check if this is an AI suggestion
     const aiStorage = editor.storage?.aiSuggestion;
     const aiSuggestions = typeof aiStorage?.getSuggestions === 'function' ? aiStorage.getSuggestions() : [];
-    const aiSuggestion = aiSuggestions.find((s: any) => s.id === suggestionId);
+    const aiSuggestion = aiSuggestions.find((s: { id: string }) => s.id === suggestionId);
     
     if (aiSuggestion) {
       console.log('Applying AI suggestion:', aiSuggestion);
@@ -464,7 +612,7 @@ const ExperimentalEditor = () => {
     // Check if this is an AI suggestion
     const aiStorage = editor.storage?.aiSuggestion;
     const aiSuggestions = typeof aiStorage?.getSuggestions === 'function' ? aiStorage.getSuggestions() : [];
-    const aiSuggestion = aiSuggestions.find((s: any) => s.id === suggestionId);
+    const aiSuggestion = aiSuggestions.find((s: { id: string }) => s.id === suggestionId);
     
     if (aiSuggestion) {
       console.log('Rejecting AI suggestion:', aiSuggestion);
@@ -668,8 +816,8 @@ const ExperimentalEditor = () => {
     if (!editor) return;
 
     const originalDispatch = editor.view.dispatch;
-    
-    editor.view.dispatch = (tr: any) => {
+
+    editor.view.dispatch = (tr: Transaction) => {
       originalDispatch(tr);
       
       if (tr.docChanged && suggestions.length > 0) {
@@ -693,7 +841,7 @@ const ExperimentalEditor = () => {
     };
   }, [suggestions.length]);
 
-  // Handle Run AI Pass - EXPERIMENTAL VERSION using AI Suggestion extension
+  // Handle Run AI Pass - Enhanced version with large document support
   const handleRunAIPass = async () => {
     if (selectedRuleIds.length === 0) {
       toast({
@@ -706,39 +854,34 @@ const ExperimentalEditor = () => {
 
     setShowRunAIModal(false);
     setShowToolRunning(true);
-    
+
     try {
       const editor = getGlobalEditor();
       if (!editor) {
         throw new Error('Editor not available');
       }
 
+      const documentText = editor.getText();
+      const documentLength = documentText.length;
+      const isLargeDocument = documentLength > 100000; // 100K chars threshold
+
       console.log('Starting AI Pass...');
-      console.log('Editor:', editor);
-      console.log('Editor storage:', editor.storage);
-      console.log('AI Storage:', editor.storage?.aiSuggestion);
-      console.log('Available commands:', Object.keys(editor.commands));
-      console.log('Extensions:', editor.extensionManager.extensions.map(ext => ext.name));
-      console.log('Document content:', editor.getText());
-      console.log('Document length:', editor.getText().length);
+      console.log('Document length:', documentLength);
+      console.log('Is large document:', isLargeDocument);
+
+      // Reset cancellation flag for new AI Pass
+      aiCancelledRef.current = false;
+
+      // Check token availability
+      if (!tiptapToken || !tiptapAppId) {
+        await refreshToken();
+        if (!tiptapToken || !tiptapAppId) {
+          throw new Error('TipTap credentials not available. Please check environment variables and Supabase function.');
+        }
+      }
 
       // Test authentication before proceeding
-      const appId = 'pkry1n5m'; // Your TipTap App ID
-      // Using TipTap's provided test JWT (temporary for testing)
-      const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NTg1NTI0ODgsIm5iZiI6MTc1ODU1MjQ4OCwiZXhwIjoxNzU4NjM4ODg4LCJpc3MiOiJodHRwczovL2Nsb3VkLnRpcHRhcC5kZXYiLCJhdWQiOiJjMWIzMmE5Mi0zYzFmLTRiNDktYWI2Yi1mYjVhN2E2MTc4YTgifQ.Yy4UdTVF-FGOfM28-gVHnP8AYt2Uf-Vgr2yMbWv98KE';
-      
-      console.log('🧪 Testing with TipTap provided JWT...');
-      console.log('Token format check:', {
-        appId,
-        tokenLength: token.length,
-        tokenParts: token.split('.').length,
-        isValidJWT: token.split('.').length === 3,
-        tokenStart: token.substring(0, 50) + '...'
-      });
-      
-      const authTest = await testTiptapAuth(appId, token);
-      console.log('Auth test result:', authTest);
-      
+      const authTest = await testTiptapAuth(tiptapAppId, tiptapToken);
       if (!authTest.success) {
         console.error('Authentication test failed:', authTest);
         throw new Error(`Authentication failed: ${authTest.error}. Please check your credentials and allowed origins in TipTap dashboard.`);
@@ -756,7 +899,7 @@ const ExperimentalEditor = () => {
         }));
 
       console.log('Setting AI suggestion rules:', selectedRules);
-      
+
       // Update the rules in the editor
       if (editor.commands.setAiSuggestionRules) {
         editor.chain().setAiSuggestionRules(selectedRules).run();
@@ -770,41 +913,52 @@ const ExperimentalEditor = () => {
         throw new Error('AI Suggestion extension not loaded. Check your TipTap Pro credentials.');
       }
 
-      // Check if loadAiSuggestions command is available
+      // Use TipTap's built-in AI suggestion loading with native chunking
+      console.log(`Processing document with ${documentLength} characters...`);
+
+      if (isLargeDocument) {
+        toast({
+          title: "Processing large document",
+          description: `Document is ${Math.round(documentLength/1000)}K characters. TipTap will process in chunks with native caching.`,
+          duration: 5000
+        });
+      }
+
       if (!editor.commands.loadAiSuggestions) {
         throw new Error('loadAiSuggestions command not available. Check extension configuration.');
       }
 
-      console.log('Triggering AI suggestions...');
-      
-      // Load AI suggestions using the correct TipTap API
+      // Trigger AI suggestions (TipTap's native chunking will handle large documents)
       const result = editor.chain().loadAiSuggestions().run();
       console.log('Load AI suggestions result:', result);
-      
-      // Wait for AI suggestions to be generated with proper async monitoring
+
+      // Wait for suggestions (timeout handled internally by function)
       const uiSuggestions = await waitForAiSuggestions(editor);
-      
-      console.log('🎯 Final result: Generated', uiSuggestions.length, 'AI suggestions');
+
+      console.log('Generated', uiSuggestions.length, 'AI suggestions');
       setSuggestions(uiSuggestions);
-      
+
       if (uiSuggestions.length > 0) {
         toast({
-          title: `Generated ${uiSuggestions.length} AI suggestion${uiSuggestions.length === 1 ? "" : "s"}.`,
-          description: "Review suggestions in the editor and change list."
+          title: `Generated ${uiSuggestions.length} AI suggestions`,
+          description: isLargeDocument
+            ? `Processed ${Math.round(documentLength/1000)}K characters successfully. Review suggestions in the editor and change list.`
+            : "Review suggestions in the editor and change list."
         });
-      } else {
+      } else if (!aiCancelledRef.current) {
+        // Only show "no suggestions" toast if not cancelled (cancelled toast already shown)
         toast({
           title: "No suggestions generated",
           description: "The AI didn't find any improvements to suggest for this content.",
           variant: "default"
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('AI suggestions failed:', e);
-      
+
       let title = "AI suggestions failed";
       let msg = "Please try again.";
-      
+
       if (e.message?.includes('Authentication failed')) {
         title = "Authentication Error";
         msg = `${e.message}\n\nTroubleshooting steps:\n1. Verify your .env file has correct VITE_TIPTAP_APP_ID and VITE_TIPTAP_TOKEN\n2. Add ${window.location.origin} to Allowed Origins in TipTap dashboard\n3. Restart your dev server`;
@@ -818,7 +972,7 @@ const ExperimentalEditor = () => {
         title = "Editor error";
         msg = "Editor is not ready. Please try again.";
       }
-      
+
       toast({
         title,
         description: msg,
@@ -828,6 +982,7 @@ const ExperimentalEditor = () => {
       setShowToolRunning(false);
     }
   };
+
 
   // Handle Mark Reviewed
   const handleMarkReviewed = () => {
@@ -854,19 +1009,19 @@ const ExperimentalEditor = () => {
 
   useEffect(() => {
     const loadManuscript = async () => {
-      console.log('[ExperimentalEditor] Loading manuscript with ID:', id);
-      
+      console.log('[Editor] Loading manuscript with ID:', id);
+
       if (!id) {
-        console.log('[ExperimentalEditor] No ID provided, redirecting to dashboard');
+        console.log('[Editor] No ID provided, redirecting to dashboard');
         navigate("/dashboard");
         return;
       }
-      
+
       setIsLoading(true);
-      console.log('[ExperimentalEditor] Set loading to true');
+      console.log('[Editor] Set loading to true');
       
       let found = getManuscriptById(id);
-      console.log('[ExperimentalEditor] Found manuscript:', found);
+      console.log('[Editor] Found manuscript:', found);
       
       if (!found && retryCount < maxRetries) {
         try {
@@ -916,10 +1071,10 @@ const ExperimentalEditor = () => {
     }
   };
 
-  console.log('[ExperimentalEditor] Render state:', { isLoading, notFound, manuscript: !!manuscript });
+  console.log('[Editor] Render state:', { isLoading, notFound, manuscript: !!manuscript });
 
   if (isLoading) {
-    console.log('[ExperimentalEditor] Rendering loading state');
+    console.log('[Editor] Rendering loading state');
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -989,9 +1144,18 @@ const ExperimentalEditor = () => {
                   <Settings2 className="mr-2 h-4 w-4" />
                   <span className="hidden xl:inline">Style Rules</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowRunAIModal(true)}>
-                  <Play className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Run AI Pass</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRunAIModal(true)}
+                  disabled={!tiptapToken || !tiptapAppId || jwtLoading}
+                  title={jwtError ? `JWT Error: ${jwtError}` : undefined}
+                >
+                  {jwtLoading ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading JWT...</span></>
+                  ) : (
+                    <><Play className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
+                  )}
                 </Button>
               </>
             )}
@@ -1046,14 +1210,34 @@ const ExperimentalEditor = () => {
         {/* Document Canvas - Left Column */}
         <div id="document-canvas" className="flex-1 min-h-0 overflow-hidden">
           {isReviewed && (
-            <div 
-              data-testid="reviewed-banner" 
+            <div
+              data-testid="reviewed-banner"
               className="bg-green-50 border-b border-green-200 px-4 lg:px-6 py-2 text-sm text-green-800"
             >
               Reviewed — read-only
             </div>
           )}
-          <DocumentCanvas 
+          {/* Wait for JWT before rendering editor to ensure AiSuggestion extension is loaded */}
+          {jwtLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">Initializing editor...</p>
+              </div>
+            </div>
+          ) : jwtError ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-md">
+                <div className="text-4xl mb-4">⚠️</div>
+                <h3 className="text-lg font-semibold mb-2">JWT Authentication Error</h3>
+                <p className="text-muted-foreground mb-4">{jwtError}</p>
+                <Button onClick={refreshToken} variant="outline">
+                  Retry
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <DocumentCanvas 
             manuscript={{...manuscript, contentText}} 
             suggestions={isReviewed ? [] : suggestions}
             isReadOnly={isReviewed}
@@ -1064,6 +1248,16 @@ const ExperimentalEditor = () => {
             maxVisibleChecks={maxVisibleChecks}
             // Enable AI suggestions for experimental editor
             aiSuggestionConfig={(() => {
+              // Only enable if credentials are available
+              if (!tiptapToken || !tiptapAppId) {
+                return {
+                  enabled: false,
+                  appId: undefined,
+                  token: undefined,
+                  rules: [],
+                };
+              }
+
               // Get selected rules from available rules
               const selectedRules = availableRules
                 .filter(rule => selectedRuleIds.includes(rule.id))
@@ -1075,15 +1269,14 @@ const ExperimentalEditor = () => {
                   backgroundColor: rule.backgroundColor,
                 }));
 
-              const config: any = {
+              const config: Record<string, unknown> = {
                 enabled: true,
-                // Using TipTap's provided test JWT (temporary for testing)
-                appId: 'pkry1n5m',
-                token: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NTg1NTI0ODgsIm5iZiI6MTc1ODU1MjQ4OCwiZXhwIjoxNzU4NjM4ODg4LCJpc3MiOiJodHRwczovL2Nsb3VkLnRpcHRhcC5kZXYiLCJhdWQiOiJjMWIzMmE5Mi0zYzFmLTRiNDktYWI2Yi1mYjVhN2E2MTc4YTgifQ.Yy4UdTVF-FGOfM28-gVHnP8AYt2Uf-Vgr2yMbWv98KE',
+                // Using fresh JWT token directly
+                appId: tiptapAppId,
+                token: tiptapToken,
                 rules: selectedRules,
                 loadOnStart: false, // Disable automatic loading as requested
                 reloadOnUpdate: false, // Don't reload on every edit
-                debounceTimeout: 1000,
                 // Popover configuration
                 onPopoverElementCreate: setPopoverElement,
                 onSelectedSuggestionChange: setSelectedSuggestion,
@@ -1091,6 +1284,7 @@ const ExperimentalEditor = () => {
               return config;
             })()}
           />
+          )}
         </div>
 
         {/* Right Sidebar */}
@@ -1120,7 +1314,7 @@ const ExperimentalEditor = () => {
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
               <TabsContent value="changes" className="h-full mt-0">
-                <ChangeList 
+                <ChangeList
                   suggestions={isReviewed ? [] : suggestions}
                   onAcceptSuggestion={handleAcceptSuggestion}
                   onRejectSuggestion={handleRejectSuggestion}
@@ -1129,6 +1323,8 @@ const ExperimentalEditor = () => {
                   showSuggestions={showSuggestions}
                   onToggleSuggestions={setShowSuggestions}
                   onApplyAllSuggestions={handleApplyAllSuggestions}
+                  onTriggerPopover={handleTriggerPopover}
+                  availableRules={availableRules}
                 />
               </TabsContent>
 
@@ -1197,7 +1393,18 @@ const ExperimentalEditor = () => {
             <AIEditorRuleSelector
               selectedRuleIds={selectedRuleIds}
               onRuleSelectionChange={setSelectedRuleIds}
-              onRulesUpdate={setAvailableRules}
+              onRulesUpdate={(rules) => {
+                setAvailableRules(rules);
+                updateEditorRules(rules);
+
+                // Initialize selectedRuleIds from database-enabled rules on first load
+                if (!rulesInitialized && rules.length > 0) {
+                  const enabledRuleIds = rules.filter(r => r.enabled).map(r => r.id);
+                  setSelectedRuleIds(enabledRuleIds);
+                  setRulesInitialized(true);
+                  console.log('✅ Initialized selectedRuleIds from database:', enabledRuleIds);
+                }
+              }}
             />
           </div>
 
@@ -1209,13 +1416,13 @@ const ExperimentalEditor = () => {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               id="run-ai-run"
               className="bg-purple-600 text-white hover:bg-purple-700"
               onClick={handleRunAIPass}
-              disabled={selectedRuleIds.length === 0}
+              disabled={selectedRuleIds.length === 0 || !tiptapToken || !tiptapAppId || jwtLoading}
             >
-              Run AI Pass ({selectedRuleIds.length} {selectedRuleIds.length === 1 ? 'role' : 'roles'})
+              {jwtLoading ? 'Loading JWT...' : `Run AI Pass (${selectedRuleIds.length} ${selectedRuleIds.length === 1 ? 'role' : 'roles'})`}
             </Button>
           </div>
         </DialogContent>
@@ -1275,14 +1482,26 @@ const ExperimentalEditor = () => {
       </Sheet>
 
       {/* Tool Running Progress Modal */}
-      <Dialog open={showToolRunning} onOpenChange={setShowToolRunning}>
-        <DialogContent id="tool-running-modal" className="max-w-md">
+      <Dialog open={showToolRunning}>
+        <DialogContent
+          id="tool-running-modal"
+          className="max-w-md [&>button]:hidden"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <div className="text-center py-6">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">AI Suggestions Loading</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-6">
               Generating AI-powered suggestions for your manuscript...
             </p>
+            <Button
+              variant="destructive"
+              onClick={handleCancelAI}
+              className="mt-2"
+            >
+              Cancel
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1300,4 +1519,4 @@ const ExperimentalEditor = () => {
   );
 };
 
-export default ExperimentalEditor;
+export default Editor;

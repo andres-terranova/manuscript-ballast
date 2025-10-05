@@ -10,7 +10,7 @@ interface QueueJob {
   id: string;
   manuscript_id: string;
   job_type: string;
-  progress_data: any;
+  progress_data: Record<string, unknown>;
   attempts: number;
   max_attempts: number;
 }
@@ -74,6 +74,8 @@ Deno.serve(async (req) => {
       // Process the job based on type
       if (job.job_type === 'process_docx') {
         await processDocxJob(supabase, job);
+      } else if (job.job_type === 'generate_ai_suggestions') {
+        await processAISuggestionsJob(supabase, job);
       }
 
       // Mark job as completed
@@ -149,7 +151,7 @@ Deno.serve(async (req) => {
 /**
  * Process DOCX job from queue
  */
-async function processDocxJob(supabase: any, job: QueueJob) {
+async function processDocxJob(supabase: unknown, job: QueueJob) {
   console.log(`Processing DOCX for manuscript ${job.manuscript_id}`);
 
   // Get manuscript details
@@ -360,6 +362,112 @@ function createExcerpt(plainText: string, maxLength: number = 200): string {
     // Otherwise, truncate at word boundary
     const lastSpace = truncated.lastIndexOf(' ');
     return lastSpace > 0 ? truncated.substring(0, lastSpace) + '...' : truncated + '...';
+  }
+}
+
+/**
+ * Process AI suggestions job from queue
+ */
+async function processAISuggestionsJob(supabase: unknown, job: QueueJob) {
+  console.log(`Processing AI suggestions for manuscript ${job.manuscript_id}`);
+
+  // Get manuscript details
+  const { data: manuscript, error: manuscriptError } = await supabase
+    .from('manuscripts')
+    .select('*')
+    .eq('id', job.manuscript_id)
+    .single();
+
+  if (manuscriptError || !manuscript) {
+    throw new Error(`Failed to fetch manuscript: ${manuscriptError?.message}`);
+  }
+
+  if (!manuscript.content_text) {
+    throw new Error('No content text found for manuscript');
+  }
+
+  const { rules = [], scope = 'entire' } = job.progress_data || {};
+  const text = manuscript.content_text;
+
+  // Update progress - starting
+  await supabase
+    .from('processing_queue')
+    .update({
+      progress_data: { ...job.progress_data, step: 'processing', progress: 20 }
+    })
+    .eq('id', job.id);
+
+  // Call the existing suggest edge function that already handles chunking and AI processing
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+
+  try {
+    console.log(`Calling suggest function with ${text.length} characters and rules: ${rules.join(', ')}`);
+
+    // Call the suggest edge function
+    const response = await fetch(`${supabaseUrl}/functions/v1/suggest`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        scope,
+        rules
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Suggest function failed: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    const allSuggestions = result.suggestions || [];
+
+    console.log(`Received ${allSuggestions.length} suggestions from suggest function`);
+
+    // Update progress - storing results
+    await supabase
+      .from('processing_queue')
+      .update({
+        progress_data: {
+          ...job.progress_data,
+          step: 'storing_results',
+          progress: 90,
+          total_suggestions: allSuggestions.length
+        }
+      })
+      .eq('id', job.id);
+
+    // Store suggestions in database
+    await storeAISuggestionResults(supabase, job.manuscript_id, job.id, allSuggestions);
+
+    console.log(`Successfully processed AI suggestions for manuscript ${job.manuscript_id}: ${allSuggestions.length} suggestions`);
+
+  } catch (error) {
+    console.error(`Error processing AI suggestions:`, error);
+    throw error;
+  }
+}
+
+
+/**
+ * Store AI suggestion results in database
+ */
+async function storeAISuggestionResults(supabase: unknown, manuscriptId: string, jobId: string, suggestions: unknown[]) {
+  const { error } = await supabase
+    .from('ai_suggestion_results')
+    .insert({
+      manuscript_id: manuscriptId,
+      job_id: jobId,
+      total_suggestions: suggestions.length,
+      suggestions: suggestions
+    });
+
+  if (error) {
+    throw new Error(`Failed to store AI suggestion results: ${error.message}`);
   }
 }
 

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import type { Editor as TiptapEditor } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -212,14 +214,14 @@ const ManuscriptWorkspace = () => {
   }, [showChecks]); // Dependencies include toggle state
 
   // TipTap Transaction Helper Functions
-  const withEditorTransaction = (editor: any, fn: (tr: any) => void) => {
+  const withEditorTransaction = (editor: TiptapEditor, fn: (tr: Transaction) => void) => {
     const { state, view } = editor;
-    let tr = state.tr;
+    const tr = state.tr;
     fn(tr);
     view.dispatch(tr);
   };
 
-  const getPMText = (editor: any, from: number, to: number): string => {
+  const getPMText = (editor: TiptapEditor, from: number, to: number): string => {
     const { state } = editor;
     return state.doc.textBetween(from, to, "\n", "\n");
   };
@@ -457,8 +459,8 @@ const ManuscriptWorkspace = () => {
     if (!editor) return;
 
     const originalDispatch = editor.view.dispatch;
-    
-    editor.view.dispatch = (tr: any) => {
+
+    editor.view.dispatch = (tr: Transaction) => {
       originalDispatch(tr);
       
       // If document changed, remap suggestion positions
@@ -549,7 +551,7 @@ const ManuscriptWorkspace = () => {
       }
 
       // Map to server suggestions with origin field for AI suggestions
-      const serverSuggestions = (data?.suggestions || []).map((s: any) => ({
+      const serverSuggestions = (data?.suggestions || []).map((s: ServerSuggestion) => ({
         ...s,
         origin: 'server' as const,
         actor: 'Tool' as const
@@ -564,7 +566,7 @@ const ManuscriptWorkspace = () => {
       toast({
         title: `Found ${serverSuggestions.length} suggestion${serverSuggestions.length === 1 ? "" : "s"}.`
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('AI request failed:', e);
       
       let title = "AI request failed";

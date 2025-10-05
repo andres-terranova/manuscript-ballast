@@ -37,7 +37,7 @@ export function refreshChecks(): void {
   }
 }
 
-export function mapAndRefreshSuggestions(serverSuggestions: any[], setUISuggestions: (suggestions: UISuggestion[]) => void): void {
+export function mapAndRefreshSuggestions(serverSuggestions: unknown[], setUISuggestions: (suggestions: UISuggestion[]) => void): void {
   console.log('mapAndRefreshSuggestions called with', serverSuggestions.length, 'server suggestions');
   if (!globalEditor) return;
   

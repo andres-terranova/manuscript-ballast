@@ -6,7 +6,7 @@ import type { UISuggestion, SuggestionType } from "@/lib/types";
 import { isAISuggestion } from "@/lib/types";
 import { ChangeCard } from "./ChangeCard";
 import { MappingDiagnosticsBadge } from "@/components/ui/mapping-diagnostics-badge";
-import { AI_EDITOR_RULES } from "./AIEditorRules";
+import type { AIEditorRule } from "@/types/aiEditorRules";
 
 interface ChangeListProps {
   suggestions: UISuggestion[];
@@ -17,9 +17,22 @@ interface ChangeListProps {
   showSuggestions?: boolean;
   onToggleSuggestions?: (show: boolean) => void;
   onApplyAllSuggestions?: () => void;
+  onTriggerPopover?: (suggestionId: string) => void;
+  availableRules?: AIEditorRule[];
 }
 
-export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion, busySuggestions = new Set(), isReviewed = false, showSuggestions = true, onToggleSuggestions, onApplyAllSuggestions }: ChangeListProps) => {
+export const ChangeList = ({
+  suggestions,
+  onAcceptSuggestion,
+  onRejectSuggestion,
+  busySuggestions = new Set(),
+  isReviewed = false,
+  showSuggestions = true,
+  onToggleSuggestions,
+  onApplyAllSuggestions,
+  onTriggerPopover,
+  availableRules: allAvailableRules = []
+}: ChangeListProps) => {
   const [ruleFilter, setRuleFilter] = useState<"all" | string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25; // Phase 1: reduce from 50 to 25 for better performance
@@ -48,18 +61,16 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
     return filteredSuggestions.slice(start, end);
   }, [filteredSuggestions, currentPage, itemsPerPage]);
 
-  // Get available AI rules from suggestions
-  const availableRules = useMemo(() => {
-    const rulesInUse = new Set<string>();
+  // Get available AI rules from suggestions (filter to only rules that are in use)
+  const rulesInUse = useMemo(() => {
+    const ruleIdsInUse = new Set<string>();
     suggestions.forEach(s => {
       if (isAISuggestion(s) && s.ruleId) {
-        rulesInUse.add(s.ruleId);
+        ruleIdsInUse.add(s.ruleId);
       }
     });
-    return Array.from(rulesInUse).map(ruleId => 
-      AI_EDITOR_RULES.find(r => r.id === ruleId)
-    ).filter(Boolean);
-  }, [suggestions]);
+    return allAvailableRules.filter(r => ruleIdsInUse.has(r.id));
+  }, [suggestions, allAvailableRules]);
 
   const hasNonAISuggestions = useMemo(() => 
     suggestions.some(s => !isAISuggestion(s)), 
@@ -81,6 +92,12 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
       setTimeout(() => {
         element.classList.remove('ring-2', 'ring-primary');
       }, 800);
+    }
+
+    // Trigger popover for AI suggestions
+    const suggestion = suggestions.find(s => s.id === suggestionId);
+    if (suggestion && isAISuggestion(suggestion) && onTriggerPopover) {
+      onTriggerPopover(suggestionId);
     }
   };
 
@@ -131,7 +148,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
       </div>
 
       {/* Rule Filter (AI Editor Roles) */}
-      {(availableRules.length > 0 || hasNonAISuggestions) && (
+      {(rulesInUse.length > 0 || hasNonAISuggestions) && (
         <div className="p-3 border-b border-border" data-testid="changes-filter-group">
           <div className="flex gap-1 flex-wrap">
             <Button
@@ -152,7 +169,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                 Manual
               </Button>
             )}
-            {availableRules.map((rule) => (
+            {rulesInUse.map((rule) => (
               <Button
                 key={rule.id}
                 size="sm"
@@ -189,6 +206,7 @@ export const ChangeList = ({ suggestions, onAcceptSuggestion, onRejectSuggestion
                   isBusy={isBusy}
                   onSuggestionClick={handleSuggestionClick}
                   getNextFocusableCard={getNextFocusableCard}
+                  onTriggerPopover={onTriggerPopover}
                 />
               );
             })

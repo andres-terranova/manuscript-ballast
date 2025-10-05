@@ -45,7 +45,7 @@ export const ChecksExtension = Extension.create({
               const decos: Decoration[] = [];
               for (const c of cappedList) {
                 const from = Math.max(0, c.pmFrom ?? 0);
-                let to = Math.max(from, c.pmTo ?? from);
+                const to = Math.max(from, c.pmTo ?? from);
                 
                 if (to > from) {
                   if (to - from < 2) {

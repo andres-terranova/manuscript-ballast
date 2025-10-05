@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
@@ -26,10 +27,11 @@ const Dashboard = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState<'markdown' | 'docx' | null>(null);
+  const [deleteConfirmManuscript, setDeleteConfirmManuscript] = useState<Manuscript | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loggedIn, logout } = useAuth();
-  const { manuscripts, updateManuscript, addManuscript } = useManuscripts();
+  const { manuscripts, updateManuscript, addManuscript, deleteManuscript } = useManuscripts();
   const { getManuscriptStatus, processingStatuses, isProcessing, processQueue } = useQueueProcessor();
 
   useEffect(() => {
@@ -59,6 +61,18 @@ const Dashboard = () => {
     navigate("/login");
   };
 
+  const handleDeleteManuscript = async () => {
+    if (!deleteConfirmManuscript) return;
+
+    try {
+      await deleteManuscript(deleteConfirmManuscript.id);
+      setDeleteConfirmManuscript(null);
+    } catch (error) {
+      console.error('Failed to delete manuscript:', error);
+      // Error toast is already shown by the context
+    }
+  };
+
   const getStatusBadge = (status: Manuscript['status']) => {
     const statusConfig = {
       'In Review': { color: 'bg-blue-100 text-blue-800' },
@@ -76,23 +90,26 @@ const Dashboard = () => {
     );
   };
 
-  const getBallInCourtIcon = (ballInCourt: Manuscript['ballInCourt']) => {
+  const getBallInCourtIcon = (ballInCourt: Manuscript['ballInCourt'], round: number) => {
     const config = {
       'Editor': { icon: Monitor, tooltip: 'Editor', color: 'text-purple-600' },
       'Author': { icon: User, tooltip: 'Author', color: 'text-blue-600' },
       'Tool': { icon: Settings, tooltip: 'Tool', color: 'text-gray-600' },
       'None': { icon: Clock, tooltip: 'None', color: 'text-gray-400' }
     };
-    
+
     const { icon: Icon, tooltip, color } = config[ballInCourt] || config.None;
-    
+
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-2">
-              <Icon className={`h-4 w-4 ${color}`} />
-              <span className="text-sm text-gray-600">{ballInCourt}</span>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <Icon className={`h-4 w-4 ${color}`} />
+                <span className="text-sm text-gray-600">{ballInCourt}</span>
+              </div>
+              <span className="text-xs text-gray-400 ml-6">Round {round}</span>
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -109,6 +126,10 @@ const Dashboard = () => {
       day: 'numeric',
       year: 'numeric'
     }).format(new Date(isoDate));
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('en-US').format(num);
   };
 
   const validateFile = (file: File): { valid: boolean; error?: string; type?: 'markdown' | 'docx' } => {
@@ -185,18 +206,15 @@ const Dashboard = () => {
       
       toast({
         title: "Imported from Markdown",
-        description: `Successfully imported "${frontendManuscript.title}".`,
+        description: `Successfully imported "${frontendManuscript.title}". You can now click it in the table to open the editor.`,
       });
-      
+
       setShowUploadModal(false);
       setUploadStep(1);
       setSelectedFile(null);
       setFileType(null);
-      
-      // Add a small delay to ensure manuscript is in context before navigation
-      setTimeout(() => {
-        navigate(`/manuscript/${frontendManuscript.id}/experimental`);
-      }, 100);
+
+      // Keep user in dashboard - they can click the manuscript to open it when ready
       
     } catch (error) {
       console.error('Error processing markdown:', error);
@@ -230,7 +248,7 @@ const Dashboard = () => {
         await ManuscriptService.queueDocxProcessing(frontendManuscript.id, filePath);
         toast({
           title: "DOCX Processing Started",
-          description: `"${frontendManuscript.title}" is being processed. You can view its progress in the workspace.`,
+          description: `"${frontendManuscript.title}" is being processed. Watch the status in the table below - you can open it when processing completes.`,
         });
       } catch (processingError) {
         console.error('Failed to start DOCX processing:', processingError);
@@ -245,11 +263,9 @@ const Dashboard = () => {
       setUploadStep(1);
       setSelectedFile(null);
       setFileType(null);
-      
-      // Add a small delay to ensure manuscript is in context before navigation
-      setTimeout(() => {
-        navigate(`/manuscript/${frontendManuscript.id}/experimental`);
-      }, 100);
+
+      // Keep user in dashboard to see processing status
+      // They can click the manuscript to open it when processing completes
       
     } catch (error) {
       console.error('Error processing DOCX:', error);
@@ -528,19 +544,20 @@ const Dashboard = () => {
                 <TableRow className="bg-gray-50">
                   <TableHead className="font-medium text-gray-700">Title</TableHead>
                   <TableHead className="font-medium text-gray-700">Owner</TableHead>
-                  <TableHead className="font-medium text-gray-700">Round</TableHead>
                   <TableHead className="font-medium text-gray-700">Status</TableHead>
                   <TableHead className="font-medium text-gray-700">Ball-in-Court</TableHead>
+                  <TableHead className="font-medium text-gray-700">Word Count</TableHead>
+                  <TableHead className="font-medium text-gray-700">Character Count</TableHead>
                   <TableHead className="font-medium text-gray-700">Last Modified</TableHead>
                   <TableHead className="font-medium text-gray-700">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredManuscripts.map((manuscript) => (
-                  <TableRow 
+                  <TableRow
                     key={manuscript.id}
                     className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => navigate(`/manuscript/${manuscript.id}/experimental`)}
+                    onClick={() => navigate(`/manuscript/${manuscript.id}`)}
                   >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -580,11 +597,12 @@ const Dashboard = () => {
                       </div>
                     </TableCell>
                     <TableCell>{manuscript.owner}</TableCell>
-                    <TableCell>Round {manuscript.round}</TableCell>
                     <TableCell>{getStatusBadge(manuscript.status)}</TableCell>
                     <TableCell>
-                      {getBallInCourtIcon(manuscript.ballInCourt)}
+                      {getBallInCourtIcon(manuscript.ballInCourt, manuscript.round)}
                     </TableCell>
+                    <TableCell className="text-gray-600">{formatNumber(manuscript.wordCount)}</TableCell>
+                    <TableCell className="text-gray-600">{formatNumber(manuscript.characterCount)}</TableCell>
                     <TableCell className="text-gray-600">{formatDate(manuscript.updatedAt)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -601,10 +619,21 @@ const Dashboard = () => {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/manuscript/${manuscript.id}`);
+                              navigate(`/manuscript/${manuscript.id}/legacy`);
                             }}
                           >
                             Open in Legacy Editor
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmManuscript(manuscript);
+                            }}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Manuscript
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -616,6 +645,35 @@ const Dashboard = () => {
           </div>
         )}
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmManuscript} onOpenChange={(open) => !open && setDeleteConfirmManuscript(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Manuscript</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "<strong>{deleteConfirmManuscript?.title}</strong>"?
+              {deleteConfirmManuscript?.docxFilePath && (
+                <span className="block mt-2 text-sm">
+                  This will also delete the associated DOCX file from storage.
+                </span>
+              )}
+              <span className="block mt-2 text-sm font-semibold">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteManuscript}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
