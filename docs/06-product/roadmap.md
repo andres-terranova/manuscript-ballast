@@ -368,3 +368,7 @@ AiSuggestion.configure({
 ---
 
 **Last Updated**: October 2, 2025
+
+## Tags
+
+#product #roadmap #features #architecture #performance #JWT #authentication #queue #tiptap #backend #deployment

@@ -39,11 +39,11 @@ import { ChangeList } from "./ChangeList";
 import { ChecksList } from "./ChecksList";
 import { ProcessingStatus } from "./ProcessingStatus";
 import AIEditorRuleSelector from "./AIEditorRuleSelector";
-import { AI_EDITOR_RULES, type AIEditorRule } from "./AIEditorRules";
+import type { AIEditorRule } from "@/types/aiEditorRules";
 import { supabase } from "@/integrations/supabase/client";
 import { ManuscriptService } from "@/services/manuscriptService";
 
-const ExperimentalEditor = () => {
+const Editor = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -144,8 +144,9 @@ const ExperimentalEditor = () => {
   const [aiSuggestionsEnabled, setAiSuggestionsEnabled] = useState(false);
   
   // AI Editor Rules state
-  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>(['copy-editor', 'line-editor']);
-  const [availableRules, setAvailableRules] = useState<AIEditorRule[]>(AI_EDITOR_RULES);
+  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
+  const [availableRules, setAvailableRules] = useState<AIEditorRule[]>([]);
+  const [rulesInitialized, setRulesInitialized] = useState(false);
   
   const handleOpenStyleRules = () => {
     setTempStyleRules(activeStyleRules);
@@ -190,12 +191,47 @@ const ExperimentalEditor = () => {
       console.log('No editor found');
       return;
     }
-    
+
     console.log('Running checks with rules:', activeStyleRules);
     const results = runDeterministicChecks(editor, activeStyleRules);
     console.log('Check results:', results);
     refreshChecksWithResults(results);
   };
+
+  const updateEditorRules = useCallback((rules: AIEditorRule[]) => {
+    const editor = getGlobalEditor();
+    if (!editor) {
+      console.warn('Editor not available for rule update');
+      return;
+    }
+
+    try {
+      // Get only enabled rules
+      const enabledRules = rules
+        .filter(r => r.enabled)
+        .map(rule => ({
+          id: rule.id,
+          title: rule.title,
+          prompt: rule.prompt,
+          color: rule.color,
+          backgroundColor: rule.backgroundColor,
+        }));
+
+      // Update editor with new rules
+      editor.chain()
+        .setAiSuggestionRules(enabledRules)
+        .run();
+
+      console.log('✅ Editor rules updated:', enabledRules.length, 'enabled rules');
+    } catch (error) {
+      console.error('Failed to update editor rules:', error);
+      toast({
+        title: "Editor Update Failed",
+        description: "Rules were saved but editor needs refresh.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   const handleJumpToCheck = (check: CheckItem) => {
     const el = document.getElementById(`check-span-${check.id}`);
@@ -971,19 +1007,19 @@ const ExperimentalEditor = () => {
 
   useEffect(() => {
     const loadManuscript = async () => {
-      console.log('[ExperimentalEditor] Loading manuscript with ID:', id);
-      
+      console.log('[Editor] Loading manuscript with ID:', id);
+
       if (!id) {
-        console.log('[ExperimentalEditor] No ID provided, redirecting to dashboard');
+        console.log('[Editor] No ID provided, redirecting to dashboard');
         navigate("/dashboard");
         return;
       }
-      
+
       setIsLoading(true);
-      console.log('[ExperimentalEditor] Set loading to true');
+      console.log('[Editor] Set loading to true');
       
       let found = getManuscriptById(id);
-      console.log('[ExperimentalEditor] Found manuscript:', found);
+      console.log('[Editor] Found manuscript:', found);
       
       if (!found && retryCount < maxRetries) {
         try {
@@ -1033,10 +1069,10 @@ const ExperimentalEditor = () => {
     }
   };
 
-  console.log('[ExperimentalEditor] Render state:', { isLoading, notFound, manuscript: !!manuscript });
+  console.log('[Editor] Render state:', { isLoading, notFound, manuscript: !!manuscript });
 
   if (isLoading) {
-    console.log('[ExperimentalEditor] Rendering loading state');
+    console.log('[Editor] Rendering loading state');
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -1286,6 +1322,7 @@ const ExperimentalEditor = () => {
                   onToggleSuggestions={setShowSuggestions}
                   onApplyAllSuggestions={handleApplyAllSuggestions}
                   onTriggerPopover={handleTriggerPopover}
+                  availableRules={availableRules}
                 />
               </TabsContent>
 
@@ -1354,7 +1391,18 @@ const ExperimentalEditor = () => {
             <AIEditorRuleSelector
               selectedRuleIds={selectedRuleIds}
               onRuleSelectionChange={setSelectedRuleIds}
-              onRulesUpdate={setAvailableRules}
+              onRulesUpdate={(rules) => {
+                setAvailableRules(rules);
+                updateEditorRules(rules);
+
+                // Initialize selectedRuleIds from database-enabled rules on first load
+                if (!rulesInitialized && rules.length > 0) {
+                  const enabledRuleIds = rules.filter(r => r.enabled).map(r => r.id);
+                  setSelectedRuleIds(enabledRuleIds);
+                  setRulesInitialized(true);
+                  console.log('✅ Initialized selectedRuleIds from database:', enabledRuleIds);
+                }
+              }}
             />
           </div>
 
@@ -1469,4 +1517,4 @@ const ExperimentalEditor = () => {
   );
 };
 
-export default ExperimentalEditor;
+export default Editor;

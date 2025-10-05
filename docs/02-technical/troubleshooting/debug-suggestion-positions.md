@@ -9,7 +9,7 @@ Manuscript Ballast uses **three position sources**, all working with ProseMirror
 ### 1. TipTap AI Suggestions (Run AI Pass)
 - **Pre-calculated** by TipTap Pro extension (`api.tiptap.dev`)
 - Returns suggestions with ProseMirror positions already computed
-- Conversion: `convertAiSuggestionsToUI()` in ExperimentalEditor.tsx:292-339
+- Conversion: `convertAiSuggestionsToUI()` in Editor.tsx:292-339
 - **No mapping needed** - positions are ready to use
 
 ### 2. Style Checks (Run Checks)
@@ -173,7 +173,13 @@ Position issues are rare in the current architecture since all three sources pro
 
 ---
 
+## Tags
+
+#troubleshooting #debug #prosemirror #position_mapping #suggestions #decorations #editor #tiptap #browser #console #verification #testing #AI #style_checks
+
+---
+
 **Related Documentation**:
 - `/Users/andresterranova/manuscript-ballast/.claude/agents/prosemirror.md` - ProseMirror position specialist
-- `/Users/andresterranova/manuscript-ballast/docs/03-components/editors/manuscript-editor.md` - ExperimentalEditor details
+- `/Users/andresterranova/manuscript-ballast/docs/03-components/editors/manuscript-editor.md` - Editor details
 - `/Users/andresterranova/manuscript-ballast/src/lib/styleValidator.ts` - Style check position computation

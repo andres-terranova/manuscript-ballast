@@ -21,18 +21,18 @@ This directory contains detailed documentation for individual features and their
 
 ### 1. AI-Powered Editing Suggestions ⭐ (Core Feature)
 
-**Status**: ✅ Production Ready (Experimental Editor)
+**Status**: ✅ Production Ready
 
 **What it does**: Provides real-time AI suggestions for grammar, style, clarity, and tone improvements.
 
 **Key Components**:
-- `ManuscriptEditor.tsx` (ExperimentalEditor) - Main editor interface
+- `ManuscriptEditor.tsx` (Editor) - Main editor interface
 - `@tiptap-pro/extension-ai-suggestion` - TipTap Pro AI extension
 - `ChangeList.tsx` - Suggestion review panel
-- `convertAiSuggestionsToUI()` - Inline conversion of TipTap AI responses (ExperimentalEditor.tsx)
+- `convertAiSuggestionsToUI()` - Inline conversion of TipTap AI responses (Editor.tsx)
 
 **User Flow**:
-1. User opens manuscript in Experimental Editor
+1. User opens manuscript in editor
 2. Clicks "Run AI Pass" button
 3. TipTap Pro AI analyzes document
 4. Suggestions appear as underlined text
@@ -116,32 +116,28 @@ This directory contains detailed documentation for individual features and their
 
 ---
 
-### 4. Dual Editor System (Legacy Migration)
+### 4. Primary Editor (Production)
 
-**Status**: 🟡 In Transition
+**Status**: ✅ Production Ready
 
-**What it does**: Maintains two editor modes during migration to TipTap Pro.
+**What it does**: Provides a modern, AI-powered editing experience built on TipTap Pro.
 
 **Editors**:
 
-#### ManuscriptEditor (ExperimentalEditor) - Default
-- **Path**: `/manuscript/:id/experimental`
+#### ManuscriptEditor (Editor) - Production
+- **Path**: `/manuscript/:id`
 - **AI Engine**: TipTap Pro AI
-- **Status**: Active development
+- **Status**: Production ready
 - **Features**: Real-time suggestions, native chunking, JWT auth
 
-#### Standard Editor (Deprecated)
-- **Path**: `/manuscript/:id`
+#### Standard Editor (Legacy)
+- **Path**: `/manuscript/:id/legacy`
 - **AI Engine**: Supabase edge function + OpenAI
-- **Status**: Maintenance mode
+- **Status**: Deprecated, maintenance mode only
 - **Features**: Basic suggestions, legacy mapping
 
-**Migration Strategy**:
-1. Build Experimental Editor alongside Standard
-2. Test with real users (feature flag)
-3. Fix issues, improve UX
-4. Set Experimental as default
-5. Deprecate Standard Editor (future)
+**Migration Complete**:
+The primary editor is now the default production interface. The legacy editor is maintained for backward compatibility only.
 
 ---
 
@@ -231,7 +227,7 @@ This directory contains detailed documentation for individual features and their
 
 ## Feature Comparison Matrix
 
-| Feature | Experimental Editor | Standard Editor |
+| Feature | Editor (Production) | Standard Editor (Legacy) |
 |---------|---------------------|-----------------|
 | AI Suggestions | ✅ TipTap Pro | ✅ OpenAI (legacy) |
 | Real-time highlighting | ✅ Yes | ✅ Yes |
@@ -240,7 +236,7 @@ This directory contains detailed documentation for individual features and their
 | JWT Auth | ✅ Yes | ❌ No |
 | Rate limiting | ✅ Built-in | ⚠️ Manual |
 | Caching | ✅ Built-in | ❌ No |
-| Production ready | ✅ Yes (default) | 🟡 Deprecated |
+| Production status | ✅ Default | ❌ Deprecated |
 
 ## Performance Benchmarks
 
@@ -326,4 +322,8 @@ This directory contains detailed documentation for individual features and their
 
 ---
 
-**Last Updated**: October 2, 2025
+**Last Updated**: October 5, 2025
+
+## Tags
+
+#features #product #tiptap #queue #JWT #authentication #editor #AI #docx #performance #troubleshooting #backend

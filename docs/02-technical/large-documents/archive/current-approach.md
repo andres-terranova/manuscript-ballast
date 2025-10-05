@@ -1,5 +1,13 @@
 # Large Document AI Processing: Current Approach & Learning Journey
 
+> **⚠️ ARCHIVED**: This document has been superseded by UAT-PHASE1-FINDINGS.md (October 2025)
+>
+> **Historical Value**: Chronicles the learning journey from rate limiting issues to browser timeout diagnosis
+>
+> **For Current Information**: See:
+> - [UAT-PHASE1-FINDINGS.md](../UAT-PHASE1-FINDINGS.md) - Actual Phase 1 test results
+> - [implementation-guide-phased-approach.md](../implementation-guide-phased-approach.md) - Current implementation details
+
 ## Document Purpose
 
 This file documents the **complete journey** from initial rate limiting issues through to the current browser timeout challenge. It serves as an educational resource showing:
@@ -267,3 +275,7 @@ waitForAiSuggestions() {
 4. 📊 **Monitor**: Production performance with current configuration
 
 **Key Insight**: The failed custom resolvers documented in this file were not failures in design - they were correctly identifying that TipTap's native approach had limitations. They failed because they targeted rate limiting (wrong diagnosis) instead of browser timeout (correct diagnosis). Now that we understand the real problem, a custom approach (job queue or apiResolver) makes sense for large documents, while native TipTap remains optimal for medium documents.
+
+## Tags
+
+#archived #learning #troubleshooting #rate_limiting #timeout #browser #tiptap #custom_resolver #CPU #console_log #performance #implementation #phase1 #AI #OpenAI #job_queue #edge_function

@@ -1,6 +1,6 @@
 # React-Based AI Suggestion Rendering Strategy
 
-## ⚠️ Status Note (October 2024)
+## ⚠️ Status Note (October 2025)
 
 **Not Currently Needed**: The large document rate limiting issue was fixed by using `chunkSize: 2`.
 
@@ -583,3 +583,9 @@ Expected outcome: Handle 5000+ suggestions with smooth 60 FPS performance and su
 - [React 18 Concurrent Features](https://react.dev/blog/2022/03/29/react-v18#new-feature-concurrent-features)
 - [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
 - [CSS Containment](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Containment)
+
+---
+
+## Tags
+
+#react #performance #tiptap #prosemirror #component #architecture #typescript #editor #optimization #virtualization

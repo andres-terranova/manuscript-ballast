@@ -45,7 +45,7 @@ The codebase has significant complexity around TipTap Pro integration, queue-bas
 1. Read: docs/guides/TIPTAP_JWT_GUIDE.md
 2. Read: docs/guides/EXPERIMENTAL_AI_SETUP.md
 3. Read: src/hooks/useTiptapEditor.ts
-4. Read: src/components/workspace/ExperimentalEditor.tsx
+4. Read: src/components/workspace/Editor.tsx
 5. Search: "TipTap" in codebase
 
 **Common tasks**:
@@ -160,11 +160,11 @@ The codebase has significant complexity around TipTap Pro integration, queue-bas
 - Refactor large components → Identify boundaries, extract utilities
 - Optimize performance → Review data flow, identify bottlenecks
 - Debug complex issues → Trace data flow from UI to database
-- Understand dual editor system → ExperimentalEditor vs ManuscriptWorkspace
+- Understand editor architecture → Editor (primary) vs ManuscriptWorkspace (legacy)
 
 **Critical reminders**:
-- ✅ ExperimentalEditor is default (TipTap Pro AI)
-- ✅ ManuscriptWorkspace is deprecated (OpenAI legacy)
+- ✅ Editor is the primary production editor (TipTap Pro AI)
+- ✅ ManuscriptWorkspace is deprecated (OpenAI legacy, backward compatibility only)
 - ✅ Queue system eliminates WORKER_LIMIT errors
 - ✅ JWT authentication for TipTap is complex (check guide)
 - ❌ Don't duplicate logic between editors (share utilities)
@@ -397,9 +397,9 @@ User: "RLS policy violation when querying manuscripts"
 4. 📋 Implement suggestion pagination
 
 ### Known Complexity Areas
-1. TipTap Pro JWT authentication (HIGH COMPLEXITY)
-2. Large document processing (SOLVED with queue system)
-3. Dual editor system (IN TRANSITION to single editor)
+1. TipTap Pro JWT authentication (RESOLVED - 24hr expiration)
+2. Large document processing (RESOLVED - Phase 1 parallel batch processing)
+3. Editor architecture (SIMPLIFIED - Editor is primary, ManuscriptWorkspace deprecated)
 
 ### Technical Debt
 - See: docs/product/Future_Cleanup_Checklist.md
@@ -408,5 +408,5 @@ User: "RLS policy violation when querying manuscripts"
 
 ---
 
-**Last Updated**: September 30, 2025
+**Last Updated**: October 5, 2025
 **Version**: 1.0.0

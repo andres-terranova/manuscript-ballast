@@ -6,7 +6,7 @@ Frontend component architecture and implementation details.
 
 ### [Editors](./editors/)
 Main editor components
-- **manuscript-editor.md** - ManuscriptEditor (ExperimentalEditor) implementation
+- **manuscript-editor.md** - Editor (primary manuscript editor) implementation
 
 ### [Suggestions](./suggestions/)
 AI suggestion UI components
@@ -17,7 +17,7 @@ AI suggestion UI components
 
 ### Editor Hierarchy
 ```
-ManuscriptEditor (ExperimentalEditor)
+Editor (Primary Manuscript Editor)
 ├── TipTap Editor Core
 │   ├── AiSuggestion Extension
 │   ├── Collaboration Extension
@@ -57,11 +57,11 @@ ManuscriptEditor (ExperimentalEditor)
 ## 📍 File Locations
 
 **Components**: `/src/components/workspace/`
-- `ExperimentalEditor.tsx` - Main editor
+- `Editor.tsx` - Main editor
 - `ChangeList.tsx` - Suggestion panel
 - `ChangeCard.tsx` - Individual suggestion
 - `AIEditorRuleSelector.tsx` - Rule configuration
-- `ManuscriptWorkspace.tsx` - Legacy standard editor (deprecated)
+- `ManuscriptWorkspace.tsx` - Legacy editor (deprecated)
 
 **Utilities**: `/src/lib/`
 - `types.ts` - Type definitions
@@ -79,4 +79,8 @@ ManuscriptEditor (ExperimentalEditor)
 
 ---
 
-**Last Updated**: October 2, 2025
+**Last Updated**: October 5, 2025
+
+## Tags
+
+#component #react #tiptap #prosemirror #editor #ui #suggestions #architecture #frontend #typescript

@@ -7,7 +7,7 @@ This directory contains all components related to the manuscript editing workspa
 ## Component Hierarchy
 
 ```
-ExperimentalEditor.tsx (Default Editor)
+Editor.tsx (Default Editor)
 ├── DocumentCanvas.tsx (TipTap wrapper)
 ├── ChangeList.tsx (Suggestion review panel)
 │   └── ChangeCard.tsx (Individual suggestion)
@@ -25,7 +25,7 @@ ManuscriptWorkspace.tsx (Legacy Editor - Deprecated)
 
 ## Core Components
 
-### ExperimentalEditor.tsx ⭐ (Main Editor)
+### Editor.tsx ⭐ (Main Editor)
 
 **Purpose**: Default manuscript editor using TipTap Pro AI for real-time suggestions.
 
@@ -94,13 +94,13 @@ AiSuggestion.configure({
 - Prevents race conditions by waiting for valid token before initialization
 - Error state with retry button if JWT fetch fails
 
-**File Location**: `src/components/workspace/ExperimentalEditor.tsx` (1397 lines)
+**File Location**: `src/components/workspace/Editor.tsx` (1397 lines)
 
 **Dependencies**:
 - TipTap editor hooks (`useTiptapEditor.ts`)
 - **TipTap Pro AI Suggestion extension** - Handles AI suggestion generation, API communication, chunking, and caching
   - Returns suggestions with ProseMirror positions already calculated
-  - Conversion to `UISuggestion` format happens inline via `convertAiSuggestionsToUI()` (ExperimentalEditor.tsx:292-339)
+  - Conversion to `UISuggestion` format happens inline via `convertAiSuggestionsToUI()` (Editor.tsx:292-339)
   - **Note**: `lib/suggestionMapper.ts` is NOT used for TipTap AI suggestions - it's only for the legacy ManuscriptWorkspace that uses Supabase edge functions
 - Style validator (`lib/styleValidator.ts`)
 - JWT management (`hooks/useTiptapJWT.ts`)
@@ -418,9 +418,9 @@ interface SuggestionPopoverProps {
 
 **Migration Plan**:
 - Keep for backwards compatibility
-- Direct new users to ExperimentalEditor
+- Direct new users to Editor
 - Migrate existing users gradually
-- Deprecate once ExperimentalEditor stable
+- Fully deprecated in favor of Editor
 
 **File Location**: `src/components/workspace/ManuscriptWorkspace.tsx`
 
@@ -431,7 +431,7 @@ interface SuggestionPopoverProps {
 ```
 1. User clicks "Run AI Pass"
    ↓
-2. ExperimentalEditor calls editor.chain().loadAiSuggestions().run()
+2. Editor calls editor.chain().loadAiSuggestions().run()
    ↓
 3. TipTap AI extension sends HTML to TipTap API (with JWT)
    ↓
@@ -439,7 +439,7 @@ interface SuggestionPopoverProps {
    ↓
 5. Conversion to `UISuggestion` format happens inline via `convertAiSuggestionsToUI()`
    ↓
-6. ExperimentalEditor updates suggestions state
+6. Editor updates suggestions state
    ↓
 7. DocumentCanvas applies suggestion decorations (underlines)
    ↓
@@ -447,7 +447,7 @@ interface SuggestionPopoverProps {
    ↓
 9. User clicks Accept/Reject
    ↓
-10. ExperimentalEditor calls editor commands
+10. Editor calls editor commands
     ↓
 11. Editor updates content, removes decoration
     ↓
@@ -461,13 +461,13 @@ interface SuggestionPopoverProps {
 ```
 1. User edits document
    ↓
-2. ExperimentalEditor debounced onChange fires
+2. Editor debounced onChange fires
    ↓
 3. styleValidator.runDeterministicChecks(content, rules)
    ↓
 4. Validator returns CheckItem[] with positions
    ↓
-5. ExperimentalEditor updates checks state
+5. Editor updates checks state
    ↓
 6. DocumentCanvas applies check decorations (highlights)
    ↓
@@ -517,7 +517,7 @@ The application uses **three completely independent approaches** for position ma
 
 ### 1. TipTap AI Suggestions (Run AI Pass)
 
-**File**: `ExperimentalEditor.tsx:292-339` (`convertAiSuggestionsToUI()`)
+**File**: `Editor.tsx:292-339` (`convertAiSuggestionsToUI()`)
 
 **How it works**:
 ```typescript
@@ -601,7 +601,7 @@ type CheckItem = {
 
 ### 3. Manual Suggestions (Right-click "Suggest...")
 
-**File**: `ExperimentalEditor.tsx:727-769` (`createManualSuggestion()`)
+**File**: `Editor.tsx:727-769` (`createManualSuggestion()`)
 
 **How it works**:
 ```typescript
@@ -662,7 +662,7 @@ const createManualSuggestion = useCallback((data: { mode, after, note }) => {
 ```
 
 **⚠️ IMPORTANT**:
-- ExperimentalEditor **NEVER** calls suggestionMapper
+- Editor **NEVER** calls suggestionMapper
 - All current features have PM positions built-in
 - suggestionMapper only kept for backward compatibility
 
@@ -802,4 +802,8 @@ setSuggestions(suggestions);
 
 ---
 
-**Last Updated**: October 02, 2025
+**Last Updated**: October 5, 2025
+
+## Tags
+
+#editor #tiptap #react #component #JWT #authentication #prosemirror #suggestions #AIpass #performance #user_flow #typescript #frontend

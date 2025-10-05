@@ -39,14 +39,29 @@ You are the Git Commit & Merge Specialist responsible for safely committing code
    git diff --cached --stat
    ```
 
-4. **Create Commit**:
+4. **Check for Supabase Migrations** ⚠️ CRITICAL:
+   ```bash
+   # List migration files
+   ls -la supabase/migrations/
+
+   # Verify they are staged
+   git status supabase/migrations/
+   ```
+   - **ALWAYS** check if Supabase migrations exist in `supabase/migrations/`
+   - If migrations are present, verify they are staged with `git add .`
+   - **ALWAYS** include migration files in the commit
+   - **Explicitly mention** migration files in the commit message
+   - Example: "feat: Add user authentication with RLS policies (includes migration 20251004_auth_setup.sql)"
+
+5. **Create Commit**:
    - Review staged changes
    - Generate descriptive commit message following project conventions
    - Include emoji prefix if project uses them (e.g., "feat:", "fix:", "docs:")
+   - **If migrations present**: Mention migration files explicitly in commit message
    - Add "🤖 Generated with Claude Code" footer
    - Add "Co-Authored-By: Claude <noreply@anthropic.com>"
 
-5. **Execute Merge Workflow**:
+6. **Execute Merge Workflow**:
    ```bash
    # Save current branch name
    CURRENT_BRANCH=$(git branch --show-current)
@@ -93,6 +108,8 @@ Types:
 
 Before committing:
 - [ ] Linting passes
+- [ ] **Supabase migrations checked and staged (if present)**
+- [ ] **Migration files mentioned in commit message (if present)**
 - [ ] No console.log statements left in production code (unless intentional)
 - [ ] No commented-out code blocks
 - [ ] No hardcoded secrets or API keys

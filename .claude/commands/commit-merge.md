@@ -15,12 +15,16 @@ Triggering the git-commit-merge agent to:
 
 1. Run verification checks (linting)
 2. Review staged changes with git status and git diff --cached
-3. Create a descriptive commit message following project conventions
-4. Commit the staged changes
-5. Merge current branch into target branch: $ARG1
-6. Ask user to confirm before pushing to remote
-7. Push target branch to origin: git push origin $ARG1
-8. If provided, create and checkout new branch: $ARG2
+3. **CRITICAL**: Check for Supabase migrations in supabase/migrations/ directory
+   - If migrations exist, verify they are staged with git add .
+   - ALWAYS include migration files in the commit
+   - Mention migration files explicitly in commit message
+4. Create a descriptive commit message following project conventions
+5. Commit the staged changes
+6. Merge current branch into target branch: $ARG1
+7. Ask user to confirm before pushing to remote
+8. Push target branch to origin: git push origin $ARG1
+9. If provided, create and checkout new branch: $ARG2
 
 Arguments:
 - Target branch: $ARG1

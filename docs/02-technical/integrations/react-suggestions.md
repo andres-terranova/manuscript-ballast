@@ -10,11 +10,13 @@
 
 **Status**: Available for future use if needed. Not urgently required.
 
+**Last Updated**: October 5, 2025
+
 ---
 
 ## Overview
 
-This guide demonstrates how to integrate the new React-based suggestion rendering system into the ExperimentalEditor component, replacing the current ProseMirror decoration-based approach.
+This guide demonstrates how to integrate the new React-based suggestion rendering system into the Editor component, replacing the current ProseMirror decoration-based approach.
 
 ## Installation
 
@@ -26,17 +28,17 @@ pnpm add @tanstack/react-virtual
 
 ## Integration Steps
 
-### 1. Update ExperimentalEditor.tsx
+### 1. Update Editor.tsx
 
 Replace the current ChangeList with VirtualSuggestionList:
 
 ```tsx
-// src/components/workspace/ExperimentalEditor.tsx
+// src/components/workspace/Editor.tsx
 
 import { VirtualSuggestionList } from './VirtualSuggestionList';
 import { useConcurrentSuggestions } from '@/hooks/useConcurrentSuggestions';
 
-export function ExperimentalEditor() {
+export function Editor() {
   // ... existing state ...
 
   // Replace existing suggestion state with concurrent hook
@@ -157,7 +159,7 @@ export const FEATURE_FLAGS = {
   ENABLE_PERFORMANCE_MONITORING: process.env.NODE_ENV === 'development',
 };
 
-// In ExperimentalEditor.tsx
+// In Editor.tsx
 import { FEATURE_FLAGS } from '@/lib/featureFlags';
 
 // Conditionally use new or old rendering
@@ -187,7 +189,7 @@ export function PerformanceMonitor({ enabled = false }) {
   );
 }
 
-// Add to ExperimentalEditor:
+// Add to Editor:
 {FEATURE_FLAGS.ENABLE_PERFORMANCE_MONITORING && (
   <PerformanceMonitor enabled={processedSuggestions.length > 100} />
 )}
@@ -445,3 +447,9 @@ export function trackSuggestionPerformance(metrics: {
 - [TipTap React Node Views](https://tiptap.dev/docs/examples/advanced/interactive-react-and-vue-views)
 - [TanStack Virtual Documentation](https://tanstack.com/virtual/latest)
 - [React 18 Concurrent Features](https://react.dev/blog/2022/03/29/react-v18)
+
+---
+
+## Tags
+
+#react #performance #virtual_scrolling #suggestions #rendering #tiptap #component #UI #optimization #concurrent #web_worker #browser #memory #FPS #integration #experimental

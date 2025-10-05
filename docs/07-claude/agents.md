@@ -12,7 +12,7 @@ These are specialized roles that Claude Code can adopt to provide focused expert
 - Suggestion pagination techniques
 - Memory management for large documents
 **Key files**:
-- src/components/workspace/ExperimentalEditor.tsx:1068-1080 (chunkSize config)
+- src/components/workspace/Editor.tsx:1068-1080 (chunkSize config)
 - docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md
 **Critical knowledge**:
 - Timeout occurs at ~2 minutes
@@ -47,7 +47,7 @@ These are specialized roles that Claude Code can adopt to provide focused expert
 - Editor command chains
 **Key files**:
 - src/hooks/useTiptapEditor.ts
-- src/components/workspace/ExperimentalEditor.tsx
+- src/components/workspace/Editor.tsx
 - docs/guides/TIPTAP_JWT_GUIDE.md
 - docs/guides/EXPERIMENTAL_AI_SETUP.md
 **Context7 MCP Usage**:
@@ -133,7 +133,7 @@ supabase db reset
 **Key files**:
 - src/lib/suggestionMapper.ts (legacy - only for ManuscriptWorkspace)
 - src/lib/suggestionsPlugin.ts
-- src/components/workspace/ExperimentalEditor.tsx (TipTap AI positions)
+- src/components/workspace/Editor.tsx (TipTap AI positions)
 - docs/guides/archive/debug-suggestion-positions.md
 **Critical concept**: Always use ProseMirror positions, never character offsets
 ```typescript
@@ -258,7 +258,7 @@ User: "Need to add export to PDF feature"
 
 | Problem Area | Primary Agent | Secondary Agent | Key File |
 |-------------|--------------|----------------|----------|
-| Timeout on large docs | `/chunking` | `/performance` | ExperimentalEditor.tsx |
+| Timeout on large docs | `/chunking` | `/performance` | Editor.tsx |
 | JWT authentication | `/auth` | `/tiptap` | TIPTAP_JWT_GUIDE.md |
 | Position mapping | `/prosemirror` | `/suggestions` | suggestionMapper.ts |
 | DOCX processing | `/queue` | `/supabase` | queue-processor/index.ts |
@@ -268,5 +268,8 @@ User: "Need to add export to PDF feature"
 
 ---
 
-**Last Updated**: September 30, 2025
+**Last Updated**: October 5, 2025
 **Note**: Agents are Claude Code role specializations, not separate tools
+
+## Tags
+#claude_code #agents #specialization #tiptap #prosemirror #performance #queue #supabase #JWT #authentication #architecture #debugging #ui #react #mcp

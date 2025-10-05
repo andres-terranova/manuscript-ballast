@@ -12,6 +12,8 @@ supabase/functions/
 │   └── index.ts           # ⭐ Main document processor
 ├── generate-tiptap-jwt/
 │   └── index.ts           # JWT token generation
+├── ai-suggestions-html/
+│   └── index.ts           # ✅ AI suggestions processor (Phase 1)
 ├── process-docx/
 │   └── index.ts           # 🟡 Direct DOCX processor (deprecated)
 └── suggest/
@@ -212,6 +214,147 @@ TIPTAP_APP_ID=<your-app-id>
 **File Location**: `supabase/functions/generate-tiptap-jwt/index.ts`
 
 **Related Documentation**: [TipTap JWT Guide](../../docs/guides/TIPTAP_JWT_GUIDE.md)
+
+---
+
+### ai-suggestions-html (AI Suggestions Processor)
+
+**Purpose**: Process AI suggestions for manuscript chunks using OpenAI API
+
+**Status**: ✅ Production (Phase 1 large document processing)
+
+**Deployed**: October 3, 2025
+
+**Location**: `supabase/functions/ai-suggestions-html/index.ts`
+
+**Overview**:
+
+This edge function is the core of Phase 1 large document processing. It receives HTML chunks from the browser, sends them to OpenAI for analysis, and returns suggestions in TipTap's expected format.
+
+**Key Features**:
+- Accepts HTML content chunks from browser
+- Processes multiple AI rules per chunk
+- Returns suggestions with exact HTML matching for position mapping
+- CORS-enabled for browser access
+- Error handling for OpenAI API failures
+
+**Configuration**:
+```toml
+[functions.ai-suggestions-html]
+verify_jwt = false  # Allows browser CORS access
+```
+
+**Request Format**:
+```typescript
+POST /functions/v1/ai-suggestions-html
+Headers:
+  Authorization: Bearer <supabase-anon-key>
+  Content-Type: application/json
+Body: {
+  "html": "<p>Text content to analyze</p>",
+  "chunkId": 0,
+  "rules": [
+    {
+      "id": "1",
+      "title": "Grammar & Spelling",
+      "prompt": "Identify and correct grammar errors"
+    }
+  ]
+}
+```
+
+**Response Format**:
+```typescript
+// Success (200)
+{
+  "items": [
+    {
+      "ruleId": "1",
+      "deleteHtml": "<p>Text with eror</p>",
+      "insertHtml": "<p>Text with error</p>",
+      "chunkId": 0,
+      "note": "Grammar & Spelling: Fixed typo 'eror' → 'error'"
+    }
+  ]
+}
+
+// Error (400/500)
+{
+  "error": "Invalid HTML input",
+  "message": "Detailed error message"
+}
+```
+
+**Environment Variables Required**:
+```bash
+OPENAI_API_KEY=<your-openai-api-key>  # Set via: supabase secrets set OPENAI_API_KEY=xxx
+```
+
+**Deployment**:
+```bash
+# Deploy with no JWT verification (required for CORS)
+supabase functions deploy ai-suggestions-html --no-verify-jwt
+```
+
+**Usage in Code**:
+
+Called from custom resolver in `src/hooks/useTiptapEditor.ts`:
+
+```typescript
+const response = await fetch(`${supabaseUrl}/functions/v1/ai-suggestions-html`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${supabaseAnonKey}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    html: chunk.html,
+    chunkId: chunk.id,
+    rules: rules.map(r => ({
+      id: r.id,
+      prompt: r.prompt,
+      title: r.title
+    }))
+  })
+});
+```
+
+**Performance Characteristics**:
+- **Execution time**: 2-8 seconds per chunk (varies by content size)
+- **Timeout limit**: 150 seconds maximum (Supabase edge function limit)
+- **Concurrent usage**: Supports parallel processing (Phase 1 uses 5 concurrent requests)
+- **Error rate**: ~1-2% (503 errors during cold starts, handled via Promise.allSettled)
+
+**Error Handling**:
+
+Common Errors:
+1. **503 Service Unavailable**: Edge function cold start - retry with Promise.allSettled
+2. **401 Unauthorized**: Missing/invalid OPENAI_API_KEY - check secrets
+3. **400 Bad Request**: Invalid HTML input - validate chunk content
+4. **CORS errors**: Redeploy with `--no-verify-jwt` flag
+
+**Monitoring**:
+```bash
+# Check logs
+supabase functions logs ai-suggestions-html --tail
+
+# Expected log patterns
+# Processing chunk 0 with 1234 characters
+# Chunk 0 complete: 15 suggestions
+```
+
+**Related Documentation**:
+- [Phase 1 Implementation Guide](../02-technical/large-documents/implementation-guide-phased-approach.md)
+- [UAT Test Results](../02-technical/large-documents/UAT-PHASE1-FINDINGS.md)
+- [Custom Resolver Implementation](../02-technical/large-documents/ACTION-PLAN-PHASE1.md)
+
+**Notes**:
+- This function is called via parallel batch processing (5 chunks at a time)
+- Uses `Promise.allSettled()` for error tolerance (98.7% success rate)
+- Critical for documents >30K words where browser timeout would occur
+- Returns HTML snippets that TipTap's `defaultResolver` converts to ProseMirror positions
+
+**File Location**: `supabase/functions/ai-suggestions-html/index.ts`
 
 ---
 
@@ -585,4 +728,8 @@ const { manuscriptId, text } = requestData;
 
 ---
 
-**Last Updated**: October 2, 2025
+**Last Updated**: October 4, 2025
+
+## Tags
+
+#supabase #edge_function #backend #deployment #queue #JWT #authentication #DOCX #AI #OpenAI #performance #monitoring #CORS #rate_limiting #timeout #error_handling #troubleshooting #database #RLS

@@ -1000,3 +1000,9 @@ echo "Decision: [SHIP/PHASE2/INVESTIGATE]" >> test-results/phase1-uat-results.md
 **Execution Time**: 30-60 minutes (automated, with user consultation on polling intervals)
 **Token Efficiency**: 99%+ reduction vs standard tools
 **Last Updated**: October 4, 2025
+
+---
+
+## Tags
+
+#testing #UAT #MCP #chrome_devtools #automation #protocol #large_documents #performance #edge_function #supabase #tiptap #suggestions #position_mapping #browser #troubleshooting #token_optimization

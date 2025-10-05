@@ -554,10 +554,10 @@ const Dashboard = () => {
               </TableHeader>
               <TableBody>
                 {filteredManuscripts.map((manuscript) => (
-                  <TableRow 
+                  <TableRow
                     key={manuscript.id}
                     className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => navigate(`/manuscript/${manuscript.id}/experimental`)}
+                    onClick={() => navigate(`/manuscript/${manuscript.id}`)}
                   >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -619,7 +619,7 @@ const Dashboard = () => {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/manuscript/${manuscript.id}`);
+                              navigate(`/manuscript/${manuscript.id}/legacy`);
                             }}
                           >
                             Open in Legacy Editor

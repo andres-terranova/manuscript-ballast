@@ -21,7 +21,7 @@ Implementation guides, troubleshooting, and deep dives
 
 ### [03 - Components](./03-components/)
 Frontend component documentation
-- **[Editors](./03-components/editors/)** - ManuscriptEditor (ExperimentalEditor)
+- **[Editors](./03-components/editors/)** - Editor (primary manuscript editor)
 - **[Suggestions](./03-components/suggestions/)** - ChangeList, ChangeCard, etc.
 
 ### [04 - Backend](./04-backend/)
@@ -97,4 +97,7 @@ Historical documentation and deprecated guides
 
 **Main Project Guide**: See [CLAUDE.md](../CLAUDE.md) in the project root for a quick-start triage guide.
 
-**Last Updated**: October 2, 2025
+**Last Updated**: October 5, 2025
+
+## Tags
+#documentation #index #navigation #getting_started #architecture #backend #frontend #components #product #troubleshooting
