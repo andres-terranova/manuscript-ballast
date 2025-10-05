@@ -13,7 +13,7 @@ export type CheckItem = {
 // Phase 1: PM-native validator - emit PM ranges directly, no text mapping needed
 // This walks the PM doc and outputs PM positions natively
 
-export function runDeterministicChecks(editor: any, enabled: StyleRuleKey[]): CheckItem[] {
+export function runDeterministicChecks(editor: unknown, enabled: StyleRuleKey[]): CheckItem[] {
   if (!editor?.state?.doc) return [];
   
   const { state } = editor;
@@ -25,7 +25,7 @@ export function runDeterministicChecks(editor: any, enabled: StyleRuleKey[]): Ch
   
   let globalTextOffset = 0;
   
-  doc.descendants((node: any, pos: number) => {
+  doc.descendants((node: unknown, pos: number) => {
     if (!node.isText || !node.text) return true;
     
     const text = node.text;

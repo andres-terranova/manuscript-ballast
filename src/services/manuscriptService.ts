@@ -54,9 +54,9 @@ export class ManuscriptService {
       original_filename: input.original_filename || null,
       file_size: input.file_size || null,
       processing_status: input.docx_file_path ? 'pending' as const : 'completed' as const,
-      style_rules: (input.style_rules || []) as any,
-      suggestions: [] as any,
-      comments: [] as any,
+      style_rules: (input.style_rules || []) as unknown,
+      suggestions: [] as unknown,
+      comments: [] as unknown,
       excerpt,
       word_count: wordCount,
       character_count: characterCount
@@ -79,7 +79,7 @@ export class ManuscriptService {
   // Update an existing manuscript
   static async updateManuscript(id: string, updates: ManuscriptUpdateInput): Promise<ManuscriptDB> {
     // Calculate derived fields if content is being updated
-    const updateData = { ...updates } as any;
+    const updateData = { ...updates } as Record<string, unknown>;
     if (updates.content_text !== undefined) {
       updateData.word_count = this.calculateWordCount(updates.content_text);
       updateData.character_count = updates.content_text.length;
@@ -105,11 +105,36 @@ export class ManuscriptService {
   
   // Delete a manuscript
   static async deleteManuscript(id: string): Promise<void> {
+    // First, get manuscript details to check for storage file
+    const { data: manuscript, error: fetchError } = await supabase
+      .from('manuscripts')
+      .select('docx_file_path')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching manuscript for deletion:', fetchError);
+      throw new Error(`Failed to fetch manuscript: ${fetchError.message}`);
+    }
+
+    // Delete storage file if it exists
+    if (manuscript?.docx_file_path) {
+      try {
+        await this.deleteDocxFile(manuscript.docx_file_path);
+      } catch (storageError) {
+        // Log storage deletion failure but don't fail the operation
+        // This prevents orphaned DB records if storage deletion fails
+        console.error('Failed to delete storage file:', storageError);
+        // Continue with manuscript deletion anyway
+      }
+    }
+
+    // Delete the manuscript record (CASCADE will handle related tables)
     const { error } = await supabase
       .from('manuscripts')
       .delete()
       .eq('id', id);
-    
+
     if (error) {
       console.error('Error deleting manuscript:', error);
       throw new Error(`Failed to delete manuscript: ${error.message}`);
@@ -191,25 +216,154 @@ export class ManuscriptService {
     return this.updateManuscript(id, { suggestions });
   }
 
-  // Trigger DOCX processing for a manuscript
-  static async processDocx(manuscriptId: string, filePath: string): Promise<void> {
+  // Queue DOCX processing for a manuscript (replaces direct Edge Function call)
+  static async queueDocxProcessing(manuscriptId: string, filePath: string): Promise<void> {
     try {
-      const { data, error } = await supabase.functions.invoke('process-docx', {
-        body: { 
-          manuscriptId, 
-          filePath 
-        }
-      });
+      // Add job to processing queue instead of calling Edge Function directly
+      const { error } = await supabase
+        .from('processing_queue')
+        .insert({
+          manuscript_id: manuscriptId,
+          job_type: 'process_docx',
+          priority: 5,
+          progress_data: { file_path: filePath, step: 'queued' }
+        });
 
       if (error) {
-        console.error('DOCX processing error:', error);
-        throw new Error(`Failed to process DOCX: ${error.message}`);
+        console.error('Queue insertion error:', error);
+        throw new Error(`Failed to queue DOCX processing: ${error.message}`);
       }
 
-      console.log('DOCX processing initiated:', data);
+      console.log(`DOCX processing queued for manuscript ${manuscriptId}`);
     } catch (error) {
-      console.error('Error invoking DOCX processing:', error);
+      console.error('Error queueing DOCX processing:', error);
       throw error;
     }
+  }
+
+  // Get processing status for a manuscript
+  static async getProcessingStatus(manuscriptId: string): Promise<{
+    status: string;
+    progress?: Record<string, unknown>;
+    error?: string;
+  }> {
+    const { data, error } = await supabase
+      .from('processing_queue')
+      .select('status, progress_data, error_message')
+      .eq('manuscript_id', manuscriptId)
+      .eq('job_type', 'process_docx')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      throw new Error(`Failed to get processing status: ${error.message}`);
+    }
+
+    if (!data) {
+      return { status: 'not_found' };
+    }
+
+    return {
+      status: data.status,
+      progress: data.progress_data,
+      error: data.error_message
+    };
+  }
+
+  // Get AI suggestion results for a manuscript
+  static async getAISuggestionResults(manuscriptId: string): Promise<unknown[]> {
+    const { data, error } = await supabase
+      .from('ai_suggestion_results')
+      .select('suggestions, total_suggestions, created_at')
+      .eq('manuscript_id', manuscriptId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      throw new Error(`Failed to get AI suggestion results: ${error.message}`);
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    return data.suggestions || [];
+  }
+
+  // Load suggestions from completed queue job
+  static async loadSuggestionsFromQueue(manuscriptId: string): Promise<{
+    suggestions: unknown[];
+    jobStatus: string;
+    totalSuggestions: number;
+  }> {
+    // Check if AI suggestion job has completed
+    const { data: jobData, error: jobError } = await supabase
+      .from('processing_queue')
+      .select('status, progress_data')
+      .eq('manuscript_id', manuscriptId)
+      .eq('job_type', 'generate_ai_suggestions')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (jobError && jobError.code !== 'PGRST116') {
+      throw new Error(`Failed to check AI job status: ${jobError.message}`);
+    }
+
+    if (!jobData) {
+      return {
+        suggestions: [],
+        jobStatus: 'not_found',
+        totalSuggestions: 0
+      };
+    }
+
+    const jobStatus = jobData.status;
+
+    // If job is not completed, return current status
+    if (jobStatus !== 'completed') {
+      return {
+        suggestions: [],
+        jobStatus,
+        totalSuggestions: 0
+      };
+    }
+
+    // Load suggestions from results table
+    try {
+      const suggestions = await this.getAISuggestionResults(manuscriptId);
+      return {
+        suggestions,
+        jobStatus: 'completed',
+        totalSuggestions: suggestions.length
+      };
+    } catch (error) {
+      console.error('Error loading AI suggestions:', error);
+      return {
+        suggestions: [],
+        jobStatus: 'error',
+        totalSuggestions: 0
+      };
+    }
+  }
+
+  // Check if AI suggestion job is available for a manuscript
+  static async hasAISuggestionJob(manuscriptId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('processing_queue')
+      .select('id')
+      .eq('manuscript_id', manuscriptId)
+      .eq('job_type', 'generate_ai_suggestions')
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking AI suggestion job:', error);
+      return false;
+    }
+
+    return !!data;
   }
 }

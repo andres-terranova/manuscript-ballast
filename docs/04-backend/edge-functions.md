@@ -1,0 +1,735 @@
+# Supabase Edge Functions Documentation
+
+## Overview
+
+This directory contains Deno-based serverless functions for backend processing tasks. Edge functions run close to users for low latency and are used for CPU-intensive operations that can't run in the browser.
+
+## Function Directory Structure
+
+```
+supabase/functions/
+├── queue-processor/
+│   └── index.ts           # ⭐ Main document processor
+├── generate-tiptap-jwt/
+│   └── index.ts           # JWT token generation
+├── ai-suggestions-html/
+│   └── index.ts           # ✅ AI suggestions processor (Phase 1)
+├── process-docx/
+│   └── index.ts           # 🟡 Direct DOCX processor (deprecated)
+└── suggest/
+    └── index.ts           # 🟡 Legacy AI suggestions (deprecated)
+```
+
+## Core Functions
+
+### queue-processor ⭐ (Primary Document Processor)
+
+**Purpose**: Processes DOCX files from the processing queue in background.
+
+**Status**: ✅ Production ready
+
+**Trigger**: HTTP POST (called by frontend polling or manual trigger)
+
+**Configuration**:
+```toml
+# supabase/config.toml
+[functions.queue-processor]
+verify_jwt = false  # Allows system-level calls
+```
+
+**Request Format**:
+```typescript
+// No request body required
+POST /functions/v1/queue-processor
+Headers:
+  Content-Type: application/json
+Body: {}
+```
+
+**Response Format**:
+```typescript
+// Success
+{
+  "success": true,
+  "message": "Job abc123 completed successfully",
+  "job_id": "abc123-def456-..."
+}
+
+// No jobs
+{
+  "message": "No pending jobs in queue"
+}
+
+// Error
+{
+  "success": false,
+  "error": "Processing failed: <reason>",
+  "job_id": "abc123-def456-..."
+}
+```
+
+**Processing Flow**:
+```
+1. Query processing_queue for pending jobs (ORDER BY priority DESC, created_at ASC)
+   ↓
+2. If no jobs, return "No pending jobs"
+   ↓
+3. Mark job as 'processing', set started_at timestamp
+   ↓
+4. Update progress: "downloading" (20%)
+   ↓
+5. Download DOCX file from Supabase Storage
+   ↓
+6. Update progress: "extracting_text" (50%)
+   ↓
+7. Use Mammoth.js to extract text and convert to HTML
+   ↓
+8. Check CPU timeout (1.8s limit) - if exceeded, use fast HTML fallback
+   ↓
+9. Update progress: "saving_results" (80%)
+   ↓
+10. Calculate document statistics (word count, character count)
+    ↓
+11. Update manuscript record with content and stats
+    ↓
+12. Mark job as 'completed', set completed_at timestamp
+    ↓
+13. Return success response
+```
+
+**Key Features**:
+- **CPU Timeout Protection**: 1.8s processing limit prevents edge function timeout
+- **Automatic Retry**: Failed jobs automatically retried (up to 3 attempts)
+- **Stuck Job Detection**: Jobs in 'processing' >2 minutes are reset to 'pending'
+- **Progress Tracking**: Real-time status updates (downloading → extracting_text → saving_results)
+- **Adaptive Processing**: Fast HTML fallback if CPU time exceeded
+
+**Environment Variables**:
+```bash
+# None required - uses Supabase client with service role key
+```
+
+**Error Handling**:
+```typescript
+try {
+  // Process document
+} catch (error) {
+  // Increment attempts
+  // Update error_message
+  // Mark as 'failed' if max_attempts reached
+  // Otherwise reset to 'pending' for retry
+}
+```
+
+**Performance**:
+- Small docs (189KB): ~1.5s
+- Medium docs (240KB): ~2s
+- Large docs (437KB): ~3s
+- Tested capacity: 60K+ words
+
+**File Location**: `supabase/functions/queue-processor/index.ts`
+
+**Related Documentation**: [Queue System Architecture](../../docs/architecture/QUEUE_SYSTEM_ARCHITECTURE.md)
+
+---
+
+### generate-tiptap-jwt (JWT Token Generator)
+
+**Purpose**: Generates JWT tokens for TipTap Pro AI authentication.
+
+**Status**: ✅ Production ready
+
+**Trigger**: HTTP POST from frontend
+
+**Configuration**:
+```toml
+[functions.generate-tiptap-jwt]
+verify_jwt = true  # Requires authenticated user
+```
+
+**Request Format**:
+```typescript
+POST /functions/v1/generate-tiptap-jwt
+Headers:
+  Authorization: Bearer <supabase-session-token>
+  Content-Type: application/json
+Body: {}
+```
+
+**Response Format**:
+```typescript
+// Success
+{
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "expiresAt": 1759008200,  // Unix timestamp
+  "expiresIn": 86400         // Seconds until expiration (24 hours)
+}
+
+// Error
+{
+  "error": "Failed to generate JWT: <reason>"
+}
+```
+
+**JWT Structure** (Simplified & Working):
+```javascript
+// Header
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+
+// Payload (Simple structure accepted by TipTap)
+{
+  "iss": "https://cloud.tiptap.dev",
+  "iat": 1758921800,  // Issued at
+  "exp": 1759008200,  // Expires (24 hours - prevents editor reload during long AI Pass operations)
+  "sub": "user-session-identifier"
+}
+```
+
+**Signing**:
+```typescript
+import { create } from 'https://deno.land/x/djwt/mod.ts';
+
+const jwt = await create(
+  { alg: 'HS256', typ: 'JWT' },
+  payload,
+  TIPTAP_CONTENT_AI_SECRET
+);
+```
+
+**Environment Variables**:
+```bash
+TIPTAP_CONTENT_AI_SECRET=<your-content-ai-secret>
+TIPTAP_APP_ID=<your-app-id>
+```
+
+**Key Discovery**:
+- ✅ TipTap accepts **ANY valid JWT** signed with Content AI Secret
+- ✅ Simplified payload structure works perfectly
+- ✅ No need for complex claims like `nbf` or specific `aud` values
+- 📖 See [TipTap JWT Guide](../../docs/guides/TIPTAP_JWT_GUIDE.md) for resolution details
+
+**File Location**: `supabase/functions/generate-tiptap-jwt/index.ts`
+
+**Related Documentation**: [TipTap JWT Guide](../../docs/guides/TIPTAP_JWT_GUIDE.md)
+
+---
+
+### ai-suggestions-html (AI Suggestions Processor)
+
+**Purpose**: Process AI suggestions for manuscript chunks using OpenAI API
+
+**Status**: ✅ Production (Phase 1 large document processing)
+
+**Deployed**: October 3, 2025
+
+**Location**: `supabase/functions/ai-suggestions-html/index.ts`
+
+**Overview**:
+
+This edge function is the core of Phase 1 large document processing. It receives HTML chunks from the browser, sends them to OpenAI for analysis, and returns suggestions in TipTap's expected format.
+
+**Key Features**:
+- Accepts HTML content chunks from browser
+- Processes multiple AI rules per chunk
+- Returns suggestions with exact HTML matching for position mapping
+- CORS-enabled for browser access
+- Error handling for OpenAI API failures
+
+**Configuration**:
+```toml
+[functions.ai-suggestions-html]
+verify_jwt = false  # Allows browser CORS access
+```
+
+**Request Format**:
+```typescript
+POST /functions/v1/ai-suggestions-html
+Headers:
+  Authorization: Bearer <supabase-anon-key>
+  Content-Type: application/json
+Body: {
+  "html": "<p>Text content to analyze</p>",
+  "chunkId": 0,
+  "rules": [
+    {
+      "id": "1",
+      "title": "Grammar & Spelling",
+      "prompt": "Identify and correct grammar errors"
+    }
+  ]
+}
+```
+
+**Response Format**:
+```typescript
+// Success (200)
+{
+  "items": [
+    {
+      "ruleId": "1",
+      "deleteHtml": "<p>Text with eror</p>",
+      "insertHtml": "<p>Text with error</p>",
+      "chunkId": 0,
+      "note": "Grammar & Spelling: Fixed typo 'eror' → 'error'"
+    }
+  ]
+}
+
+// Error (400/500)
+{
+  "error": "Invalid HTML input",
+  "message": "Detailed error message"
+}
+```
+
+**Environment Variables Required**:
+```bash
+OPENAI_API_KEY=<your-openai-api-key>  # Set via: supabase secrets set OPENAI_API_KEY=xxx
+```
+
+**Deployment**:
+```bash
+# Deploy with no JWT verification (required for CORS)
+supabase functions deploy ai-suggestions-html --no-verify-jwt
+```
+
+**Usage in Code**:
+
+Called from custom resolver in `src/hooks/useTiptapEditor.ts`:
+
+```typescript
+const response = await fetch(`${supabaseUrl}/functions/v1/ai-suggestions-html`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${supabaseAnonKey}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    html: chunk.html,
+    chunkId: chunk.id,
+    rules: rules.map(r => ({
+      id: r.id,
+      prompt: r.prompt,
+      title: r.title
+    }))
+  })
+});
+```
+
+**Performance Characteristics**:
+- **Execution time**: 2-8 seconds per chunk (varies by content size)
+- **Timeout limit**: 150 seconds maximum (Supabase edge function limit)
+- **Concurrent usage**: Supports parallel processing (Phase 1 uses 5 concurrent requests)
+- **Error rate**: ~1-2% (503 errors during cold starts, handled via Promise.allSettled)
+
+**Error Handling**:
+
+Common Errors:
+1. **503 Service Unavailable**: Edge function cold start - retry with Promise.allSettled
+2. **401 Unauthorized**: Missing/invalid OPENAI_API_KEY - check secrets
+3. **400 Bad Request**: Invalid HTML input - validate chunk content
+4. **CORS errors**: Redeploy with `--no-verify-jwt` flag
+
+**Monitoring**:
+```bash
+# Check logs
+supabase functions logs ai-suggestions-html --tail
+
+# Expected log patterns
+# Processing chunk 0 with 1234 characters
+# Chunk 0 complete: 15 suggestions
+```
+
+**Related Documentation**:
+- [Phase 1 Implementation Guide](../02-technical/large-documents/implementation-guide-phased-approach.md)
+- [UAT Test Results](../02-technical/large-documents/UAT-PHASE1-FINDINGS.md)
+- [Custom Resolver Implementation](../02-technical/large-documents/ACTION-PLAN-PHASE1.md)
+
+**Notes**:
+- This function is called via parallel batch processing (5 chunks at a time)
+- Uses `Promise.allSettled()` for error tolerance (98.7% success rate)
+- Critical for documents >30K words where browser timeout would occur
+- Returns HTML snippets that TipTap's `defaultResolver` converts to ProseMirror positions
+
+**File Location**: `supabase/functions/ai-suggestions-html/index.ts`
+
+---
+
+### process-docx (Direct DOCX Processor - Deprecated)
+
+**Purpose**: Direct DOCX processing without queue system.
+
+**Status**: 🟡 Deprecated in favor of queue-processor
+
+**Why Deprecated**:
+- Caused WORKER_LIMIT errors on large documents
+- No retry mechanism
+- No progress tracking
+- Blocking operation
+
+**Migration**:
+- Use `queue-processor` function instead
+- Add jobs to `processing_queue` table
+- Let frontend auto-polling trigger processing
+
+**File Location**: `supabase/functions/process-docx/index.ts`
+
+---
+
+### suggest (Legacy AI Suggestions - Deprecated)
+
+**Purpose**: Generate AI suggestions using OpenAI API.
+
+**Status**: 🟡 Deprecated in favor of TipTap Pro AI
+
+**Trigger**: HTTP POST from Standard Editor (legacy)
+
+**Request Format**:
+```typescript
+POST /functions/v1/suggest
+Headers:
+  Authorization: Bearer <supabase-session-token>
+  Content-Type: application/json
+Body: {
+  "text": "Document content...",
+  "rules": ["grammar", "clarity", "tone"],
+  "manuscriptId": "abc123-..."
+}
+```
+
+**Response Format**:
+```typescript
+{
+  "suggestions": [
+    {
+      "original": "they was",
+      "replacement": "they were",
+      "explanation": "Subject-verb agreement",
+      "type": "grammar"
+    },
+    // ... more suggestions
+  ]
+}
+```
+
+**Why Deprecated**:
+- TipTap Pro AI provides better quality
+- No built-in chunking or caching
+- Plain text suggestions require complex position mapping
+- Higher API costs (direct OpenAI vs TipTap's optimized calls)
+
+**Migration Path**:
+- ManuscriptEditor uses TipTap Pro AI directly
+- No edge function needed
+- JWT authentication handled by generate-tiptap-jwt
+
+**File Location**: `supabase/functions/suggest/index.ts`
+
+---
+
+## Common Patterns & Best Practices
+
+### Supabase Client Initialization
+
+```typescript
+import { createClient } from 'jsr:@supabase/supabase-js@2';
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+```
+
+**⚠️ Use service role key for elevated permissions** (bypass RLS)
+
+### Error Handling
+
+```typescript
+// ✅ Good: Graceful error handling
+try {
+  const result = await processDocument(data);
+  return new Response(JSON.stringify({ success: true, result }), {
+    headers: { 'Content-Type': 'application/json' },
+    status: 200,
+  });
+} catch (error) {
+  console.error('Processing error:', error);
+  return new Response(JSON.stringify({ 
+    success: false, 
+    error: error.message 
+  }), {
+    headers: { 'Content-Type': 'application/json' },
+    status: 500,
+  });
+}
+
+// ❌ Bad: Let errors crash function
+const result = await processDocument(data);
+return new Response(JSON.stringify(result));
+```
+
+### CORS Headers
+
+```typescript
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Handle OPTIONS preflight
+if (req.method === 'OPTIONS') {
+  return new Response('ok', { headers: corsHeaders });
+}
+
+// Include in all responses
+return new Response(JSON.stringify(data), {
+  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+});
+```
+
+### CPU Timeout Protection
+
+```typescript
+const START_TIME = Date.now();
+const CPU_TIMEOUT_MS = 1800;  // 1.8 seconds
+
+function checkTimeout() {
+  const elapsed = Date.now() - START_TIME;
+  if (elapsed > CPU_TIMEOUT_MS) {
+    throw new Error('CPU timeout exceeded');
+  }
+}
+
+// Check periodically during processing
+async function processLargeDocument(data) {
+  for (const chunk of chunks) {
+    checkTimeout();
+    await processChunk(chunk);
+  }
+}
+```
+
+### Progress Updates
+
+```typescript
+async function updateProgress(jobId: string, step: string, percentage: number) {
+  await supabase
+    .from('processing_queue')
+    .update({
+      progress_data: { step, percentage },
+    })
+    .eq('id', jobId);
+}
+
+// Usage
+await updateProgress(jobId, 'downloading', 20);
+await updateProgress(jobId, 'extracting_text', 50);
+await updateProgress(jobId, 'saving_results', 80);
+```
+
+## Deployment & Testing
+
+### Deploy Function
+
+```bash
+# Deploy single function
+supabase functions deploy queue-processor
+
+# Deploy all functions
+supabase functions deploy
+
+# Deploy with environment variables
+supabase functions deploy queue-processor \
+  --project-ref your-project-ref
+```
+
+### View Logs
+
+```bash
+# Real-time logs
+supabase functions logs queue-processor
+
+# Filter by level
+supabase functions logs queue-processor --level error
+
+# Tail logs
+supabase functions logs queue-processor --tail
+```
+
+### Local Testing
+
+```bash
+# Serve function locally
+supabase functions serve queue-processor
+
+# Test with curl
+curl -X POST http://localhost:54321/functions/v1/queue-processor \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### Environment Variables
+
+Set in Supabase Dashboard → Edge Functions → [function-name] → Environment Variables
+
+```bash
+# For generate-tiptap-jwt
+TIPTAP_CONTENT_AI_SECRET=your-secret
+TIPTAP_APP_ID=your-app-id
+
+# For suggest (legacy)
+OPENAI_API_KEY=your-api-key
+```
+
+## Performance Optimization
+
+### Memory Management
+
+```typescript
+// ✅ Good: Release memory after processing
+async function processDocx(arrayBuffer: ArrayBuffer) {
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  const text = result.value;
+  
+  // Clear large objects
+  arrayBuffer = null as any;
+  result = null as any;
+  
+  return text;
+}
+
+// ❌ Bad: Keep large objects in memory
+const result = await mammoth.extractRawText({ arrayBuffer });
+// arrayBuffer still in memory
+// result still in memory
+```
+
+### Database Queries
+
+```typescript
+// ✅ Good: Select only needed columns
+const { data } = await supabase
+  .from('manuscripts')
+  .select('id, title, word_count')
+  .eq('id', manuscriptId)
+  .single();
+
+// ❌ Bad: Select all columns
+const { data } = await supabase
+  .from('manuscripts')
+  .select('*')
+  .eq('id', manuscriptId)
+  .single();
+```
+
+### Concurrent Processing
+
+```typescript
+// ✅ Good: Process multiple jobs concurrently (future)
+const jobs = await getTopNPendingJobs(5);
+await Promise.all(jobs.map(job => processJob(job)));
+
+// ⚠️ Current: Process one job at a time (safer)
+const job = await getNextPendingJob();
+await processJob(job);
+```
+
+## Monitoring & Debugging
+
+### Key Metrics
+
+- **Invocation count**: Functions → Usage
+- **Error rate**: Functions → Logs (filter by level=error)
+- **Execution time**: Average processing time per function
+- **Queue backlog**: Query `processing_queue` for pending jobs
+
+### Debug Logging
+
+```typescript
+// Add structured logging
+console.log(JSON.stringify({
+  level: 'info',
+  function: 'queue-processor',
+  jobId: job.id,
+  step: 'extracting_text',
+  elapsed: Date.now() - startTime,
+}));
+```
+
+### Common Issues
+
+**Issue**: Function timeout (2-minute limit)
+- **Solution**: Use queue system, break into smaller tasks
+
+**Issue**: Memory exhaustion
+- **Solution**: Process in chunks, release memory early
+
+**Issue**: Rate limiting
+- **Solution**: Implement exponential backoff, queue system
+
+**Issue**: RLS policy violations
+- **Solution**: Use service role key, check policies
+
+## Security Considerations
+
+### Service Role Key
+
+- ⚠️ **NEVER expose to client-side**
+- ✅ Only use in edge functions
+- ✅ Provides elevated permissions (bypass RLS)
+
+### JWT Verification
+
+```typescript
+// Verify user JWT for authenticated endpoints
+const authHeader = req.headers.get('authorization');
+if (!authHeader) {
+  return new Response('Unauthorized', { status: 401 });
+}
+
+const token = authHeader.replace('Bearer ', '');
+const { data: user, error } = await supabase.auth.getUser(token);
+
+if (error || !user) {
+  return new Response('Unauthorized', { status: 401 });
+}
+```
+
+### Input Validation
+
+```typescript
+// ✅ Good: Validate input
+const schema = z.object({
+  manuscriptId: z.string().uuid(),
+  text: z.string().min(1).max(1000000),
+});
+
+const result = schema.safeParse(requestData);
+if (!result.success) {
+  return new Response(JSON.stringify({ error: 'Invalid input' }), {
+    status: 400,
+  });
+}
+
+// ❌ Bad: Trust all input
+const { manuscriptId, text } = requestData;
+```
+
+## Related Documentation
+
+- [TipTap JWT Guide](../../docs/guides/TIPTAP_JWT_GUIDE.md)
+- [Large Document Processing Guide](../../docs/guides/LARGE_DOCUMENT_TIMEOUT_GUIDE.md)
+- [Component Documentation](../../src/components/workspace/CLAUDE.md)
+- [Supabase Functions](../../supabase/functions/)
+
+---
+
+**Last Updated**: October 4, 2025
+
+## Tags
+
+#supabase #edge_function #backend #deployment #queue #JWT #authentication #DOCX #AI #OpenAI #performance #monitoring #CORS #rate_limiting #timeout #error_handling #troubleshooting #database #RLS

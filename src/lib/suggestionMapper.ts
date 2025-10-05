@@ -12,7 +12,7 @@ const USE_NEW_SEGMENT_MAPPER = true;
  * Maps plain text indices to ProseMirror positions for server-originated suggestions
  * Phase 1: Uses unified segment mapper with diagnostics and validation
  */
-export function mapPlainTextToPM(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
+export function mapPlainTextToPM(editor: unknown, plain: string, items: ServerSuggestion[]): UISuggestion[] {
   if (USE_NEW_SEGMENT_MAPPER) {
     return mapWithSegmentMapper(editor, plain, items);
   } else {
@@ -23,7 +23,7 @@ export function mapPlainTextToPM(editor: any, plain: string, items: ServerSugges
 /**
  * Phase 1: New unified segment mapper with diagnostics and validation
  */
-function mapWithSegmentMapper(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
+function mapWithSegmentMapper(editor: unknown, plain: string, items: ServerSuggestion[]): UISuggestion[] {
   console.log('Using new segment mapper for', items.length, 'suggestions');
   
   if (!editor?.state?.doc) return [];
@@ -164,7 +164,7 @@ function mapWithSegmentMapper(editor: any, plain: string, items: ServerSuggestio
  * Legacy mapper for comparison during Phase 1 validation
  * Will be removed after canary period
  */
-function mapWithLegacyMapper(editor: any, plain: string, items: ServerSuggestion[]): UISuggestion[] {
+function mapWithLegacyMapper(editor: unknown, plain: string, items: ServerSuggestion[]): UISuggestion[] {
   console.log('Using legacy mapper for', items.length, 'suggestions');
   console.log('Plain text length:', plain.length);
   
@@ -189,7 +189,7 @@ function mapWithLegacyMapper(editor: any, plain: string, items: ServerSuggestion
   let textIndex = 0;
   
   // Traverse the document and build position mapping
-  doc.descendants((node: any, pos: number) => {
+  doc.descendants((node: unknown, pos: number) => {
     if (node.isText && node.text) {
       const text = node.text;
       for (let i = 0; i < text.length; i++) {

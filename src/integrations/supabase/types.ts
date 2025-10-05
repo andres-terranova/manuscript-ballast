@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      processing_queue: {
+        Row: {
+          id: string
+          manuscript_id: string
+          job_type: string
+          status: 'pending' | 'processing' | 'completed' | 'failed'
+          priority: number
+          attempts: number
+          max_attempts: number
+          error_message: string | null
+          progress_data: Json
+          created_at: string
+          started_at: string | null
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          manuscript_id: string
+          job_type?: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          priority?: number
+          attempts?: number
+          max_attempts?: number
+          error_message?: string | null
+          progress_data?: Json
+          created_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          manuscript_id?: string
+          job_type?: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          priority?: number
+          attempts?: number
+          max_attempts?: number
+          error_message?: string | null
+          progress_data?: Json
+          created_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processing_queue_manuscript_id_fkey"
+            columns: ["manuscript_id"]
+            isOneToOne: false
+            referencedRelation: "manuscripts"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       manuscripts: {
         Row: {
           ball_in_court: string
