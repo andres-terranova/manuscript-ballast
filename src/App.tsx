@@ -28,8 +28,8 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/reset" element={<PasswordReset />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/manuscript/:id" element={<ManuscriptWorkspace />} />
-              <Route path="/manuscript/:id/experimental" element={<Editor />} />
+              <Route path="/manuscript/:id/legacy" element={<ManuscriptWorkspace />} />
+              <Route path="/manuscript/:id" element={<Editor />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

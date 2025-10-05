@@ -69,7 +69,7 @@ CRITICAL INSTRUCTIONS:
 }
 
 2. The deleteHtml MUST be an exact match from the input HTML (preserve all formatting, whitespace, tags)
-3. Only suggest changes that improve the text according to your role
+3. Suggest changes ONLY for issues your role explicitly identifies - do not fix unrelated problems
 4. If no changes needed, return empty suggestions array`
             },
             {

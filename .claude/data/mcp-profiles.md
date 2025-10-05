@@ -1,6 +1,6 @@
 # MCP Profile Registry
 
-**Last Updated**: 2025-10-03 (claude-tester added)
+**Last Updated**: 2025-10-05 (claude-deployer updated)
 
 This file contains a static reference of all configured MCP profiles for quick retrieval.
 
@@ -28,12 +28,12 @@ This file contains a static reference of all configured MCP profiles for quick r
 - **Context Savings**: ~30-35k tokens
 - **Note**: Duplicate of db-only
 
-### 4. vercel-only
-- **Alias**: `claude-vercel`
+### 4. deployer
+- **Alias**: `claude-deployer`
 - **Config**: `~/.claude/configs/vercel-only.json`
-- **MCPs**: vercel
-- **Use Case**: Vercel deployments, logs, environment variables
-- **Context Savings**: ~30-35k tokens
+- **MCPs**: vercel, supabase, exa (with API key)
+- **Use Case**: Full-stack deployment workflows (hosting, database, code search)
+- **Context Savings**: ~15-20k tokens
 
 ### 5. lightweight
 - **Alias**: `claude-light`
@@ -71,7 +71,7 @@ This file contains a static reference of all configured MCP profiles for quick r
 | minimal | `claude-minimal` | None | Max performance |
 | db-only | `claude-db` | supabase | Database work |
 | supabase-only | `claude-supabase` | supabase | Database work (duplicate) |
-| vercel-only | `claude-vercel` | vercel | Deployments |
+| deployer | `claude-deployer` | vercel, supabase, exa | Full-stack deployment |
 | lightweight | `claude-light` | context7, exa* | Research (broken) |
 | research | `claude-research` | context7, exa | Research |
 | claude-build | `claude-build` | supabase, exa | Feature development |

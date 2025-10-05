@@ -27,15 +27,18 @@ class MappingDiagnostics {
       ...event,
       timestamp: Date.now()
     });
-    
+
     // Trim to max events
     if (this.events.length > this.maxEvents) {
       this.events = this.events.slice(-this.maxEvents);
     }
-    
-    // Log to console in development
+
+    // Only log significant events in development (failures or heavy operations)
     if (process.env.NODE_ENV === 'development') {
-      console.log('[Mapping Diagnostics]', event);
+      const isSignificant = !event.success || event.itemCount > 100 || event.timingMs > 10;
+      if (isSignificant) {
+        console.log('[Mapping Diagnostics]', event);
+      }
     }
   }
 
