@@ -121,3 +121,7 @@ SELECT * FROM processing_queue WHERE status = 'pending';
 ---
 
 **Last Updated**: October 2, 2025
+
+## Tags
+
+#backend #supabase #edge_function #database #queue #authentication #JWT #RLS #deployment #performance #architecture

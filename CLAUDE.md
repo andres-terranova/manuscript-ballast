@@ -4,34 +4,33 @@
 
 ## 🔴 Critical Issues (Fix These First)
 
-### 1. 🟡 Large Documents Rate Limiting - PARTIALLY RESOLVED
-- **Symptom**: AI Pass fails with 429 rate limit error on 85K+ word docs
-- **Root Cause Discovery**: Console.log() CPU load was disrupting TipTap's internal request throttling
-- **Solution**: Reduced polling log frequency from 1s → 5s in `waitForAiSuggestions()`
-- **Current Status**: 🟡 **IMPROVED** - Can now process 27,782 words (155K chars), previously impossible
-- **How It Works**:
-  - JavaScript is single-threaded - frequent console.log() blocks main thread
-  - Each log: formats string, writes buffer, updates DevTools UI
-  - Main thread contention → TipTap throttling timing disrupted → chunks sent too fast → 429
-  - Reducing logs 80% (36 logs → 7 logs per 36s) freed main thread
-  - TipTap's built-in throttling now works correctly
-- **Evidence Pattern**:
-  - chunkSize: 2 → Failed at 27s (faster failure, MORE chunks)
-  - chunkSize: 10 → Failed at 54s
-  - chunkSize: 35 → Failed at 74s (slower failure, FEWER chunks)
-  - **Issue was request RATE, not total requests or chunk size**
-- **Test Results**:
-  - ✅ 27,782 words / 155K chars now succeeds
-  - ⏳ "Runs for longer" = proper throttling slowing chunk sends
-  - 🔴 85K+ word docs still untested
-- **Next Steps**: Test with logging completely disabled, test on full 85K word docs
-- **Location**: ExperimentalEditor.tsx:325-333
-- **Commit**: fc1735b (2025-10-01)
-- **Docs**: docs/02-technical/large-documents/timeout-guide.md
+### 1. ✅ Large Document Processing - RESOLVED (Phase 1 Deployed)
+- **Status**: ✅ **PRODUCTION-READY** with documented limits
+- **Solution**: Parallel batch processing with custom resolver (October 2025)
+- **Capacity**:
+  - **Optimal**: < 30K words (2-40 min processing, < 200 MB memory)
+  - **Supported**: Up to 85K words (~15-20 min, 1.5 GB memory)
+  - **Tested**: 85,337 words / 488,451 characters
+- **Key Achievements**:
+  - ✅ Parallel processing (5 chunks concurrent) - 3-5x faster than sequential
+  - ✅ Error tolerance via Promise.allSettled() - 98.7% success rate
+  - ✅ Zero rate limiting (313 requests, 0 × 429 errors)
+  - ✅ 99.9%+ position accuracy across all document sizes
+  - ✅ JWT extended to 24 hours (prevents suggestion loss during reload)
+- **Known Limitations**:
+  - ⚠️ Browser freeze: Multi-minute freeze when rendering 5,000+ suggestions (functional but poor UX)
+  - ⚠️ High memory: 1,575 MB (73.5% browser limit) on large docs
+  - ⚠️ Processing time: ~15-20 min for 85K words (acceptable for batch, not interactive)
+- **Implementation**:
+  - Custom apiResolver in `src/hooks/useTiptapEditor.ts` (lines 116-188)
+  - Edge function: `supabase/functions/ai-suggestions-html/`
+- **Test Results**: docs/02-technical/large-documents/UAT-PHASE1-FINDINGS.md
+- **Next Steps**: Phase 2 background queue recommended for production scale (better UX)
 
 ### 2. ✅ TipTap JWT Authentication - RESOLVED
-- **Status**: Fixed - server-generated JWT working in production
-- **Solution**: Simplified JWT payload structure
+- **Status**: ✅ Fixed - server-generated JWT working in production
+- **Solution**: Extended JWT expiration from 1hr → 24hr (prevents editor reload)
+- **Critical Fix**: Prevents suggestion loss when JWT refreshes during rendering
 - **Key Discovery**: TipTap accepts any valid JWT signed with Content AI Secret
 - **Docs**: docs/02-technical/authentication/tiptap-jwt.md
 
@@ -39,8 +38,8 @@
 
 ```
 Need to fix something?
-├── 🟡 Large docs (PARTIALLY RESOLVED - console.log CPU load fix, 27K words working) → docs/02-technical/large-documents/
-├── ✅ JWT authentication (RESOLVED) → docs/02-technical/authentication/tiptap-jwt.md
+├── ✅ Large docs (RESOLVED - Phase 1 deployed, up to 85K words) → docs/02-technical/large-documents/
+├── ✅ JWT authentication (RESOLVED - 24hr expiration) → docs/02-technical/authentication/tiptap-jwt.md
 ├── 📍 Wrong suggestion positions → `/prosemirror` → docs/02-technical/troubleshooting/
 ├── 🔧 Editor not working → `/tiptap` → docs/03-components/editors/
 ├── 📄 DOCX upload stuck → `/queue` → docs/04-backend/queue-system.md
@@ -62,11 +61,14 @@ Need to understand something?
 
 ## 📊 System Specs
 
-- **Capacity**: 85,337 words / 488,451 characters tested
-- **Timeout Risk**: 500+ suggestions at ~2 minutes
+- **Capacity**: 85,337 words / 488,451 characters tested ✅
+- **Document Limits**:
+  - Optimal: < 30K words (2-40 min, < 200 MB memory)
+  - Supported: Up to 85K words (~15-20 min, 1.5 GB memory)
+- **Performance**: 5,005 suggestions generated in ~15-20 min (85K words)
 - **Stack**: React 18 + TipTap v3 Pro + Supabase + TypeScript
 - **Port**: 8080 (`pnpm run dev`)
-- **Branch**: feature/noPolling
+- **Branch**: main (Phase 1 deployed)
 
 ## 🚨 Critical Don'ts
 
@@ -111,10 +113,19 @@ supabase db reset                         # Reset database (caution!)
 
 ## 🎯 Current Priorities
 
-1. **🟡 IMPROVED: Large document 429 rate limiting** (PARTIALLY RESOLVED - console.log fix enables 27K words, testing 85K+ next)
-2. ✅ ~~**Resolve TipTap JWT rejection**~~ (RESOLVED - simplified JWT structure works)
-3. **Test removing polling loop entirely** (branch: feature/noPolling - investigate if polling is even necessary)
-4. **Complete ExperimentalEditor migration** (deprecate ManuscriptWorkspace)
+1. ✅ ~~**Large document processing**~~ (RESOLVED - Phase 1 deployed October 2025)
+2. ✅ ~~**TipTap JWT authentication**~~ (RESOLVED - 24hr expiration prevents reload)
+3. ✅ ~~**Editor component naming**~~ (RESOLVED - ExperimentalEditor renamed to Editor, October 2025)
+4. **📋 Phase 2 Planning**: Background queue system for production-scale UX
+   - Address browser freeze on 5,000+ suggestions
+   - Improve memory efficiency beyond 85K words
+   - Add progress tracking and resumability
+   - Timeline: 12-week implementation estimate
+5. **📊 Production Monitoring**: Track Phase 1 usage patterns
+   - Document size distribution
+   - Processing times and memory usage
+   - User feedback on browser freeze UX
+6. **🎨 UI Optimization**: Progressive rendering for large suggestion sets
 
 ---
 
@@ -123,3 +134,17 @@ supabase db reset                         # Reset database (caution!)
 **Working on backend?** → docs/04-backend/
 **Understanding architecture?** → docs/05-architecture/
 **Product planning?** → docs/06-product/
+
+## 📝 Component Structure
+
+**Primary Editor**: `src/components/workspace/Editor.tsx` (production-ready, handles all manuscript editing)
+**Legacy Editor**: `src/components/workspace/ManuscriptWorkspace.tsx` (deprecated, maintained for backward compatibility)
+
+---
+
+**Last Updated**: October 5, 2025
+
+## Tags
+
+#triage #documentation #quick_start #architecture #tiptap #supabase #edge_function #AI #large_documents #phase1 #JWT #authentication #performance #troubleshooting #deployment #command #react #typescript #prosemirror
+- always update the "Last updated" date whenever you update an .md doc

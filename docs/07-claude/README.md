@@ -85,3 +85,6 @@ Claude Code agent reference, specialized workflows, and custom commands.
 ---
 
 **Last Updated**: October 2, 2025
+
+## Tags
+#claude_code #agents #documentation #workflow #commands #git #performance #tiptap #supabase #prosemirror #architecture #ui #debugging

@@ -43,7 +43,7 @@ import { AI_EDITOR_RULES, type AIEditorRule } from "./AIEditorRules";
 import { supabase } from "@/integrations/supabase/client";
 import { ManuscriptService } from "@/services/manuscriptService";
 
-const ExperimentalEditor = () => {
+const Editor = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -971,19 +971,19 @@ const ExperimentalEditor = () => {
 
   useEffect(() => {
     const loadManuscript = async () => {
-      console.log('[ExperimentalEditor] Loading manuscript with ID:', id);
-      
+      console.log('[Editor] Loading manuscript with ID:', id);
+
       if (!id) {
-        console.log('[ExperimentalEditor] No ID provided, redirecting to dashboard');
+        console.log('[Editor] No ID provided, redirecting to dashboard');
         navigate("/dashboard");
         return;
       }
-      
+
       setIsLoading(true);
-      console.log('[ExperimentalEditor] Set loading to true');
+      console.log('[Editor] Set loading to true');
       
       let found = getManuscriptById(id);
-      console.log('[ExperimentalEditor] Found manuscript:', found);
+      console.log('[Editor] Found manuscript:', found);
       
       if (!found && retryCount < maxRetries) {
         try {
@@ -1033,10 +1033,10 @@ const ExperimentalEditor = () => {
     }
   };
 
-  console.log('[ExperimentalEditor] Render state:', { isLoading, notFound, manuscript: !!manuscript });
+  console.log('[Editor] Render state:', { isLoading, notFound, manuscript: !!manuscript });
 
   if (isLoading) {
-    console.log('[ExperimentalEditor] Rendering loading state');
+    console.log('[Editor] Rendering loading state');
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -1469,4 +1469,4 @@ const ExperimentalEditor = () => {
   );
 };
 
-export default ExperimentalEditor;
+export default Editor;

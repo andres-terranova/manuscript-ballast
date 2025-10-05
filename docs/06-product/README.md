@@ -136,3 +136,9 @@ Match or exceed human editor quality for technical edits
 **Note**: Comprehensive PRD-based revision planned to provide more detailed specifications.
 
 **Last Updated**: October 2, 2025
+
+---
+
+## Tags
+
+#product #roadmap #features #user_flow #architecture #queue #JWT #authentication #tiptap

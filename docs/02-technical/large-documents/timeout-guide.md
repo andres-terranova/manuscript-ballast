@@ -58,7 +58,7 @@ The pattern proved the issue was **request RATE**, not total request count or ch
 - Proper throttling slows chunk sends appropriately
 - "Runs for longer" = evidence of correct throttling behavior
 
-**File**: `src/components/workspace/ExperimentalEditor.tsx:325-333`
+**File**: `src/components/workspace/Editor.tsx:325-333`
 **Commit**: fc1735b (October 1, 2025)
 
 **Next Steps**:
@@ -447,7 +447,13 @@ Before proceeding with implementation:
 
 ---
 
-**Last Updated**: October 2, 2025
+## Tags
+
+#performance #large_documents #timeout #browser #chrome #tiptap #AI #rate_limiting #throttling #resolver #debugging #testing #optimization #console_log #chunking #edge_function
+
+---
+
+**Last Updated**: October 5, 2025
 **Status**: 🟡 **PARTIALLY RESOLVED**
 - ✅ Medium docs (27K words): Working via console.log fix
 - ❌ Large docs (85K+ words): Needs custom resolver for browser timeout

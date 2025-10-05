@@ -73,3 +73,7 @@ Supabase Auth → JWT Request → Edge Function → Signed JWT → TipTap API
 ---
 
 **Last Updated**: October 2, 2025
+
+## Tags
+
+#architecture #queue #backend #supabase #tiptap #prosemirror #authentication #JWT #edge_function #user_flow #performance #component

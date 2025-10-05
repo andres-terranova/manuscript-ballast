@@ -221,8 +221,8 @@ Line 1:  Generated 5005 AI suggestions  ✅
 Line 6:  Force refreshing plugin with 5005 suggestions  ✅
 Line 7:  Suggestions plugin rebuilding decorations on refresh  ✅
 ...
-Line 80: [ExperimentalEditor] Loading manuscript with ID: a44cbca8-9748-44b2-9775-73cb77de853c  ❌
-Line 81: [ExperimentalEditor] Set loading to true  ❌
+Line 80: [Editor] Loading manuscript with ID: a44cbca8-9748-44b2-9775-73cb77de853c  ❌
+Line 81: [Editor] Set loading to true  ❌
 Line 85: 🔑 TipTap Auth: Object  ← JWT REFRESH
 Line 86: 🟢 Server-side JWT generated successfully  ← NEW JWT
 Line 88: Configuring AI Suggestion extension with: Object  ← EDITOR RECREATED
@@ -399,3 +399,9 @@ Line 88: Configuring AI Suggestion extension with: Object  ← EDITOR RECREATED
 **Testing Completed**: October 3, 2025
 **Decision**: Ship Phase 1 with limits, proceed to Phase 2 planning
 **Next Steps**: Review Phase 2 architecture, estimate timeline, prioritize based on user feedback
+
+---
+
+## Tags
+
+#testing #UAT #performance #large_documents #parallel_processing #bug #JWT #memory #browser #edge_function #supabase #tiptap #suggestions #position_mapping #troubleshooting #production #resolved

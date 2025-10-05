@@ -1,7 +1,7 @@
 # Vercel Deployment Guide
 
 **Status**: Ready to Deploy
-**Last Updated**: September 30, 2025
+**Last Updated**: October 5, 2025
 **Estimated Time**: 30 minutes
 
 ## Overview
@@ -151,7 +151,7 @@ After deployment completes, test these critical paths:
 - ✅ Browser back/forward buttons work
 
 #### 4. TipTap AI Features
-- ✅ Open a manuscript in ExperimentalEditor
+- ✅ Open a manuscript in Editor
 - ✅ Check browser console for JWT generation
 - ✅ Should see: `🟢 Server-side JWT generated successfully`
 - ✅ AI suggestions should work (if enabled)
@@ -410,3 +410,9 @@ After successful deployment, you can optionally:
 **Ready to deploy?** Follow the steps above, starting with creating `vercel.json`.
 
 **Questions or issues?** Check Troubleshooting section or Vercel deployment logs.
+
+---
+
+## Tags
+
+#vercel #deployment #frontend #vite #react #supabase #edge_function #environment_variables #CI_CD #production #preview #troubleshooting #build #configuration #tiptap #npm_registry

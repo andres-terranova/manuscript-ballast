@@ -31,3 +31,6 @@ See the main [documentation index](../README.md) for current, up-to-date guides.
 ---
 
 **Last Updated**: October 2, 2025
+
+## Tags
+#archive #documentation #historical #deprecated #reference

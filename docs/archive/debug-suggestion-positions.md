@@ -177,3 +177,6 @@ Position issues are rare in the current architecture since all three sources pro
 - `.claude/agents/prosemirror.md` - ProseMirror position specialist
 - `src/components/workspace/CLAUDE.md` - ExperimentalEditor details
 - `src/lib/styleValidator.ts` - Style check position computation
+
+## Tags
+#prosemirror #debugging #troubleshooting #positions #suggestions #tiptap #decorations #editor #bug
