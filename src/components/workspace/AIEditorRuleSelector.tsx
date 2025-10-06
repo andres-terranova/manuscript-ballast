@@ -317,7 +317,7 @@ const AIEditorRuleSelector: React.FC<AIEditorRuleSelectorProps> = ({
           <DialogHeader>
             <DialogTitle>Manage AI Editor Rules</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 overflow-y-auto flex-1 px-1">
+          <div className="space-y-4 overflow-y-auto flex-1 px-1 max-h-[500px]">
             {availableRules.map((rule) => (
               <div key={rule.id} className="p-4 border rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
@@ -370,7 +370,8 @@ const AIEditorRuleSelector: React.FC<AIEditorRuleSelectorProps> = ({
                 <p className="text-sm text-muted-foreground pl-7">{rule.description}</p>
               </div>
             ))}
-
+          </div>
+          <div className="border-t pt-4">
             <Button
               variant="outline"
               onClick={() => setShowCreateRule(true)}
