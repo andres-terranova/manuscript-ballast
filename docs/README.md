@@ -2,8 +2,16 @@
 
 **Welcome to Manuscript Ballast** - An AI-powered manuscript editor built with TipTap Pro, React, and Supabase.
 
-**Current Status**: MVP v0.5 (Production-ready core features)
-**Next Milestone**: v1.0 (Streamlined Editor ↔ Author workflow)
+---
+
+## 🎯 Start Here
+
+**New to the project?** Start with [CLAUDE.md](../CLAUDE.md) for:
+- Quick triage and decision tree
+- Current critical issues and their status
+- System specs and immediate next steps
+
+**Then use this hub** to navigate to detailed documentation by topic.
 
 ---
 
@@ -43,23 +51,6 @@ Historical documentation and deprecated guides
 
 ---
 
-## 🚀 Quick Navigation
-
-### Current State (v0.5 - MVP)
-- ✅ Large document processing (up to 85K words)
-- ✅ TipTap Pro editor with AI suggestions
-- ✅ JSON-based database model (simple, flexible)
-- ✅ TipTap snapshots for versioning
-- ✅ Queue-based DOCX processing
-
-### v1.0 Goals (Streamlined Approach)
-- Focus on Editor ↔ Author workflow (Send/Return)
-- Role-based UI (hide AI from authors)
-- Basic comments & activity feed
-- DOCX export with track changes
-- **Not in v1.0**: PDF export, admin portal, diff viewer
-
----
 
 ## 🔍 Finding Documentation
 
@@ -84,7 +75,7 @@ Historical documentation and deprecated guides
 
 ---
 
-**Last Updated**: October 5, 2025 - Streamlined structure
+**Last Updated**: October 5, 2025 - Added clear relationship to CLAUDE.md
 
 ## Tags
 #documentation #mvp #v1.0 #streamlined

@@ -88,8 +88,16 @@ Enhance MVP?
 └── 🎨 Modify UI → docs/technical/ (component docs)
 
 Documentation?
-└── 📚 Main docs hub → docs/README.md (streamlined structure)
+├── 📚 Full docs structure → docs/README.md
+├── 🚀 New developer guide → docs/getting-started.md
+└── 📋 Complete PRD → Ballast-original-PRD.md
 ```
+
+## 📚 Documentation Hub
+
+- 📖 **Comprehensive Docs**: [docs/README.md](docs/README.md) - Full documentation structure, technical guides, architecture
+- 🚀 **Getting Started**: [docs/getting-started.md](docs/getting-started.md) - New developer onboarding, commands, workflow
+- 📋 **Full PRD**: [Ballast-original-PRD.md](Ballast-original-PRD.md) - Complete product vision
 
 ## 📊 System Specs
 
@@ -101,6 +109,30 @@ Documentation?
 - **Stack**: React 18 + TipTap v3 Pro + Supabase + TypeScript
 - **Port**: 8080 (`pnpm run dev`)
 - **Branch**: main (Phase 1 deployed)
+
+## 🔑 Key Concepts
+
+### Primary Editor Component
+- **Editor.tsx** (`src/components/workspace/Editor.tsx`) - Production-ready TipTap Pro AI editor
+- Handles manuscript editing, AI suggestions, track changes UI
+
+### Document Processing
+- **Parallel batch processing** - 5 chunks processed concurrently for 3-5x speedup
+- Custom apiResolver bypasses browser timeout for large documents (up to 85K words)
+
+### Queue-Based DOCX Import
+- **Workflow**: Upload → Storage → Queue → Edge Function → Processed
+- Auto-polling every 10s, handles full-length manuscripts
+
+### AI Suggestion Workflow
+1. User triggers "Run AI Pass" 2. Custom apiResolver chunks document (5 concurrent)
+3. AI analyzes each chunk in parallel 4. Suggestions mapped to ProseMirror positions
+5. Rendered as decorations + ChangeList UI
+
+### Technical Stack
+- **Frontend**: React 18 + TypeScript + TipTap v3 Pro
+- **Backend**: Supabase (PostgreSQL + Edge Functions + Auth)
+- **Database**: JSON-based model (flexible, no migrations needed)
 
 ## 🗄️ Database Architecture
 
@@ -175,7 +207,7 @@ supabase db reset                         # Reset database (caution!)
 
 ---
 
-**Last Updated**: October 5, 2025 (Streamlined for v1.0 + restructured docs)
+**Last Updated**: October 5, 2025 (Enhanced with Key Concepts + Documentation Hub)
 
 ## Tags
 

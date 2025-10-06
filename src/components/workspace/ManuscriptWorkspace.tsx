@@ -800,7 +800,7 @@ const ManuscriptWorkspace = () => {
       </header>
 
       {/* Main Content Area */}
-      <div className="h-[calc(100vh-160px)] flex flex-col lg:flex-row">
+      <div className="h-[calc(100vh-129px)] flex flex-col lg:flex-row">
         {/* Document Canvas - Left Column */}
         <div id="document-canvas" className="flex-1 min-h-0 overflow-hidden">
           {isReviewed && (
