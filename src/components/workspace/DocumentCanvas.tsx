@@ -12,6 +12,7 @@ import { ProcessingStatusCard } from "./ProcessingStatus";
 import type { UISuggestion } from "@/lib/suggestionMapper";
 import type { CheckItem } from "@/lib/styleValidator";
 import type { SuggestionType } from "@/lib/types";
+import type { AIProgressCallback } from "@/types/aiProgress";
 
 interface DocumentCanvasProps {
   manuscript: unknown;
@@ -37,6 +38,7 @@ interface DocumentCanvasProps {
     reloadOnUpdate?: boolean;
     onPopoverElementCreate?: (element: HTMLElement | null) => void;
     onSelectedSuggestionChange?: (suggestion: unknown) => void;
+    onProgressUpdate?: AIProgressCallback;
   };
 }
 

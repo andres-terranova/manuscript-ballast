@@ -35,6 +35,14 @@ Based on `claude mcp list`:
 - **context7**: http - `https://mcp.context7.com/mcp`
 - **chrome-devtools**: stdio - `npx -y chrome-devtools-mcp@latest`
 - **vercel**: http - `https://mcp.vercel.com`
+- **exa**: stdio - `npx -y exa-mcp-server` (supports API key and tool filtering)
+
+## Recently Created Profiles
+
+- **claude-fullstack** (2025-10-06): supabase + context7 + exa - Full-stack development with research capabilities
+- **claude-tester**: chrome-devtools + exa + supabase - Testing with browser automation
+- **claude-deployer**: vercel + supabase + exa - Deployment workflows
+- **claude-build**: supabase + exa - Feature development
 
 ## When Invoked, You Will:
 

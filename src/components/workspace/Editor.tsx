@@ -44,6 +44,9 @@ import AIEditorRuleSelector from "./AIEditorRuleSelector";
 import type { AIEditorRule } from "@/types/aiEditorRules";
 import { supabase } from "@/integrations/supabase/client";
 import { ManuscriptService } from "@/services/manuscriptService";
+import { AIProgressIndicator } from "./AIProgressIndicator";
+import type { AIProgressState } from "@/types/aiProgress";
+import { createInitialProgressState } from "@/types/aiProgress";
 
 const Editor = () => {
   const { id } = useParams<{ id: string }>();
@@ -60,6 +63,12 @@ const Editor = () => {
   const [showStyleRules, setShowStyleRules] = useState(false);
   const [showToolRunning, setShowToolRunning] = useState(false);
   const aiCancelledRef = useRef(false);
+  const [aiProgress, setAiProgress] = useState<AIProgressState>(createInitialProgressState());
+
+  // Handle AI progress updates
+  const handleProgressUpdate = useCallback((progress: AIProgressState) => {
+    setAiProgress(progress);
+  }, []);
 
   // Handle cancelling AI suggestions
   const handleCancelAI = useCallback(() => {
@@ -855,6 +864,9 @@ const Editor = () => {
     setShowRunAIModal(false);
     setShowToolRunning(true);
 
+    // Reset progress state
+    setAiProgress(createInitialProgressState());
+
     try {
       const editor = getGlobalEditor();
       if (!editor) {
@@ -1206,7 +1218,7 @@ const Editor = () => {
       </header>
 
       {/* Main Content Area */}
-      <div className="h-[calc(100vh-160px)] flex flex-col lg:flex-row">
+      <div className="h-[calc(100vh-129px)] flex flex-col lg:flex-row">
         {/* Document Canvas - Left Column */}
         <div id="document-canvas" className="flex-1 min-h-0 overflow-hidden">
           {isReviewed && (
@@ -1280,6 +1292,8 @@ const Editor = () => {
                 // Popover configuration
                 onPopoverElementCreate: setPopoverElement,
                 onSelectedSuggestionChange: setSelectedSuggestion,
+                // Progress tracking
+                onProgressUpdate: handleProgressUpdate,
               };
               return config;
             })()}
@@ -1485,20 +1499,20 @@ const Editor = () => {
       <Dialog open={showToolRunning}>
         <DialogContent
           id="tool-running-modal"
-          className="max-w-md [&>button]:hidden"
+          className="sm:max-w-md [&>button]:hidden"
           onEscapeKeyDown={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >
-          <div className="text-center py-6">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">AI Suggestions Loading</h3>
-            <p className="text-sm text-muted-foreground mb-6">
-              Generating AI-powered suggestions for your manuscript...
-            </p>
+          <DialogHeader>
+            <DialogTitle>AI Pass Progress</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <AIProgressIndicator progress={aiProgress} />
+          </div>
+          <div className="flex justify-end">
             <Button
               variant="destructive"
               onClick={handleCancelAI}
-              className="mt-2"
             >
               Cancel
             </Button>

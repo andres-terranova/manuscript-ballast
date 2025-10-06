@@ -2,8 +2,16 @@
 
 **Welcome to Manuscript Ballast** - An AI-powered manuscript editor built with TipTap Pro, React, and Supabase.
 
-**Current Status**: MVP v0.5 (Production-ready core features)
-**Next Milestone**: v1.0 (Streamlined Editor ↔ Author workflow)
+---
+
+## 🎯 Start Here
+
+**New to the project?** Start with [CLAUDE.md](../CLAUDE.md) for:
+- Quick triage and decision tree
+- Current critical issues and their status
+- System specs and immediate next steps
+
+**Then use this hub** to navigate to detailed documentation by topic.
 
 ---
 
@@ -43,23 +51,6 @@ Historical documentation and deprecated guides
 
 ---
 
-## 🚀 Quick Navigation
-
-### Current State (v0.5 - MVP)
-- ✅ Large document processing (up to 85K words)
-- ✅ TipTap Pro editor with AI suggestions
-- ✅ JSON-based database model (simple, flexible)
-- ✅ TipTap snapshots for versioning
-- ✅ Queue-based DOCX processing
-
-### v1.0 Goals (Streamlined Approach)
-- Focus on Editor ↔ Author workflow (Send/Return)
-- Role-based UI (hide AI from authors)
-- Basic comments & activity feed
-- DOCX export with track changes
-- **Not in v1.0**: PDF export, admin portal, diff viewer
-
----
 
 ## 🔍 Finding Documentation
 
@@ -77,6 +68,44 @@ Historical documentation and deprecated guides
 
 ---
 
+## 🏷️ Documentation by Tag
+
+### Core Technologies
+- **TipTap**: [Editor Component](./technical/editor-component.md) · [JWT Auth](./technical/tiptap-jwt.md) · [Versioning](./architecture/versioning.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md)
+- **React**: [Editor Component](./technical/editor-component.md) · [Integration Patterns](./technical/react-integration.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Getting Started](./getting-started.md)
+- **Supabase**: [Database](./architecture/database.md) · [Edge Functions](./technical/edge-functions.md) · [Queue System](./architecture/queue-system.md) · [JWT Auth](./technical/tiptap-jwt.md)
+- **ProseMirror**: [Editor Component](./technical/editor-component.md) · [Troubleshooting](./technical/troubleshooting.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Agents](./claude/agents.md)
+
+### Architecture Topics
+- **Database & Schema**: [Database Design](./architecture/database.md) · [Versioning](./architecture/versioning.md) · [Edge Functions](./technical/edge-functions.md)
+- **Queue System**: [Queue Architecture](./architecture/queue-system.md) · [Edge Functions](./technical/edge-functions.md)
+- **Versioning & Snapshots**: [Versioning Strategy](./architecture/versioning.md) · [Database](./architecture/database.md) · [Features](./product/features.md)
+- **Suggestions & AI**: [Editor Component](./technical/editor-component.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Troubleshooting](./technical/troubleshooting.md) · [Edge Functions](./technical/edge-functions.md)
+
+### Performance & Optimization
+- **Large Documents**: [Large Document Processing](./technical/large-documents.md) · [React Integration](./technical/react-integration.md) · [Edge Functions](./technical/edge-functions.md)
+- **Parallel Processing**: [Large Documents](./technical/large-documents.md) · [Edge Functions](./technical/edge-functions.md)
+- **Memory & Rendering**: [React Integration](./technical/react-integration.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Editor Component](./technical/editor-component.md)
+
+### Authentication & Security
+- **JWT**: [TipTap JWT](./technical/tiptap-jwt.md) · [Editor Component](./technical/editor-component.md) · [Edge Functions](./technical/edge-functions.md)
+- **RLS & Security**: [Database](./architecture/database.md) · [Edge Functions](./technical/edge-functions.md)
+
+### Troubleshooting & Debugging
+- **Debug Guides**: [Troubleshooting](./technical/troubleshooting.md) · [Edge Functions](./technical/edge-functions.md) · [Queue System](./architecture/queue-system.md)
+- **Testing**: [Large Documents](./technical/large-documents.md) · [UAT Template](./claude/uat-template.md) · [Queue System](./architecture/queue-system.md)
+
+### Product & Planning
+- **v1.0 & Roadmap**: [Roadmap](./product/roadmap.md) · [Features](./product/features.md) · [Getting Started](./getting-started.md) · [README](./README.md)
+- **Workflow & Collaboration**: [Features](./product/features.md) · [Roadmap](./product/roadmap.md) · [Getting Started](./getting-started.md)
+
+### Development
+- **Getting Started**: [Quick Start Guide](./getting-started.md) · [README](./README.md)
+- **Claude Code**: [Agents](./claude/agents.md) · [UAT Template](./claude/uat-template.md)
+- **Deployment**: [Edge Functions](./technical/edge-functions.md) · [TipTap JWT](./technical/tiptap-jwt.md) · [Getting Started](./getting-started.md)
+
+---
+
 ## 📝 Quick Links
 
 **New to the project?** → [Getting Started](./getting-started.md)
@@ -84,7 +113,7 @@ Historical documentation and deprecated guides
 
 ---
 
-**Last Updated**: October 5, 2025 - Streamlined structure
+**Last Updated**: October 5, 2025 - Added clear relationship to CLAUDE.md
 
 ## Tags
 #documentation #mvp #v1.0 #streamlined

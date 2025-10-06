@@ -1,5 +1,6 @@
 import { useEditor } from '@tiptap/react';
 import { useCallback, useRef } from 'react';
+import * as React from 'react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -10,6 +11,7 @@ import { SuggestionsExtension } from '@/lib/suggestionsPlugin';
 import { ChecksExtension } from '@/lib/checksPlugin';
 import type { UISuggestion } from '@/lib/suggestionMapper';
 import type { CheckItem } from '@/lib/styleValidator';
+import type { AIProgressCallback } from '@/types/aiProgress';
 
 interface UseTiptapEditorOptions {
   contentHtml: string;
@@ -34,14 +36,15 @@ interface UseTiptapEditorOptions {
     reloadOnUpdate?: boolean;
     onPopoverElementCreate?: (element: HTMLElement | null) => void;
     onSelectedSuggestionChange?: (suggestion: unknown) => void;
+    onProgressUpdate?: AIProgressCallback;
   };
 }
 
-export const useTiptapEditor = ({ 
-  contentHtml, 
-  readOnly, 
-  onUpdate, 
-  getUISuggestions, 
+export const useTiptapEditor = ({
+  contentHtml,
+  readOnly,
+  onUpdate,
+  getUISuggestions,
   getChecks,
   maxVisibleSuggestions = 200,
   maxVisibleChecks = 200,
@@ -49,7 +52,13 @@ export const useTiptapEditor = ({
 }: UseTiptapEditorOptions) => {
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   const editorRef = useRef<Editor | null>(null);
-  
+  const progressCallbackRef = useRef<AIProgressCallback | undefined>(aiSuggestionConfig?.onProgressUpdate);
+
+  // Update progress callback ref when it changes
+  React.useEffect(() => {
+    progressCallbackRef.current = aiSuggestionConfig?.onProgressUpdate;
+  }, [aiSuggestionConfig?.onProgressUpdate]);
+
   const debouncedUpdate = useCallback((html: string, text: string) => {
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current);
@@ -78,16 +87,6 @@ export const useTiptapEditor = ({
           // Validate JWT token format (should have 3 parts separated by dots)
           const isValidJWT = aiSuggestionConfig.token?.split('.').length === 3;
           
-          console.log('Configuring AI Suggestion extension with:', {
-            appId: aiSuggestionConfig.appId,
-            hasToken: !!aiSuggestionConfig.token,
-            tokenLength: aiSuggestionConfig.token?.length || 0,
-            tokenStart: aiSuggestionConfig.token?.substring(0, 20) + '...',
-            isValidJWT: isValidJWT,
-            tokenParts: aiSuggestionConfig.token?.split('.').length || 0,
-            rules: aiSuggestionConfig.rules?.length || 0,
-            currentOrigin: window.location.origin
-          });
           
           if (!isValidJWT) {
             console.warn('Token does not appear to be a valid JWT format (should have 3 parts separated by dots)');
@@ -127,20 +126,27 @@ export const useTiptapEditor = ({
                   const allSuggestions = [];
                   const startTime = Date.now();
 
-                  console.log(`🔄 Custom Resolver: Processing ${htmlChunks.length} chunks (${html.length} chars) in PARALLEL batches`);
-
                   // 🆕 PARALLEL BATCH PROCESSING
                   const BATCH_SIZE = 5; // Process 5 chunks simultaneously
-                  let processedCount = 0;
+                  const totalBatches = Math.ceil(htmlChunks.length / BATCH_SIZE);
+                  let processedBatchCount = 0;
+                  let processedChunkCount = 0;
                   let failedCount = 0;
+
+                  // Emit initial progress
+                  progressCallbackRef.current?.({
+                    totalChunks: htmlChunks.length,
+                    processedChunks: 0,
+                    suggestionsFound: 0,
+                    status: 'initializing',
+                    statusMessage: 'Analyzing manuscript...',
+                  });
 
                   // Process chunks in batches
                   for (let i = 0; i < htmlChunks.length; i += BATCH_SIZE) {
                     const batch = htmlChunks.slice(i, i + BATCH_SIZE);
                     const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
                     const totalBatches = Math.ceil(htmlChunks.length / BATCH_SIZE);
-
-                    console.log(`📦 Batch ${batchNumber}/${totalBatches}: Processing chunks ${i + 1}-${i + batch.length} in parallel`);
 
                     // Create promises for all chunks in this batch
                     const batchPromises = batch.map((chunk, batchIndex) => {
@@ -167,11 +173,23 @@ export const useTiptapEditor = ({
                           throw new Error(`HTTP ${response.status}: ${error.message || error.error}`);
                         }
                         const { items } = await response.json();
-                        console.log(`✅ Chunk ${chunkIndex + 1} complete: ${items.length} suggestions (${chunk.html.length} chars)`);
+
+                        // Emit progress as each chunk completes
+                        processedChunkCount++;
+                        const percentComplete = Math.round((processedChunkCount / htmlChunks.length) * 100);
+                        progressCallbackRef.current?.({
+                          totalChunks: htmlChunks.length,
+                          processedChunks: processedChunkCount,
+                          suggestionsFound: allSuggestions.length + items.length,
+                          status: 'processing',
+                          statusMessage: `${percentComplete}% of manuscript analyzed`,
+                        });
+
                         return { chunkIndex, suggestions: items, success: true };
                       })
                       .catch((error) => {
                         console.error(`❌ Chunk ${chunkIndex + 1} failed:`, error.message);
+                        failedCount++;
                         return { chunkIndex, error: error.message, success: false };
                       });
                     });
@@ -179,32 +197,32 @@ export const useTiptapEditor = ({
                     // Wait for all chunks in this batch to complete (or fail)
                     const batchResults = await Promise.allSettled(batchPromises);
 
-                    // Collect successful results
+                    // Collect suggestions from completed chunks
                     batchResults.forEach((result) => {
-                      if (result.status === 'fulfilled') {
-                        if (result.value.success) {
-                          allSuggestions.push(...result.value.suggestions);
-                          processedCount++;
-                        } else {
-                          failedCount++;
-                        }
-                      } else {
-                        console.error('Unexpected promise rejection:', result.reason);
-                        failedCount++;
+                      if (result.status === 'fulfilled' && result.value?.success && Array.isArray(result.value.suggestions)) {
+                        allSuggestions.push(...result.value.suggestions);
                       }
                     });
 
-                    console.log(`📦 Batch ${batchNumber} complete: ${processedCount}/${htmlChunks.length} chunks processed, ${failedCount} failed`);
+                    processedBatchCount++;
 
-                    // Small delay between batches (optional, for rate limiting safety)
+                    // Small delay between batches for rate limiting
                     if (i + BATCH_SIZE < htmlChunks.length) {
-                      console.log(`⏳ Waiting 500ms before next batch...`);
                       await new Promise(resolve => setTimeout(resolve, 500));
                     }
                   }
 
                   const totalTime = Date.now() - startTime;
                   console.log(`✅ Complete: ${allSuggestions.length} suggestions in ${totalTime}ms (${(totalTime/1000).toFixed(1)}s)`);
+
+                  // Emit completion progress
+                  progressCallbackRef.current?.({
+                    totalChunks: htmlChunks.length,
+                    processedChunks: htmlChunks.length,
+                    suggestionsFound: allSuggestions.length,
+                    status: 'converting',
+                    statusMessage: 'Finalizing suggestions...',
+                  });
 
                   // Return in TipTap's expected format
                   return {
@@ -276,8 +294,7 @@ export const useTiptapEditor = ({
               return decorations;
             },
           };
-          
-          console.log('Final AI Suggestion config:', config);
+
           return [AiSuggestion.configure(config)];
         } catch (error) {
           console.error('AI Suggestion extension configuration failed:', error);
