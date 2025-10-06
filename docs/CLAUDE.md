@@ -66,11 +66,13 @@ git status                   # Check current state
 
 ### 4. AI Suggestion Workflow (TipTap Pro Extension)
 1. User clicks "Run AI Pass" in **Editor.tsx** (NOT ManuscriptWorkspace)
-2. TipTap Pro chunks document (~10 nodes per chunk)
-3. Custom apiResolver sends chunks to edge function (5 concurrent)
+2. TipTap Pro chunks document (~10 nodes per chunk, controlled by `chunkSize: 10`)
+3. Custom apiResolver batches these pre-chunked pieces (5 concurrent, controlled by `BATCH_SIZE: 5`)
 4. **ALL suggestions load at once** when processing completes
 5. `convertAiSuggestionsToUI()` sorts by position
 6. Display in editor popovers + ChangeList sidebar
+
+**Note**: Chunking (TipTap splits document) ≠ Batching (our parallel processing)
 
 **⚠️ Key**: Uses TipTap Pro AI Suggestion extension - see [Quick Reference](./ai-suggestions/ai-suggestions-quick-reference.md)
 

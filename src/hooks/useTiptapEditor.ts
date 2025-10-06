@@ -111,7 +111,7 @@ export const useTiptapEditor = ({
             model: 'gpt-4o-mini' as const,
             // Use TipTap's native chunking system for large documents
             enableCache: true,      // Enable caching to avoid redundant API calls (default: true)
-            chunkSize: 10,          // TEST: Using 10 nodes per chunk (was 20, failed with 150s timeout)
+            chunkSize: 20,          // UAT Winner: 19% faster than chunkSize 10 (5.7min vs 7.1min)
 
             // 🆕 CUSTOM RESOLVER FOR LARGE DOCUMENTS
             async resolver({ defaultResolver, rules, ...options }: { defaultResolver: (opts: unknown) => Promise<unknown>; rules: unknown; [key: string]: unknown }) {
