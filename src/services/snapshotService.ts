@@ -1,5 +1,6 @@
 import { Editor } from '@tiptap/core';
 import { supabase } from '@/integrations/supabase/client';
+import { JSONContent } from '@tiptap/core';
 
 // Snapshot event types matching workflow milestones
 export type SnapshotEvent = 'upload' | 'send_to_author' | 'return_to_editor' | 'manual';
@@ -10,7 +11,7 @@ export interface Snapshot {
   version: number;               // Sequential: 1, 2, 3...
   event: SnapshotEvent;         // Event that triggered snapshot
   label?: string;               // Optional user-provided label
-  content: any;                 // TipTap document JSON from editor.getJSON()
+  content: JSONContent;         // TipTap document JSON from editor.getJSON()
   metadata: {
     wordCount: number;
     characterCount: number;

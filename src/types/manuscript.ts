@@ -1,3 +1,5 @@
+import type { Snapshot } from '@/services/snapshotService';
+
 // Database-aligned manuscript types
 export interface ManuscriptDB {
   id: string;
@@ -5,24 +7,24 @@ export interface ManuscriptDB {
   owner_id: string;
   status: 'in_progress' | 'reviewed' | 'archived';
   ball_in_court: 'editor' | 'author' | 'production';
-  
+
   // Content
   content_text: string | null;
   content_html: string | null;
   source_markdown: string | null;
-  
+
   // DOCX support (required - DOCX-first model)
   docx_file_path: string;
   original_filename: string;
   file_size: number;
   processing_status: 'pending' | 'processing' | 'completed' | 'failed';
   processing_error: string | null;
-  
+
   // Embedded JSON data
   style_rules: string[];
   suggestions: SuggestionData[];
   comments: CommentData[];
-  snapshots: any[] | null;  // Array of Snapshot objects (defined in snapshotService)
+  snapshots: Snapshot[] | null;  // Array of Snapshot objects (defined in snapshotService)
   
   // Metadata
   excerpt: string | null;
@@ -65,7 +67,7 @@ export interface Manuscript {
   comments?: CommentData[];
   checks?: CheckData[];
   newContent?: NewContentData[];
-  snapshots?: any[] | null;  // Array of Snapshot objects (defined in snapshotService)
+  snapshots?: Snapshot[] | null;  // Array of Snapshot objects (defined in snapshotService)
 }
 
 // Supporting data types
@@ -136,7 +138,7 @@ export interface ManuscriptUpdateInput {
   style_rules?: string[];
   suggestions?: SuggestionData[];
   comments?: CommentData[];
-  snapshots?: any[] | null;  // Array of Snapshot objects (defined in snapshotService)
+  snapshots?: Snapshot[] | null;  // Array of Snapshot objects (defined in snapshotService)
   excerpt?: string;
   word_count?: number;
   character_count?: number;

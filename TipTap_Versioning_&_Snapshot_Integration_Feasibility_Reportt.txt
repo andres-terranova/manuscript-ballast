@@ -1,0 +1,985 @@
+
+ ▐▛███▜▌   Claude Code v2.0.8
+▝▜█████▛▘  Opus 4.1 · Claude Max
+  ▘▘ ▝▝    /Users/andresterranova/manuscript-ballast
+
+> init 
+
+⏺ I'm ready to help with Manuscript Ballast!
+
+  The system is initialized and I have context on:
+  - Your AI-powered manuscript editor with TipTap Pro
+  - Current state: MVP v0.5 (single-user, functional)
+  - Key architecture: React + TypeScript + Supabase, handles
+  85K+ word docs
+  - Critical implementation details for TipTap AI Suggestions
+
+  What would you like to work on?
+
+> /model opusplan 
+  ⎿  Set model to opusplan (claude-opus-4-1-20250805)
+
+> I would like to implement some type of versioning and consider
+ this: https://tiptap.dev/docs/collaboration/documents/snapshot\
+\
+can you please get up to date on necessary info on architecture 
+and tiptap integration, then do some research on that History 
+extension using exa-code and/or context7 as well as on our 
+codebase to see if it's a feasible integration. think 
+creatively. if something doesn't look out of the box, take a 
+look if there are different combinations we can use. Make a todo
+ list, and your deliverable is a report on your findings 
+
+⏺ I'll research TipTap's snapshot/versioning capabilities and
+  assess integration feasibility for your manuscript editor. Let
+   me create a plan and systematically investigate this.
+
+⏺ Read(src/hooks/useTiptapEditor.ts)
+  ⎿  Read 334 lines (ctrl+o to expand)
+
+⏺ Read(src/components/workspace/Editor.tsx)
+  ⎿  Read 1544 lines (ctrl+o to expand)
+
+⏺ Read(docs/architecture/database.md)
+  ⎿  Read 375 lines (ctrl+o to expand)
+  ⎿  docs/CLAUDE.md
+
+⏺ Fetch(https://tiptap.dev/docs/collaboration/documents/snapshot)
+  ⎿  Received 499KB (200 OK)
+
+⏺ exa - get_code_context_exa (MCP)(query: "TipTap History extension
+                                  versioning undo redo document
+                                  snapshots implementation",
+                                  tokensNum: "dynamic")
+  ⎿ ## Integrates History Extension in React TipTap Editor     
+
+    https://raw.githubusercontent.com/hunghg255/reactjs-tiptap-
+    … +262 lines (ctrl+o to expand)
+
+
+⏺ context7 - resolve-library-id (MCP)(libraryName: "tiptap")
+  ⎿  Available Libraries (top matches):                        
+
+     Each result includes:
+     … +270 lines (ctrl+o to expand)
+
+⏺ context7 - get-library-docs (MCP)(context7CompatibleLibraryID:
+                                   "/ueberdosis/tiptap-docs", topic:
+                                    "snapshot versioning history
+                                   undo redo collaboration
+                                   provider", tokens: 5000)
+  ⎿  ================                                          
+     CODE SNIPPETS
+     ================
+     … +1097 lines (ctrl+o to expand)
+
+⏺ Fetch(https://tiptap.dev/docs/collaboration/documents/snapshot-com
+       pare)
+  ⎿  Received 596KB (200 OK)
+
+⏺ Search(pattern: "snapshot|version|history", path:
+        "~/manuscript-ballast")
+  ⎿  Found 32 files (ctrl+o to expand)
+
+⏺ Read(docs/architecture/versioning.md)
+  ⎿  Read 510 lines (ctrl+o to expand)
+
+⏺ Read(docs/product/roadmap.md)
+  ⎿  Read 397 lines (ctrl+o to expand)
+  ⎿  docs/product/CLAUDE.md
+
+⏺ TipTap Versioning & Snapshot Integration Feasibility Report
+
+  Project: Manuscript BallastPrepared for: Phase 3 v1.0
+  Implementation (Weeks 5-8)Date: January 2025Status: Research
+  Complete
+
+  ---
+  Executive Summary
+
+  Bottom Line: Your existing manual snapshot strategy
+  (docs/architecture/versioning.md) is the optimal approach for
+  v1.0. TipTap's Snapshot extension requires a collaboration
+  provider architecture that conflicts with your standalone,
+  JSONB-based design. However, there are valuable complementary 
+  features you can add.
+
+  Quick Recommendation:
+  - ✅ Keep your manual snapshot plan (event-based, JSONB
+  storage)
+  - ✅ Add History extension for undo/redo (5 min
+  implementation)
+  - 🔮 Consider Snapshot Compare IF you add collaboration in
+  v2.0+
+
+  ---
+  1. Current Architecture Analysis
+
+  What You Have Now
+
+  Editor: TipTap v3 Pro with AI Suggestion extensionStorage:
+  PostgreSQL with JSONB arraysPattern: Standalone editor (no
+  real-time collaboration)Versioning Strategy: Event-based
+  snapshots (already designed)
+
+  Current TipTap Extensions:
+  // src/hooks/useTiptapEditor.ts:73-314
+  extensions: [
+    StarterKit,           // Includes basic History
+    Placeholder,
+    Link,
+    AiSuggestion,        // TipTap Pro (commercial)
+    SuggestionsExtension, // Custom
+    ChecksExtension       // Custom
+  ]
+
+  Existing Snapshot Design (docs/architecture/versioning.md):
+  - Snapshots stored in manuscripts.snapshots JSONB array
+  - Created at: upload, send_to_author, return_to_editor
+  - Uses editor.getJSON() to capture state
+  - Simple restore with editor.commands.setContent()
+
+  ---
+  2. TipTap Versioning Options Research
+
+  Option A: TipTap Snapshot Extension 
+  (@tiptap-pro/extension-snapshot)
+
+  What It Provides:
+  - Automatic version creation (configurable intervals, default
+  30s)
+  - Commands: saveVersion(), toggleVersioning(),
+  revertToVersion()
+  - Version metadata tracking (timestamps, version numbers)
+  - Built-in restoration capabilities
+
+  Critical Requirement:
+  // Requires TiptapCollabProvider or HocuspocusProvider
+  const provider = new TiptapCollabProvider({
+    appId: 'YOUR_APP_ID',
+    name: 'document.id',
+    token: 'YOUR_JWT',
+    document: ydoc
+  })
+
+  Snapshot.configure({ provider })
+
+  What This Means:
+  - ❌ Requires TipTap Collaboration Cloud (paid service) or
+  self-hosted Hocuspocus server
+  - ❌ Stores versions server-side in collaboration backend (not
+   your JSONB)
+  - ❌ Designed for real-time collaborative editing use case
+  - ❌ Incompatible with your standalone, JSONB-based
+  architecture
+
+  Verdict: Not Feasible for v1.0 without major architectural
+  changes
+
+  ---
+  Option B: History Extension (UndoRedo)
+
+  What It Provides:
+  - Basic undo/redo functionality
+  - Transaction-based history (in-memory only)
+  - No persistent versioning
+  - Already included in StarterKit
+
+  Configuration:
+  import { UndoRedo } from '@tiptap/extensions'
+
+  // OR if using StarterKit
+  StarterKit.configure({
+    undoRedo: {
+      depth: 100  // Number of undo levels
+    }
+  })
+
+  Commands:
+  editor.commands.undo()  // Ctrl+Z
+  editor.commands.redo()  // Ctrl+Shift+Z
+
+  Verdict: Highly Feasible - Easy add, complements your snapshot
+   system
+
+  ---
+  Option C: Snapshot Compare Extension
+
+  What It Provides:
+  - Visual diff between document versions
+  - Highlights additions, deletions, modifications
+  - Customizable diff decorations
+
+  Critical Requirement:
+  // Also requires TiptapCollabProvider
+  SnapshotCompare.configure({
+    provider  // TiptapCollabProvider instance
+  })
+
+  // Compare versions
+  editor.commands.compareVersions({
+    fromVersion: 1,
+    toVersion: 2
+  })
+
+  Verdict: Not Feasible for v1.0 (requires collaboration
+  provider)
+
+  ---
+  3. Architecture Constraints
+
+  Hard Constraints
+
+  1. No Collaboration Provider
+    - Your architecture is standalone (single-user editing
+  sessions)
+    - No TipTap Cloud subscription
+    - No self-hosted Hocuspocus server
+  2. JSONB-Only Storage
+    - Database design: manuscripts.snapshots array
+    - No separate version control tables
+    - Simplicity is core design principle
+  3. Event-Based Snapshots
+    - Only at: upload, send_to_author, return_to_editor
+    - NOT auto-save checkpoints
+    - User controls timing via workflow actions
+  4. Avoid Complexity
+    - JSON-first database model
+    - Simple role system
+    - Deferred real-time collaboration to v2.0+
+
+  Opportunities
+
+  - ✅ Already using TipTap Pro (AI Suggestion extension)
+  - ✅ Versioning strategy already designed
+  - ✅ JSONB provides flexibility for custom implementation
+  - ✅ Simple addition of History extension possible
+
+  ---
+  4. Creative Integration Approaches
+
+  Approach 1: Manual Snapshots + History Extension (RECOMMENDED 
+  ⭐)
+
+  Architecture:
+  Session History (In-Memory)     Milestone Versions (JSONB)
+  ┌─────────────────────┐         ┌──────────────────────┐
+  │ UndoRedo Extension  │         │ Manual Snapshots     │
+  │ - Undo/Redo         │         │ - Upload             │
+  │ - 100 steps         │         │ - Send to Author     │
+  │ - In-memory only    │         │ - Return to Editor   │
+  └─────────────────────┘         └──────────────────────┘
+           ↓                                 ↓
+      Within session                  Persistent storage
+
+  Implementation:
+
+  1. Add History Extension (5 minutes):
+  // src/hooks/useTiptapEditor.ts
+  import { UndoRedo } from '@tiptap/extensions'
+
+  extensions: [
+    StarterKit.configure({
+      history: false  // Disable built-in
+    }),
+    UndoRedo.configure({
+      depth: 100
+    }),
+    // ... rest
+  ]
+
+  2. Keep Existing Snapshot Service (already designed):
+  // src/services/snapshotService.ts (from versioning.md)
+  export async function createSnapshot({
+    editor,
+    manuscriptId,
+    event,
+    userId,
+    suggestionCount = 0
+  }: CreateSnapshotParams) {
+    const content = editor.getJSON()  // TipTap native
+    const snapshot = {
+      id: uuidv4(),
+      version: existingSnapshots.length + 1,
+      event,
+      content,
+      metadata: { wordCount, characterCount, suggestionCount },
+      createdAt: new Date().toISOString(),
+      createdBy: userId
+    }
+
+    await supabase
+      .from('manuscripts')
+      .update({ snapshots: [...existingSnapshots, snapshot] })
+      .eq('id', manuscriptId)
+  }
+
+  User Experience:
+  - Undo/Redo: Works within current editing session (Ctrl+Z /
+  Ctrl+Shift+Z)
+  - Snapshots: Persistent versions at workflow milestones
+  - Restore: Version History modal → restore snapshot
+
+  Pros:
+  - ✅ Best of both worlds
+  - ✅ Minimal implementation effort
+  - ✅ No architectural changes
+  - ✅ Aligns with existing roadmap
+
+  Cons:
+  - History is session-only (resets on page refresh)
+  - Manual diff viewing (no built-in compare)
+
+  Feasibility: EXCELLENT - Recommended for v1.0
+
+  ---
+  Approach 2: Full TipTap Collaboration Migration
+
+  What It Entails:
+  // 1. Add TipTap Collaboration Provider
+  const ydoc = new Y.Doc()
+  const provider = new TiptapCollabProvider({
+    appId: 'YOUR_APP_ID',
+    name: manuscriptId,
+    token: tiptapJWT,
+    document: ydoc
+  })
+
+  // 2. Add Collaboration extension
+  extensions: [
+    Collaboration.configure({ document: ydoc }),
+    Snapshot.configure({ provider }),
+    SnapshotCompare.configure({ provider })
+  ]
+
+  // 3. Auto-versioning
+  ydoc.getMap('__tiptapcollab__config')
+    .set('intervalSeconds', 900)  // 15 min
+
+  Migration Required:
+  - Move from JSONB to Y.js document storage
+  - Set up TipTap Cloud or self-host Hocuspocus
+  - Handle collaboration conflicts (even in single-user mode)
+  - Rewrite snapshot service to use provider API
+
+  Pros:
+  - ✅ Full TipTap feature set
+  - ✅ Auto-versioning built-in
+  - ✅ Snapshot Compare for diffs
+  - ✅ Future-proof for collaboration
+
+  Cons:
+  - ❌ Major architectural change
+  - ❌ Requires TipTap Cloud subscription OR self-hosting
+  - ❌ JSONB model abandoned
+  - ❌ 4-6 weeks additional development
+  - ❌ Complexity conflicts with design philosophy
+
+  Feasibility: LOW - Not aligned with v1.0 scope
+
+  ---
+  Approach 3: Hybrid with Custom Diff Viewer
+
+  Architecture:
+  - Manual snapshots (JSONB)
+  - History extension (in-memory undo/redo)
+  - Custom diff component using snapshot comparison
+
+  Implementation:
+  // Simple JSON diff using library like jsondiffpatch
+  import { diff, formatters } from 'jsondiffpatch'
+
+  export function DiffViewer({ 
+    fromSnapshot, 
+    toSnapshot 
+  }: DiffViewerProps) {
+    const delta = diff(fromSnapshot.content, toSnapshot.content)
+
+    return (
+      <div className="diff-viewer">
+        {/* Render additions/deletions/modifications */}
+        <AddedContent delta={delta} />
+        <DeletedContent delta={delta} />
+        <ModifiedContent delta={delta} />
+      </div>
+    )
+  }
+
+  User Experience:
+  - Select two snapshots → "Compare Versions"
+  - See side-by-side or inline diff
+  - Basic highlighting (no fancy TipTap decorations)
+
+  Pros:
+  - ✅ No TipTap dependencies
+  - ✅ Works with JSONB storage
+  - ✅ Customizable UI
+
+  Cons:
+  - Development time (1-2 weeks)
+  - Simpler than TipTap's Snapshot Compare
+  - Requires JSON diff library
+
+  Feasibility: MEDIUM - Good for v1.1 enhancement
+
+  ---
+  Approach 4: Liveblocks Integration
+
+  What It Is: Third-party collaboration platform with TipTap
+  integration
+
+  Setup:
+  import { LiveblocksProvider } from '@liveblocks/react'
+  import { useHistoryVersions } from '@liveblocks/react'
+
+  <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
+    <VersionHistory />
+  </LiveblocksProvider>
+
+  Pros:
+  - ✅ Easier than self-hosting Hocuspocus
+  - ✅ Built-in version history UI
+  - ✅ Collaboration features included
+
+  Cons:
+  - ❌ Another paid service ($99+/month)
+  - ❌ Still requires migration from JSONB
+  - ❌ Adds dependency
+
+  Feasibility: MEDIUM - Consider for v2.0 if adding
+  collaboration
+
+  ---
+  5. Feasibility Assessment Matrix
+
+  | Approach                   | Complexity | Cost | Timeline  |
+   Alignment | Rating |
+  |----------------------------|------------|------|-----------|
+  -----------|--------|
+  | Manual Snapshots + History | Low        | Free | 1 week    |
+   Perfect   | ⭐⭐⭐⭐⭐  |
+  | Full TipTap Collaboration  | High       | $$$+ | 4-6 weeks |
+   Poor      | ⭐⭐     |
+  | Custom Diff Viewer         | Medium     | Free | 1-2 weeks |
+   Good      | ⭐⭐⭐⭐   |
+  | Liveblocks Integration     | Medium     | $$   | 2-3 weeks |
+   Fair      | ⭐⭐⭐    |
+
+  ---
+  6. Recommendations
+
+  For v1.0 (Phase 3: Weeks 5-8)
+
+  PRIMARY RECOMMENDATION:
+  ✅ Implement Approach 1 (Manual Snapshots + History Extension)
+
+  Action Items:
+
+  1. Add History Extension (Week 5, Day 1)
+  // src/hooks/useTiptapEditor.ts
+  import { UndoRedo } from '@tiptap/extensions'
+
+  extensions: [
+    UndoRedo.configure({ depth: 100 }),
+    // ... existing extensions
+  ]
+  2. Implement Manual Snapshot Service (Week 5-6)
+    - Use code from docs/architecture/versioning.md
+    - Create src/services/snapshotService.ts
+    - Add createSnapshot(), restoreSnapshot(),
+  getSnapshotHistory()
+  3. Build Version History UI (Week 6-7)
+    - VersionHistory.tsx component (sidebar or modal)
+    - List snapshots with labels, timestamps, metadata
+    - Restore button with confirmation
+  4. Integrate with Workflow (Week 7-8)
+    - Auto-snapshot on upload
+    - Auto-snapshot on send_to_author
+    - Auto-snapshot on return_to_editor
+    - Manual "Create Snapshot" button
+
+  Expected Outcomes:
+  - ✅ Undo/redo during editing sessions
+  - ✅ Persistent version history at milestones
+  - ✅ Simple UI for version restoration
+  - ✅ No architectural changes required
+
+  ---
+  For v1.1 (Post-Launch Enhancement)
+
+  SECONDARY RECOMMENDATION:
+  🔮 Add Custom Diff Viewer (Approach 3)
+
+  Why:
+  - User feedback may request side-by-side comparison
+  - Can be built incrementally
+  - No dependencies on collaboration provider
+  - Works with existing JSONB storage
+
+  Implementation:
+  - Use jsondiffpatch or similar library
+  - Compare two snapshots' content JSON
+  - Highlight additions (green), deletions (red), modifications
+  (yellow)
+  - Optional: inline diff view within editor
+
+  Estimated Effort: 1-2 weeks
+
+  ---
+  For v2.0+ (If Adding Collaboration)
+
+  FUTURE CONSIDERATION:
+  🔮 Migrate to TipTap Collaboration + Snapshot Extension
+
+  When to Consider:
+  - User demand for real-time collaboration
+  - Team editing features in roadmap
+  - Budget for TipTap Cloud OR infrastructure for self-hosting
+
+  Benefits at Scale:
+  - Auto-versioning every 15 minutes
+  - Built-in conflict resolution
+  - Snapshot Compare extension
+  - Presence indicators (who's editing)
+
+  Migration Path:
+  1. Keep JSONB snapshots as backup
+  2. Migrate to Y.js document model
+  3. Set up TipTap Cloud or Hocuspocus
+  4. Enable Snapshot + SnapshotCompare extensions
+  5. Transition users gradually
+
+  ---
+  7. Implementation Guide (v1.0)
+
+  Step 1: Add History Extension
+
+  File: src/hooks/useTiptapEditor.ts
+
+  // Add import
+  import { UndoRedo } from '@tiptap/extensions'
+
+  // In useEditor configuration (line 72)
+  extensions: [
+    StarterKit.configure({
+      history: false  // Disable StarterKit's built-in history
+    }),
+    UndoRedo.configure({
+      depth: 100,  // Track last 100 changes
+    }),
+    // ... rest of extensions
+  ]
+
+  Commands (already available):
+  editor.commands.undo()  // Ctrl+Z
+  editor.commands.redo()  // Ctrl+Shift+Z
+
+  UI Enhancement (optional):
+  // Add undo/redo buttons to toolbar
+  <Button onClick={() => editor.commands.undo()}>
+    <RotateCcw className="h-4 w-4" />
+  </Button>
+  <Button onClick={() => editor.commands.redo()}>
+    <RotateCw className="h-4 w-4" />
+  </Button>
+
+  ---
+  Step 2: Create Snapshot Service
+
+  File: src/services/snapshotService.ts
+
+  import { Editor } from '@tiptap/core'
+  import { v4 as uuidv4 } from 'uuid'
+  import { supabase } from '@/integrations/supabase/client'
+
+  export type SnapshotEvent = 'upload' | 'send_to_author' |
+  'return_to_editor' | 'manual'
+
+  interface CreateSnapshotParams {
+    editor: Editor
+    manuscriptId: string
+    event: SnapshotEvent
+    userId: string
+    label?: string
+    suggestionCount?: number
+    acceptedCount?: number
+    rejectedCount?: number
+  }
+
+  export async function createSnapshot({
+    editor,
+    manuscriptId,
+    event,
+    userId,
+    label,
+    suggestionCount = 0,
+    acceptedCount,
+    rejectedCount
+  }: CreateSnapshotParams): Promise<void> {
+    // Get TipTap JSON
+    const content = editor.getJSON()
+
+    // Calculate metadata
+    const text = editor.getText()
+    const wordCount = text.split(/\s+/).filter(Boolean).length
+    const characterCount = text.length
+
+    // Get existing snapshots
+    const { data: manuscript } = await supabase
+      .from('manuscripts')
+      .select('snapshots')
+      .eq('id', manuscriptId)
+      .single()
+
+    const existingSnapshots = manuscript?.snapshots || []
+    const version = existingSnapshots.length + 1
+
+    // Create snapshot
+    const snapshot = {
+      id: uuidv4(),
+      version,
+      event,
+      label,
+      content,
+      metadata: {
+        wordCount,
+        characterCount,
+        suggestionCount,
+        ...(acceptedCount !== undefined && { acceptedCount }),
+        ...(rejectedCount !== undefined && { rejectedCount })
+      },
+      createdAt: new Date().toISOString(),
+      createdBy: userId
+    }
+
+    // Update database
+    await supabase
+      .from('manuscripts')
+      .update({ snapshots: [...existingSnapshots, snapshot] })
+      .eq('id', manuscriptId)
+  }
+
+  export async function restoreSnapshot(
+    editor: Editor,
+    manuscriptId: string,
+    version: number
+  ): Promise<void> {
+    const { data: manuscript } = await supabase
+      .from('manuscripts')
+      .select('snapshots')
+      .eq('id', manuscriptId)
+      .single()
+
+    const snapshot = manuscript?.snapshots?.find((s: any) =>
+  s.version === version)
+
+    if (!snapshot) {
+      throw new Error(`Snapshot version ${version} not found`)
+    }
+
+    // Restore to editor
+    editor.commands.setContent(snapshot.content)
+
+    // Optionally update database
+    await supabase
+      .from('manuscripts')
+      .update({
+        content: editor.getHTML(),
+        word_count: snapshot.metadata.wordCount,
+        character_count: snapshot.metadata.characterCount
+      })
+      .eq('id', manuscriptId)
+  }
+
+  export async function getSnapshotHistory(manuscriptId: string)
+   {
+    const { data: manuscript } = await supabase
+      .from('manuscripts')
+      .select('snapshots')
+      .eq('id', manuscriptId)
+      .single()
+
+    return manuscript?.snapshots || []
+  }
+
+  ---
+  Step 3: Version History UI Component
+
+  File: src/components/workspace/VersionHistory.tsx
+
+  import { useState, useEffect } from 'react'
+  import { Editor } from '@tiptap/core'
+  import { ScrollArea } from '@/components/ui/scroll-area'
+  import { Button } from '@/components/ui/button'
+  import { getSnapshotHistory, restoreSnapshot } from
+  '@/services/snapshotService'
+
+  interface VersionHistoryProps {
+    manuscriptId: string
+    editor: Editor | null
+  }
+
+  export function VersionHistory({ manuscriptId, editor }: 
+  VersionHistoryProps) {
+    const [snapshots, setSnapshots] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+      loadSnapshots()
+    }, [manuscriptId])
+
+    const loadSnapshots = async () => {
+      setLoading(true)
+      const history = await getSnapshotHistory(manuscriptId)
+      setSnapshots(history.reverse())  // Most recent first
+      setLoading(false)
+    }
+
+    const handleRestore = async (version: number) => {
+      if (!editor) return
+
+      const confirmed = confirm(
+        `Restore to version ${version}? Current changes will be 
+  lost.`
+      )
+
+      if (confirmed) {
+        await restoreSnapshot(editor, manuscriptId, version)
+        toast({ title: 'Version restored successfully' })
+      }
+    }
+
+    const formatEvent = (event: string) => {
+      const labels = {
+        upload: 'Initial Upload',
+        send_to_author: 'Sent to Author',
+        return_to_editor: 'Returned to Editor',
+        manual: 'Manual Snapshot'
+      }
+      return labels[event] || event
+    }
+
+    if (loading) return <div>Loading versions...</div>
+
+    return (
+      <div className="p-4">
+        <h3 className="font-semibold mb-4">Version History</h3>
+        <ScrollArea className="h-[600px]">
+          <div className="space-y-3">
+            {snapshots.map((snapshot) => (
+              <div 
+                key={snapshot.id} 
+                className="border rounded-lg p-3 
+  hover:bg-muted/50"
+              >
+                <div className="flex items-center 
+  justify-between mb-2">
+                  <span className="font-medium">Version
+  {snapshot.version}</span>
+                  <span className="text-xs 
+  text-muted-foreground">
+                    {new
+  Date(snapshot.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <div className="text-sm text-muted-foreground 
+  mb-2">
+                  {formatEvent(snapshot.event)}
+                  {snapshot.label && ` - ${snapshot.label}`}
+                </div>
+
+                <div className="text-xs text-muted-foreground 
+  mb-3">
+                  {snapshot.metadata.wordCount.toLocaleString()}
+   words
+                  {snapshot.metadata.suggestionCount > 0 &&
+                    ` · ${snapshot.metadata.suggestionCount}
+  suggestions`}
+                </div>
+
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() =>
+  handleRestore(snapshot.version)}
+                >
+                  Restore
+                </Button>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+    )
+  }
+
+  ---
+  Step 4: Integrate with Workflow
+
+  In Editor Component (src/components/workspace/Editor.tsx):
+
+  // Add version history button to header (line ~1157)
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => setShowVersionHistory(true)}
+  >
+    <RotateCcw className="mr-2 h-4 w-4" />
+    History
+  </Button>
+
+  // Create snapshot on upload (in upload handler)
+  await createSnapshot({
+    editor,
+    manuscriptId,
+    event: 'upload',
+    userId,
+    label: 'Original upload'
+  })
+
+  // Create snapshot when sending to author
+  const handleSendToAuthor = async () => {
+    await createSnapshot({
+      editor,
+      manuscriptId,
+      event: 'send_to_author',
+      userId,
+      suggestionCount: suggestions.length
+    })
+    // ... rest of send logic
+  }
+
+  // Create snapshot when returning to editor
+  const handleReturnToEditor = async () => {
+    await createSnapshot({
+      editor,
+      manuscriptId,
+      event: 'return_to_editor',
+      userId,
+      suggestionCount: suggestions.length,
+      acceptedCount: acceptedSuggestions.length,
+      rejectedCount: rejectedSuggestions.length
+    })
+    // ... rest of return logic
+  }
+
+  ---
+  8. Key Findings Summary
+
+  What Works Out-of-the-Box
+
+  ✅ History Extension (UndoRedo)
+  - Standard TipTap extension
+  - No dependencies
+  - 5-minute implementation
+  - Perfect for session-based undo/redo
+
+  What Requires Collaboration Provider
+
+  ❌ Snapshot Extension❌ Snapshot Compare Extension❌
+  Auto-versioning❌ Server-side version storage
+
+  These require TipTap Collaboration Provider (cloud or
+  self-hosted)
+
+  What You Already Have
+
+  ✅ Manual snapshot strategy (well-designed)✅ JSONB storage 
+  model (flexible, simple)✅ Event-based versioning (aligned
+  with workflow)✅ TipTap Pro license (for AI Suggestion)
+
+  What's the Best Path
+
+  v1.0: Manual snapshots + History extensionv1.1: Add custom
+  diff viewerv2.0: Consider full collaboration migration
+
+  ---
+  9. Risk Assessment
+
+  Low Risk (Recommended Approach)
+
+  Manual Snapshots + History Extension:
+  - ✅ No architectural changes
+  - ✅ No new dependencies
+  - ✅ Well-documented pattern
+  - ✅ Aligns with existing design
+
+  Medium Risk
+
+  Custom Diff Viewer:
+  - ⚠️ Development time (1-2 weeks)
+  - ⚠️ Requires JSON diff library
+  - ⚠️ Simpler than TipTap's version
+
+  High Risk
+
+  Full Collaboration Migration:
+  - ⚠️ Major architectural change
+  - ⚠️ Requires provider (cloud or self-hosted)
+  - ⚠️ JSONB model abandoned
+  - ⚠️ 4-6 weeks additional work
+  - ⚠️ Complexity increase
+
+  ---
+  10. Conclusion
+
+  Your existing versioning strategy
+  (docs/architecture/versioning.md) is sound and well-suited to
+  your architecture. TipTap's Snapshot extension, while
+  powerful, is designed for collaboration scenarios that don't
+  match your v1.0 requirements.
+
+  Final Recommendation:
+  1. ✅ Implement your manual snapshot system as designed
+  2. ✅ Add History extension for undo/redo (5 min)
+  3. 🔮 Defer Snapshot extension until v2.0 IF adding
+  collaboration
+  4. 🔮 Consider custom diff viewer in v1.1 based on user
+  feedback
+
+  Next Steps:
+  1. Review this report with team
+  2. Confirm approach for Phase 3 implementation
+  3. Begin Step 1 (History extension) when ready
+  4. Follow implementation guide above
+
+  Questions or Need Clarification? Let me know and I can dive
+  deeper into any section.
+
+  ---
+
+⏺ Report complete!
+
+  Summary
+
+  Bottom line: Your existing manual snapshot strategy (from
+  docs/architecture/versioning.md) is the right approach.
+  TipTap's Snapshot extension requires a collaboration provider
+  architecture that doesn't fit your standalone, JSONB-based
+  design.
+
+  Key Findings:
+
+  1. TipTap Snapshot Extension - Requires TiptapCollabProvider
+  (cloud or self-hosted), stores versions server-side, designed
+  for real-time collaboration → Not feasible for v1.0
+  2. History Extension (UndoRedo) - Basic undo/redo, works
+  standalone, 5-minute implementation → Highly recommended add
+  3. Your Manual Snapshot Plan - Event-based, JSONB storage,
+  uses editor.getJSON() → Perfect for your architecture
+
+  Recommendation:
+  - ✅ Keep your manual snapshot system as designed
+  - ✅ Add History extension for undo/redo (simple enhancement)
+  - 🔮 Consider custom diff viewer in v1.1 (no dependencies)
+  - 🔮 Full TipTap Collaboration migration for v2.0 if adding
+  real-time editing
+
+  The report includes a complete implementation guide with code
+  examples for adding the History extension and building out
+  your snapshot service. Everything is ready to go for Phase 3!
+
+
+
+
