@@ -586,6 +586,8 @@ Expected outcome: Handle 5000+ suggestions with smooth 60 FPS performance and su
 
 ---
 
+**Last Updated**: October 5, 2025
+
 ## Tags
 
 #react #performance #tiptap #prosemirror #component #architecture #typescript #editor #optimization #virtualization

@@ -1,52 +1,42 @@
 # Manuscript Ballast Documentation
 
-**Welcome to the comprehensive documentation for Manuscript Ballast** - An AI-powered manuscript editor built with TipTap Pro, React, and Supabase.
+**Welcome to Manuscript Ballast** - An AI-powered manuscript editor built with TipTap Pro, React, and Supabase.
+
+**Current Status**: MVP v0.5 (Production-ready core features)
+**Next Milestone**: v1.0 (Streamlined Editor ↔ Author workflow)
+
+---
 
 ## 📚 Documentation Structure
 
-This documentation is organized into numbered sections for easy navigation:
+### [Getting Started](./getting-started.md)
+Quick orientation and core concepts - **start here**
 
-### [01 - Getting Started](./01-getting-started/)
-**Start here** - Quick orientation and essential concepts
-- Quick start guide
-- System overview
-- Core concepts
-
-### [02 - Technical Documentation](./02-technical/)
+### [Technical](./technical/)
 Implementation guides, troubleshooting, and deep dives
-- **[Large Documents](./02-technical/large-documents/)** - Processing 27K-85K+ word manuscripts
-- **[Authentication](./02-technical/authentication/)** - TipTap JWT and Supabase auth
-- **[Integrations](./02-technical/integrations/)** - React, Vercel, third-party services
-- **[Troubleshooting](./02-technical/troubleshooting/)** - Debug guides and solutions
+- **[Large Documents](./technical/large-documents.md)** - Processing up to 85K+ words
+- **[TipTap JWT](./technical/tiptap-jwt.md)** - Authentication configuration
+- **[Edge Functions](./technical/edge-functions.md)** - Supabase edge functions
+- **[React Integration](./technical/react-integration.md)** - React patterns
+- **[Troubleshooting](./technical/troubleshooting.md)** - Debug guides
+- **[Editor Component](./technical/editor-component.md)** - Primary editor docs
 
-### [03 - Components](./03-components/)
-Frontend component documentation
-- **[Editors](./03-components/editors/)** - Editor (primary manuscript editor)
-- **[Suggestions](./03-components/suggestions/)** - ChangeList, ChangeCard, etc.
-
-### [04 - Backend](./04-backend/)
-Server-side architecture and edge functions
-- Edge functions documentation
-- Queue system architecture
-- Database schema
-
-### [05 - Architecture](./05-architecture/)
+### [Architecture](./architecture/)
 System design and architectural decisions
-- React suggestion rendering strategy
-- Queue system architecture
-- Data flow patterns
+- **[Database](./architecture/database.md)** - JSON-first database design
+- **[Versioning](./architecture/versioning.md)** - TipTap snapshot strategy
+- **[Queue System](./architecture/queue-system.md)** - Background job processing
+- **[Suggestion Rendering](./architecture/suggestion-rendering.md)** - React rendering patterns
 
-### [06 - Product](./06-product/)
-Product strategy, roadmap, and feature specifications
-- Product roadmap
-- Feature documentation
-- User personas and journeys
+### [Product](./product/)
+Product strategy, roadmap, and features
+- **[Roadmap](./product/roadmap.md)** - v1.0 timeline (~10 weeks)
+- **[Features](./product/features.md)** - Feature specifications
 
-### [07 - Claude Code](./07-claude/)
-Claude Code agent reference and workflows
-- Agent documentation
-- Specialized workflows
-- Custom commands
+### [Claude](./claude/)
+Claude Code agent reference
+- **[Agents](./claude/agents.md)** - Specialized agent descriptions
+- **[UAT Template](./claude/uat-template.md)** - Testing template
 
 ### [Archive](./archive/)
 Historical documentation and deprecated guides
@@ -55,49 +45,46 @@ Historical documentation and deprecated guides
 
 ## 🚀 Quick Navigation
 
-**New to the project?** → [Getting Started](./01-getting-started/README.md)
+### Current State (v0.5 - MVP)
+- ✅ Large document processing (up to 85K words)
+- ✅ TipTap Pro editor with AI suggestions
+- ✅ JSON-based database model (simple, flexible)
+- ✅ TipTap snapshots for versioning
+- ✅ Queue-based DOCX processing
 
-**Need to fix something?** → [Troubleshooting](./02-technical/troubleshooting/)
-
-**Working on UI?** → [Components](./03-components/README.md)
-
-**Backend development?** → [Backend](./04-backend/README.md)
-
-**Understanding the system?** → [Architecture](./05-architecture/README.md)
-
-**Product planning?** → [Product](./06-product/README.md)
+### v1.0 Goals (Streamlined Approach)
+- Focus on Editor ↔ Author workflow (Send/Return)
+- Role-based UI (hide AI from authors)
+- Basic comments & activity feed
+- DOCX export with track changes
+- **Not in v1.0**: PDF export, admin portal, diff viewer
 
 ---
 
 ## 🔍 Finding Documentation
 
 **By Topic:**
-- Large documents (27K-85K+ words): [02-technical/large-documents](./02-technical/large-documents/)
-- JWT authentication: [02-technical/authentication](./02-technical/authentication/)
-- Editor components: [03-components/editors](./03-components/editors/)
-- Edge functions: [04-backend](./04-backend/)
-- System architecture: [05-architecture](./05-architecture/)
+- Large documents: [`technical/large-documents.md`](./technical/large-documents.md)
+- JWT authentication: [`technical/tiptap-jwt.md`](./technical/tiptap-jwt.md)
+- Database schema: [`architecture/database.md`](./architecture/database.md)
+- Versioning: [`architecture/versioning.md`](./architecture/versioning.md)
+- Queue system: [`architecture/queue-system.md`](./architecture/queue-system.md)
 
 **By Task:**
-- Debugging position issues: [02-technical/troubleshooting](./02-technical/troubleshooting/)
-- Deploying to Vercel: [02-technical/integrations](./02-technical/integrations/)
-- Understanding queue system: [04-backend](./04-backend/)
-- Adding new features: [06-product](./06-product/)
+- Debugging: [`technical/troubleshooting.md`](./technical/troubleshooting.md)
+- Adding features: [`product/roadmap.md`](./product/roadmap.md)
+- Understanding architecture: [`architecture/`](./architecture/)
 
 ---
 
-## 📝 Documentation Standards
+## 📝 Quick Links
 
-- Each numbered section has its own README.md index
-- File names use kebab-case (e.g., `large-document-timeout.md`)
-- Internal links use relative paths
-- Last updated dates at bottom of each file
+**New to the project?** → [Getting Started](./getting-started.md)
+**Main Project Guide** → [CLAUDE.md](../CLAUDE.md) (quick-start triage guide)
 
 ---
 
-**Main Project Guide**: See [CLAUDE.md](../CLAUDE.md) in the project root for a quick-start triage guide.
-
-**Last Updated**: October 5, 2025
+**Last Updated**: October 5, 2025 - Streamlined structure
 
 ## Tags
-#documentation #index #navigation #getting_started #architecture #backend #frontend #components #product #troubleshooting
+#documentation #mvp #v1.0 #streamlined
