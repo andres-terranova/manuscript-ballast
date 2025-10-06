@@ -51,25 +51,59 @@ This document details the simplified v1.0 feature set focused on the Editor ↔ 
 
 ---
 
-### 1.3 AI-Powered Suggestions
+### 1.3 AI-Powered Suggestions (TipTap Pro Extension) ⭐
 **Status**: ✅ Production Ready
 
-**What it does**: TipTap Pro AI generates inline suggestions for grammar, clarity, style
+**What it does**: TipTap Pro AI Suggestion extension generates comprehensive inline suggestions using OpenAI GPT-4
+
+**🚨 Implementation Details** (Critical for Developers):
+- **Extension**: TipTap Pro AI Suggestion (commercial license, JWT auth required)
+- **Main File**: `src/components/workspace/Editor.tsx` (NOT ManuscriptWorkspace.tsx)
+- **Configuration**: `src/hooks/useTiptapEditor.ts:85-236`
+- **Documentation**:
+  - [TipTap AI Overview](https://tiptap.dev/docs/content-ai/capabilities/suggestion)
+  - [Custom LLMs Guide](https://tiptap.dev/docs/content-ai/capabilities/suggestion/custom-llms)
+  - [API Reference](https://tiptap.dev/docs/content-ai/capabilities/suggestion/api-reference)
+
+**How It Works**:
+1. User clicks "Run AI Pass" in toolbar
+2. `editor.chain().loadAiSuggestions().run()` triggers processing
+3. TipTap chunks document into ~10 nodes per chunk
+4. Custom apiResolver sends chunks to edge function in parallel batches of 5
+5. Edge function (`ai-suggestions-html`) processes each chunk with selected AI rules
+6. ALL suggestions loaded at once when complete (NOT progressive)
+7. `convertAiSuggestionsToUI()` transforms and sorts by document position
+8. Suggestions display in editor with popovers and in ChangeList sidebar
+
+**Key Functions**:
+- `waitForAiSuggestions()` - Monitors completion via `editor.extensionStorage.aiSuggestion`
+- `convertAiSuggestionsToUI()` - Transforms TipTap format to our UISuggestion type
+- `editor.storage.aiSuggestion.getSuggestions()` - Retrieves all loaded suggestions
+- `editor.commands.applyAiSuggestion()` - Accepts a suggestion
+- `editor.commands.rejectAiSuggestion()` - Rejects a suggestion
 
 **Available Roles** (v1.0):
-- **Copy Editor** - Grammar, spelling, punctuation
-- **Line Editor** - Sentence structure, clarity, flow
-- **Style Editor** - Tone, voice, consistency
+- **Copy Editor** - Grammar, spelling, punctuation (Crimson)
+- **Line Editor** - Sentence structure, clarity, flow (Orange)
+- **Proofreader** - Final polish, consistency (Purple)
+- **CMOS Formatter** - Chicago Manual of Style rules (Blue)
 
 **Configuration**:
-- `AIEditorRules.tsx` - Rule definitions
-- `AIEditorRuleSelector.tsx` - UI selector
-- `ChangeList.tsx` - Suggestion review panel
+- `AIEditorRules.tsx` - Rule definitions with prompts
+- `AIEditorRuleSelector.tsx` - UI for selecting active rules
+- `ChangeList.tsx` - Suggestion review panel (sorted by position)
+
+**Performance**:
+- Small docs (<10K words): ~2 min, 200-500 suggestions
+- Medium docs (10-30K words): ~5-10 min, 1,000-2,000 suggestions
+- Large docs (30-85K words): ~15-20 min, 3,000-5,000 suggestions
+- Note: 5K+ suggestions cause browser freeze during rendering (not loading)
 
 **Deferred to v1.1+**:
 - Fact Checker role
 - Manuscript Evaluator role
 - Developmental Editor role
+- Progressive rendering for 5K+ suggestions
 
 ---
 

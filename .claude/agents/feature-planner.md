@@ -56,9 +56,11 @@ grep -r "similar_pattern" src/
 read src/components/related-feature/
 
 # Review documentation
-docs/README.md
-docs/05-architecture/
-docs/06-product/
+docs/README.md           # Documentation hub with tag navigation
+CLAUDE.md               # Quick triage, critical issues, decision tree
+docs/architecture/      # System design, AI Suggestions flow
+docs/product/          # Features, roadmap
+docs/technical/        # Implementation guides
 ```
 
 **B. Research Implementation Patterns (Exa-Code)**
@@ -184,7 +186,7 @@ For every feature, create a dedicated folder with comprehensive documentation:
 
 ```bash
 # Folder structure
-docs/06-product/features/[feature-name]/
+docs/product/features/[feature-name]/
 ├── SPEC.md              # Technical specification
 ├── UAT.md               # User Acceptance Testing script
 └── DECISIONS.md         # Architecture decision records (optional)
@@ -444,7 +446,7 @@ src/components/feature/
 ```typescript
 // When planning a feature, create this structure:
 const featureName = "real-time-collaboration";
-const basePath = `docs/06-product/features/${featureName}`;
+const basePath = `docs/product/features/${featureName}`;
 
 // Write SPEC.md
 Write({
@@ -535,34 +537,64 @@ Phase 2: [Milestone name] (Est: Y days)
 
 ## Key Documentation References
 
-- **Architecture**: docs/05-architecture/
-- **Components**: docs/03-components/
-- **Backend**: docs/04-backend/
-- **Product**: docs/06-product/
-- **Technical**: docs/02-technical/
+- **Quick Start**: CLAUDE.md (triage, decision tree, critical issues)
+- **Documentation Hub**: docs/README.md (tag-based navigation)
+- **Architecture**: docs/architecture/ (AI Suggestions flow, database, queue system)
+- **Product**: docs/product/ (features, roadmap)
+- **Technical**: docs/technical/ (AI Suggestions quick reference, large documents, troubleshooting)
+
+### Essential AI Suggestions Documentation
+- **Quick Reference**: docs/ai-suggestions/ai-suggestions-quick-reference.md
+- **Architecture Flow**: docs/ai-suggestions/ai-suggestions-flow.md
+- **Implementation**: src/components/workspace/Editor.tsx (NOT ManuscriptWorkspace.tsx)
+- **TipTap Docs**: https://tiptap.dev/docs/content-ai/capabilities/suggestion
 
 ## Common Feature Patterns
 
-### Pattern 1: New Editor Feature
+### Pattern 1: Working with TipTap Pro AI Suggestions ⭐
+```
+CRITICAL: Use Editor.tsx (NOT ManuscriptWorkspace.tsx)
+
+1. Research TipTap Pro AI Suggestion extension API
+   - https://tiptap.dev/docs/content-ai/capabilities/suggestion
+   - docs/ai-suggestions/ai-suggestions-flow.md
+
+2. Access suggestions programmatically
+   - editor.storage.aiSuggestion.getSuggestions()
+   - ALL suggestions load at once (not progressively)
+
+3. Key functions in Editor.tsx:
+   - convertAiSuggestionsToUI() - Transform & sort by position
+   - waitForAiSuggestions() - Monitor completion
+   - handlePopoverAccept/Reject() - Handle interactions
+
+4. Add new AI editor role
+   - Update AIEditorRules.tsx (AI_EDITOR_RULES array)
+   - Include prompt, color, title
+
+5. Test with large documents (85K+ words)
+   - Expect 15-20 min processing
+   - Browser freeze at 5K+ suggestions (rendering, not loading)
+```
+
+### Pattern 2: New Custom Editor Extension
 ```
 1. Research TipTap extension API
 2. Create custom extension in src/lib/extensions/
 3. Add configuration to useTiptapEditor.ts
-4. Update AIEditorRules.tsx if AI-related
-5. Add UI controls in EditorToolbar
-6. Test with large documents (85K+ words)
+4. Add UI controls in Editor.tsx
+5. Test with large documents (85K+ words)
 ```
 
-### Pattern 2: New Suggestion Type
+### Pattern 3: New Style Rule (Manual Suggestions)
 ```
-1. Add to AI_EDITOR_RULES in AIEditorRules.tsx
-2. Define style rule in src/lib/styleRuleConstants.ts
-3. Update validation in styleValidator.ts
-4. Test suggestion rendering and acceptance
-5. Verify position accuracy with ProseMirror
+1. Define style rule in src/lib/styleRuleConstants.ts
+2. Update validation in styleValidator.ts
+3. Test suggestion rendering in ChecksList
+4. Verify position accuracy with ProseMirror
 ```
 
-### Pattern 3: Database-Backed Feature
+### Pattern 4: Database-Backed Feature
 ```
 1. Design schema with RLS policies
 2. Create migration via Supabase MCP
@@ -572,9 +604,9 @@ Phase 2: [Milestone name] (Est: Y days)
 6. Add error handling and retry logic
 ```
 
-### Pattern 4: Background Processing
+### Pattern 5: Background Processing
 ```
-1. Use queue system (docs/04-backend/queue-system.md)
+1. Use queue system (docs/architecture/queue-system.md)
 2. Create edge function processor
 3. Add job status polling
 4. Implement progress indicators
@@ -677,12 +709,12 @@ mcp__supabase__get_edge_function({ function_slug: "ai-suggestions-html" })
 ```typescript
 // Create spec folder
 Write({
-  file_path: "docs/06-product/features/[feature-name]/SPEC.md",
+  file_path: "docs/product/features/[feature-name]/SPEC.md",
   content: specTemplate
 })
 
 Write({
-  file_path: "docs/06-product/features/[feature-name]/UAT.md",
+  file_path: "docs/product/features/[feature-name]/UAT.md",
   content: uatTemplate
 })
 ```

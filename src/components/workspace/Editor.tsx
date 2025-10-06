@@ -378,6 +378,13 @@ const Editor = () => {
           ruleId: ruleId,
           ruleTitle: ruleTitle
         };
+      }).sort((a, b) => {
+        // Primary sort: by start position (pmFrom)
+        if (a.pmFrom !== b.pmFrom) {
+          return a.pmFrom - b.pmFrom;
+        }
+        // Secondary sort: by end position (pmTo) if start positions are equal
+        return a.pmTo - b.pmTo;
       });
     } catch (error) {
       console.error('Error converting AI suggestions:', error);

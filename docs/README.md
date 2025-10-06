@@ -11,6 +11,12 @@
 - Current critical issues and their status
 - System specs and immediate next steps
 
+**Working with AI Suggestions?** ⭐
+- **Main Implementation**: `src/components/workspace/Editor.tsx` (NOT ManuscriptWorkspace)
+- **Architecture Guide**: [AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md)
+- **TipTap Docs**: [AI Suggestion Extension](https://tiptap.dev/docs/content-ai/capabilities/suggestion)
+- **Key Point**: Suggestions load ALL at once when processing completes (not progressively)
+
 **Then use this hub** to navigate to detailed documentation by topic.
 
 ---
@@ -22,6 +28,7 @@ Quick orientation and core concepts - **start here**
 
 ### [Technical](./technical/)
 Implementation guides, troubleshooting, and deep dives
+- **[AI Suggestions Quick Reference](./ai-suggestions/ai-suggestions-quick-reference.md)** ⭐ - Essential developer guide
 - **[Large Documents](./technical/large-documents.md)** - Processing up to 85K+ words
 - **[TipTap JWT](./technical/tiptap-jwt.md)** - Authentication configuration
 - **[Edge Functions](./technical/edge-functions.md)** - Supabase edge functions
@@ -34,7 +41,15 @@ System design and architectural decisions
 - **[Database](./architecture/database.md)** - JSON-first database design
 - **[Versioning](./architecture/versioning.md)** - TipTap snapshot strategy
 - **[Queue System](./architecture/queue-system.md)** - Background job processing
-- **[Suggestion Rendering](./architecture/suggestion-rendering.md)** - React rendering patterns
+
+### [AI Suggestions](./ai-suggestions/)
+AI-powered suggestion system documentation
+- **[AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md)** ⭐ - TipTap Pro AI extension implementation
+- **[Quick Reference](./ai-suggestions/ai-suggestions-quick-reference.md)** - Essential developer guide
+- **[Suggestion Rendering](./ai-suggestions/suggestion-rendering.md)** - React rendering patterns
+- **[Sort Implementation](./ai-suggestions/sort-ai-suggestions-implementation.md)** - Position-based sorting guide
+- **[Debug Guide](./ai-suggestions/debug-suggestion-positions.md)** - Troubleshooting positions
+- **[Virtualized Suggestions](./ai-suggestions/virtualized-ai-suggestions/)** - Performance optimization (Phase 2)
 
 ### [Product](./product/)
 Product strategy, roadmap, and features
@@ -71,21 +86,22 @@ Historical documentation and deprecated guides
 ## 🏷️ Documentation by Tag
 
 ### Core Technologies
-- **TipTap**: [Editor Component](./technical/editor-component.md) · [JWT Auth](./technical/tiptap-jwt.md) · [Versioning](./architecture/versioning.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md)
-- **React**: [Editor Component](./technical/editor-component.md) · [Integration Patterns](./technical/react-integration.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Getting Started](./getting-started.md)
+- **TipTap**: [Editor Component](./technical/editor-component.md) · [JWT Auth](./technical/tiptap-jwt.md) · [Versioning](./architecture/versioning.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md)
+- **React**: [Editor Component](./technical/editor-component.md) · [Integration Patterns](./technical/react-integration.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md) · [Getting Started](./getting-started.md)
 - **Supabase**: [Database](./architecture/database.md) · [Edge Functions](./technical/edge-functions.md) · [Queue System](./architecture/queue-system.md) · [JWT Auth](./technical/tiptap-jwt.md)
-- **ProseMirror**: [Editor Component](./technical/editor-component.md) · [Troubleshooting](./technical/troubleshooting.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Agents](./claude/agents.md)
+- **ProseMirror**: [Editor Component](./technical/editor-component.md) · [Troubleshooting](./technical/troubleshooting.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md) · [Agents](./claude/agents.md)
 
 ### Architecture Topics
 - **Database & Schema**: [Database Design](./architecture/database.md) · [Versioning](./architecture/versioning.md) · [Edge Functions](./technical/edge-functions.md)
 - **Queue System**: [Queue Architecture](./architecture/queue-system.md) · [Edge Functions](./technical/edge-functions.md)
 - **Versioning & Snapshots**: [Versioning Strategy](./architecture/versioning.md) · [Database](./architecture/database.md) · [Features](./product/features.md)
-- **Suggestions & AI**: [Editor Component](./technical/editor-component.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Troubleshooting](./technical/troubleshooting.md) · [Edge Functions](./technical/edge-functions.md)
+- **AI Architecture & Processing**: [AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md) · [Large Documents](./technical/large-documents.md) · [Editor Component](./technical/editor-component.md)
+- **Suggestions & AI**: [AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md) · [Editor Component](./technical/editor-component.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md) · [Troubleshooting](./technical/troubleshooting.md)
 
 ### Performance & Optimization
-- **Large Documents**: [Large Document Processing](./technical/large-documents.md) · [React Integration](./technical/react-integration.md) · [Edge Functions](./technical/edge-functions.md)
-- **Parallel Processing**: [Large Documents](./technical/large-documents.md) · [Edge Functions](./technical/edge-functions.md)
-- **Memory & Rendering**: [React Integration](./technical/react-integration.md) · [Suggestion Rendering](./architecture/suggestion-rendering.md) · [Editor Component](./technical/editor-component.md)
+- **Large Documents**: [Large Document Processing](./technical/large-documents.md) · [AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md) · [React Integration](./technical/react-integration.md)
+- **Parallel Processing**: [AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md) · [Large Documents](./technical/large-documents.md) · [Edge Functions](./technical/edge-functions.md)
+- **Memory & Rendering**: [React Integration](./technical/react-integration.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md) · [Editor Component](./technical/editor-component.md)
 
 ### Authentication & Security
 - **JWT**: [TipTap JWT](./technical/tiptap-jwt.md) · [Editor Component](./technical/editor-component.md) · [Edge Functions](./technical/edge-functions.md)
@@ -113,7 +129,7 @@ Historical documentation and deprecated guides
 
 ---
 
-**Last Updated**: October 5, 2025 - Added clear relationship to CLAUDE.md
+**Last Updated**: January 2025 - Enhanced AI Suggestion documentation visibility and clarified implementation details
 
 ## Tags
 #documentation #mvp #v1.0 #streamlined

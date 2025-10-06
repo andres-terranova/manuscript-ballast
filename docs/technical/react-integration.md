@@ -443,7 +443,7 @@ export function trackSuggestionPerformance(metrics: {
 
 ## Related Documentation
 
-- [React Suggestion Rendering Strategy](../../05-architecture/react-suggestion-rendering.md)
+- [React Suggestion Rendering Strategy](../ai-suggestions/suggestion-rendering.md)
 - [TipTap React Node Views](https://tiptap.dev/docs/examples/advanced/interactive-react-and-vue-views)
 - [TanStack Virtual Documentation](https://tanstack.com/virtual/latest)
 - [React 18 Concurrent Features](https://react.dev/blog/2022/03/29/react-v18)
