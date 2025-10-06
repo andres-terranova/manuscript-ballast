@@ -1,5 +1,6 @@
 import { useEditor } from '@tiptap/react';
 import { useCallback, useRef } from 'react';
+import * as React from 'react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -10,6 +11,7 @@ import { SuggestionsExtension } from '@/lib/suggestionsPlugin';
 import { ChecksExtension } from '@/lib/checksPlugin';
 import type { UISuggestion } from '@/lib/suggestionMapper';
 import type { CheckItem } from '@/lib/styleValidator';
+import type { AIProgressCallback } from '@/types/aiProgress';
 
 interface UseTiptapEditorOptions {
   contentHtml: string;
@@ -34,14 +36,15 @@ interface UseTiptapEditorOptions {
     reloadOnUpdate?: boolean;
     onPopoverElementCreate?: (element: HTMLElement | null) => void;
     onSelectedSuggestionChange?: (suggestion: unknown) => void;
+    onProgressUpdate?: AIProgressCallback;
   };
 }
 
-export const useTiptapEditor = ({ 
-  contentHtml, 
-  readOnly, 
-  onUpdate, 
-  getUISuggestions, 
+export const useTiptapEditor = ({
+  contentHtml,
+  readOnly,
+  onUpdate,
+  getUISuggestions,
   getChecks,
   maxVisibleSuggestions = 200,
   maxVisibleChecks = 200,
@@ -49,7 +52,13 @@ export const useTiptapEditor = ({
 }: UseTiptapEditorOptions) => {
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   const editorRef = useRef<Editor | null>(null);
-  
+  const progressCallbackRef = useRef<AIProgressCallback | undefined>(aiSuggestionConfig?.onProgressUpdate);
+
+  // Update progress callback ref when it changes
+  React.useEffect(() => {
+    progressCallbackRef.current = aiSuggestionConfig?.onProgressUpdate;
+  }, [aiSuggestionConfig?.onProgressUpdate]);
+
   const debouncedUpdate = useCallback((html: string, text: string) => {
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current);
@@ -127,12 +136,23 @@ export const useTiptapEditor = ({
                   const allSuggestions = [];
                   const startTime = Date.now();
 
-                  console.log(`🔄 Custom Resolver: Processing ${htmlChunks.length} chunks (${html.length} chars) in PARALLEL batches`);
-
                   // 🆕 PARALLEL BATCH PROCESSING
                   const BATCH_SIZE = 5; // Process 5 chunks simultaneously
-                  let processedCount = 0;
+                  const totalBatches = Math.ceil(htmlChunks.length / BATCH_SIZE);
+                  let processedBatchCount = 0;
+                  let processedChunkCount = 0;
                   let failedCount = 0;
+
+                  console.log(`🔄 Custom Resolver: Processing ${htmlChunks.length} chunks in ${totalBatches} batches (${html.length} chars)`);
+
+                  // Emit initial progress
+                  progressCallbackRef.current?.({
+                    totalBatches,
+                    processedBatches: 0,
+                    suggestionsFound: 0,
+                    status: 'initializing',
+                    statusMessage: `Processing ${totalBatches} batch${totalBatches !== 1 ? 'es' : ''}...`,
+                  });
 
                   // Process chunks in batches
                   for (let i = 0; i < htmlChunks.length; i += BATCH_SIZE) {
@@ -168,10 +188,24 @@ export const useTiptapEditor = ({
                         }
                         const { items } = await response.json();
                         console.log(`✅ Chunk ${chunkIndex + 1} complete: ${items.length} suggestions (${chunk.html.length} chars)`);
+
+                        // 🆕 EMIT PROGRESS AS EACH CHUNK COMPLETES (not waiting for batch)
+                        processedChunkCount++;
+                        const currentBatch = Math.floor(chunkIndex / BATCH_SIZE) + 1;
+                        console.log(`📡 Progress update: chunk ${processedChunkCount}/${htmlChunks.length} (batch ${currentBatch}/${totalBatches})`);
+                        progressCallbackRef.current?.({
+                          totalBatches,
+                          processedBatches: currentBatch,
+                          suggestionsFound: allSuggestions.length + items.length,
+                          status: 'processing',
+                          statusMessage: `Processing batch ${currentBatch}/${totalBatches}...`,
+                        });
+
                         return { chunkIndex, suggestions: items, success: true };
                       })
                       .catch((error) => {
                         console.error(`❌ Chunk ${chunkIndex + 1} failed:`, error.message);
+                        failedCount++;
                         return { chunkIndex, error: error.message, success: false };
                       });
                     });
@@ -179,22 +213,15 @@ export const useTiptapEditor = ({
                     // Wait for all chunks in this batch to complete (or fail)
                     const batchResults = await Promise.allSettled(batchPromises);
 
-                    // Collect successful results
+                    // Collect suggestions from completed chunks
                     batchResults.forEach((result) => {
-                      if (result.status === 'fulfilled') {
-                        if (result.value.success) {
-                          allSuggestions.push(...result.value.suggestions);
-                          processedCount++;
-                        } else {
-                          failedCount++;
-                        }
-                      } else {
-                        console.error('Unexpected promise rejection:', result.reason);
-                        failedCount++;
+                      if (result.status === 'fulfilled' && result.value?.success && Array.isArray(result.value.suggestions)) {
+                        allSuggestions.push(...result.value.suggestions);
                       }
                     });
 
-                    console.log(`📦 Batch ${batchNumber} complete: ${processedCount}/${htmlChunks.length} chunks processed, ${failedCount} failed`);
+                    processedBatchCount++;
+                    console.log(`📦 Batch ${batchNumber}/${totalBatches} complete: ${processedChunkCount}/${htmlChunks.length} chunks processed, ${failedCount} failed`);
 
                     // Small delay between batches (optional, for rate limiting safety)
                     if (i + BATCH_SIZE < htmlChunks.length) {
@@ -205,6 +232,15 @@ export const useTiptapEditor = ({
 
                   const totalTime = Date.now() - startTime;
                   console.log(`✅ Complete: ${allSuggestions.length} suggestions in ${totalTime}ms (${(totalTime/1000).toFixed(1)}s)`);
+
+                  // Emit completion progress
+                  progressCallbackRef.current?.({
+                    totalBatches,
+                    processedBatches: totalBatches,
+                    suggestionsFound: allSuggestions.length,
+                    status: 'converting',
+                    statusMessage: `Converting ${allSuggestions.length} suggestions...`,
+                  });
 
                   // Return in TipTap's expected format
                   return {
