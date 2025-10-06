@@ -143,7 +143,7 @@ supabase db reset
 - src/lib/suggestionMapper.ts (legacy - only for ManuscriptWorkspace)
 - src/lib/suggestionsPlugin.ts
 - src/components/workspace/Editor.tsx (TipTap AI positions)
-- docs/guides/archive/debug-suggestion-positions.md
+- docs/ai-suggestions/debug-suggestion-positions.md
 **Critical concept**: Always use ProseMirror positions, never character offsets
 ```typescript
 // ✅ Correct

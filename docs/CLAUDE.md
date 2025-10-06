@@ -64,12 +64,15 @@ git status                   # Check current state
 - Auto-polling every 10s
 - Handles full-length manuscripts
 
-### 4. AI Suggestion Workflow
-1. User clicks "Run AI Pass"
-2. Custom apiResolver chunks document (5 chunks concurrent)
-3. AI analyzes each chunk in parallel
-4. Suggestions mapped to ProseMirror positions
-5. Rendered as decorations + ChangeList
+### 4. AI Suggestion Workflow (TipTap Pro Extension)
+1. User clicks "Run AI Pass" in **Editor.tsx** (NOT ManuscriptWorkspace)
+2. TipTap Pro chunks document (~10 nodes per chunk)
+3. Custom apiResolver sends chunks to edge function (5 concurrent)
+4. **ALL suggestions load at once** when processing completes
+5. `convertAiSuggestionsToUI()` sorts by position
+6. Display in editor popovers + ChangeList sidebar
+
+**⚠️ Key**: Uses TipTap Pro AI Suggestion extension - see [Quick Reference](./ai-suggestions/ai-suggestions-quick-reference.md)
 
 ### 5. Technical Stack
 - **React 18** + **TypeScript**
@@ -92,4 +95,4 @@ git status                   # Check current state
 
 ---
 
-**Last Updated**: October 5, 2025 - Removed duplication, streamlined for new developers
+**Last Updated**: January 2025 - Clarified AI Suggestion workflow and TipTap Pro extension usage
