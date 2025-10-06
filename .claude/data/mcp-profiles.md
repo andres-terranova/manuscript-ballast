@@ -1,6 +1,6 @@
 # MCP Profile Registry
 
-**Last Updated**: 2025-10-05 (claude-deployer updated)
+**Last Updated**: 2025-10-06 (claude-fullstack added)
 
 This file contains a static reference of all configured MCP profiles for quick retrieval.
 
@@ -64,6 +64,14 @@ This file contains a static reference of all configured MCP profiles for quick r
 - **Use Case**: Testing with browser automation, search, and database
 - **Context Savings**: ~15-20k tokens
 
+### 9. fullstack
+- **Alias**: `claude-fullstack`
+- **Config**: `~/.claude/configs/cc-fullstack.json`
+- **MCPs**: supabase, context7, exa (with API key)
+- **Use Case**: Full-stack development (database + code context + research)
+- **Context Savings**: ~15-20k tokens
+- **Note**: Optimized for database integration, documentation lookup, and code research
+
 ## Quick Reference
 
 | Profile | Alias | MCPs | Best For |
@@ -76,6 +84,7 @@ This file contains a static reference of all configured MCP profiles for quick r
 | research | `claude-research` | context7, exa | Research |
 | claude-build | `claude-build` | supabase, exa | Feature development |
 | claude-tester | `claude-tester` | chrome-devtools, exa, supabase | Testing + automation |
+| fullstack | `claude-fullstack` | supabase, context7, exa | Full-stack dev + research |
 
 *Exa API key missing in lightweight profile
 

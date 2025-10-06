@@ -5,9 +5,9 @@
  */
 
 export interface AIProgressState {
-  // Batch processing (not chunks)
-  totalBatches: number;
-  processedBatches: number;
+  // Chunk-based progress tracking
+  totalChunks: number;
+  processedChunks: number;
 
   // Results
   suggestionsFound: number;
@@ -20,8 +20,8 @@ export interface AIProgressState {
 export type AIProgressCallback = (progress: AIProgressState) => void;
 
 export const createInitialProgressState = (): AIProgressState => ({
-  totalBatches: 0,
-  processedBatches: 0,
+  totalChunks: 0,
+  processedChunks: 0,
   suggestionsFound: 0,
   status: 'idle',
   statusMessage: 'Initializing...',

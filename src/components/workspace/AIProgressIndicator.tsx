@@ -7,8 +7,8 @@ interface AIProgressIndicatorProps {
 }
 
 export const AIProgressIndicator = ({ progress }: AIProgressIndicatorProps) => {
-  const progressPercentage = progress.totalBatches > 0
-    ? Math.round((progress.processedBatches / progress.totalBatches) * 100)
+  const progressPercentage = progress.totalChunks > 0
+    ? Math.round((progress.processedChunks / progress.totalChunks) * 100)
     : 0;
 
   return (
@@ -25,10 +25,7 @@ export const AIProgressIndicator = ({ progress }: AIProgressIndicatorProps) => {
 
       {/* Progress Bar */}
       <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">
-            {progress.processedBatches} / {progress.totalBatches} batch{progress.totalBatches !== 1 ? 'es' : ''}
-          </span>
+        <div className="flex justify-end text-sm">
           <span className="font-semibold text-primary">
             {progressPercentage}%
           </span>
@@ -38,13 +35,6 @@ export const AIProgressIndicator = ({ progress }: AIProgressIndicatorProps) => {
           className="h-2"
         />
       </div>
-
-      {/* Simple Stats */}
-      {progress.suggestionsFound > 0 && (
-        <div className="text-sm text-muted-foreground text-center">
-          {progress.suggestionsFound} suggestion{progress.suggestionsFound !== 1 ? 's' : ''} found
-        </div>
-      )}
     </div>
   );
 };
