@@ -72,6 +72,15 @@ The freeze occurs AFTER our processing completes successfully:
 
 ## Architecture
 
+### Research Findings
+
+After reviewing TipTap Pro AI Suggestion extension documentation and codebase:
+
+1. **Confirmed API**: `editor.commands.setAiSuggestions(suggestions)` exists and allows setting which suggestions to render
+2. **Storage Access**: `editor.storage.aiSuggestion.getSuggestions()` retrieves all suggestions
+3. **Current Implementation**: All suggestions load at once in Editor.tsx after processing completes
+4. **Critical Discovery**: The freeze happens when TipTap's `defaultResolver` maps 5K+ HTML positions to ProseMirror positions
+
 ### Approach Evaluation
 
 #### Option A: Virtualize ChangeList Only ❌
@@ -81,12 +90,12 @@ The freeze occurs AFTER our processing completes successfully:
 - **Verdict**: Partial solution, doesn't solve core freeze
 
 #### Option B: Limit Editor Decorations to Viewport ✅ **RECOMMENDED**
-**Status**: Feasible with ProseMirror plugin modification
-- Only render decorations for suggestions visible in viewport
+**Status**: Feasible with TipTap's `setAiSuggestions()` command
+- Use `setAiSuggestions(subset)` to render only viewport-visible suggestions
 - Use Intersection Observer to track viewport bounds
-- Update decorations on scroll events (debounced)
-- **Pros**: Solves root cause, minimal React changes
-- **Cons**: Complex position tracking, needs careful testing
+- Update on scroll events (debounced)
+- **Pros**: Uses native TipTap API, solves root cause, clean implementation
+- **Cons**: Requires viewport position tracking
 
 #### Option C: Progressive Loading (UI Layer) ⚠️
 **Status**: Complementary to Option B
@@ -95,15 +104,15 @@ The freeze occurs AFTER our processing completes successfully:
 - **Pros**: Gradual UX, perceived performance
 - **Cons**: Doesn't solve initial position mapping freeze
 
-#### Option D: Hybrid (Viewport Decorations + Progressive Loading) ✅ **OPTIMAL**
-**Status**: Combines best of B + C
+#### Option D: Hybrid (Viewport Rendering + Progressive Loading) ✅ **OPTIMAL**
+**Status**: Combines best of B + C using TipTap APIs
 - Progressive loading for initial suggestion set (500 suggestions)
-- Viewport-based decorations for rendered suggestions
+- Viewport-based rendering using `setAiSuggestions()` for visible subset
 - Auto-load more as user scrolls through ChangeList
-- **Pros**: Best UX, solves all freeze issues
+- **Pros**: Best UX, uses native TipTap APIs, solves all freeze issues
 - **Cons**: Most complex to implement
 
-### Selected Approach: **Option D - Hybrid Virtualization**
+### Selected Approach: **Option D - Hybrid Virtualization with TipTap APIs**
 
 ### Data Model
 
@@ -113,17 +122,16 @@ The freeze occurs AFTER our processing completes successfully:
 
 ```
 src/components/workspace/
-├── Editor.tsx                        # Modified: Progressive loading logic
+├── Editor.tsx                        # Modified: Add viewport filtering logic
 ├── ChangeList.tsx                    # Already virtualized (pagination)
 └── virtualization/
     ├── ViewportTracker.tsx           # NEW: Tracks editor viewport bounds
-    ├── ProgressiveLoader.tsx         # NEW: Manages progressive suggestion loading
-    └── useViewportSuggestions.ts     # NEW: Hook for viewport-visible suggestions
+    └── ProgressiveLoader.tsx         # NEW: Manages progressive suggestion loading
 
-src/lib/
-├── suggestionsPlugin.ts              # Modified: Viewport-aware decoration rendering
-├── viewportDecorations.ts            # NEW: Viewport-based decoration logic
-└── suggestionBatcher.ts              # NEW: Progressive loading batches
+src/hooks/
+└── useViewportAiSuggestions.ts       # NEW: Hook for viewport-based suggestion filtering
+
+Note: DO NOT modify src/lib/suggestionsPlugin.ts - that's for MANUAL suggestions!
 ```
 
 ### Key Implementation Details
@@ -133,10 +141,11 @@ src/lib/
 // Track visible portion of editor using Intersection Observer
 export const ViewportTracker: React.FC<{
   editorRef: RefObject<HTMLElement>;
-  onViewportChange: (bounds: { top: number; bottom: number }) => void;
+  onViewportChange: (bounds: { fromPos: number; toPos: number }) => void;
 }> = ({ editorRef, onViewportChange }) => {
-  // Use Intersection Observer to detect visible editor region
-  // Emit viewport bounds (ProseMirror positions) on scroll
+  // Use Intersection Observer or scroll events to detect visible editor region
+  // Convert viewport pixels to ProseMirror positions
+  // Emit viewport bounds (ProseMirror positions) on scroll (debounced)
 };
 ```
 
@@ -165,67 +174,58 @@ export const useProgressiveSuggestions = (
 };
 ```
 
-#### 3. Viewport-Aware Decorations (Modified suggestionsPlugin.ts)
+#### 3. Viewport-Based Suggestion Filtering (useViewportAiSuggestions.ts)
 ```typescript
-// Only render decorations for viewport-visible suggestions
-export const SuggestionsExtension = Extension.create({
-  addOptions() {
-    return {
-      getUISuggestions: () => [] as UISuggestion[],
-      viewportBounds: null as { fromPos: number; toPos: number } | null,
-      overscan: 200, // Render 200px above/below viewport for smooth scrolling
-    }
-  },
+// Hook to filter AI suggestions to viewport-visible subset using TipTap's native API
+export const useViewportAiSuggestions = (
+  editor: TiptapEditor | null,
+  allSuggestions: UISuggestion[]
+) => {
+  const [viewportBounds, setViewportBounds] = useState<{ fromPos: number; toPos: number } | null>(null);
+  const OVERSCAN = 1000; // Render suggestions 1000 positions above/below viewport
 
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        state: {
-          apply(tr, pluginState, _oldState, newState) {
-            // ... existing logic ...
+  useEffect(() => {
+    if (!editor || !viewportBounds || allSuggestions.length === 0) return;
 
-            // Filter suggestions to viewport bounds
-            const allSuggestions = getUISuggestions();
-            const { viewportBounds, overscan } = this.options;
+    // Filter AI suggestions to viewport bounds
+    const visibleSubset = allSuggestions.filter(s =>
+      s.pmFrom <= viewportBounds.toPos + OVERSCAN &&
+      s.pmTo >= viewportBounds.fromPos - OVERSCAN
+    );
 
-            const visibleSuggestions = viewportBounds
-              ? allSuggestions.filter(s =>
-                  s.pmFrom <= viewportBounds.toPos + overscan &&
-                  s.pmTo >= viewportBounds.fromPos - overscan
-                )
-              : allSuggestions.slice(0, 200); // Fallback: first 200
+    console.log(`Rendering ${visibleSubset.length} of ${allSuggestions.length} AI suggestions`);
 
-            // Render decorations only for visible suggestions
-            const decos = visibleSuggestions.map(s => /* create decoration */);
+    // Use TipTap's native command to set which suggestions to render
+    // This prevents the freeze by limiting decorations to viewport-visible items
+    editor.commands.setAiSuggestions(visibleSubset);
+  }, [editor, viewportBounds, allSuggestions]);
 
-            return {
-              decorations: DecorationSet.create(tr.doc, decos),
-              positions: visibleSuggestions.map(/* position tracking */)
-            };
-          }
-        }
-      })
-    ];
-  }
-});
+  return { setViewportBounds };
+};
 ```
+
+**Key Difference**: This uses TipTap Pro AI Suggestion extension's `setAiSuggestions()` command, NOT the manual suggestionsPlugin.ts!
 
 #### 4. Integration Flow
 
 ```
-1. AI Pass Completes → 5,000 suggestions returned
+1. AI Pass Completes → 5,000 suggestions returned from TipTap
                     ↓
-2. Progressive Loader → Load first 500 suggestions
+2. Store All Suggestions → const allSuggestions = editor.storage.aiSuggestion.getSuggestions()
                     ↓
-3. Viewport Tracker → Identifies visible editor region (e.g., positions 0-5000)
+3. Progressive Loader → Load first 500 suggestions to state
                     ↓
-4. Viewport Filter → Shows only suggestions in viewport (e.g., 50 suggestions)
+4. Viewport Tracker → Identifies visible editor region (e.g., positions 0-5000)
                     ↓
-5. Plugin Renders → Creates decorations for 50 suggestions (fast!)
+5. Viewport Filter → Filter to viewport subset (e.g., 50 suggestions)
                     ↓
-6. User Scrolls → Viewport updates → Re-render new visible suggestions
+6. setAiSuggestions() → editor.commands.setAiSuggestions(visibleSubset)
                     ↓
-7. User Scrolls ChangeList → Auto-load next 500 batch
+7. TipTap Renders → Creates decorations for only 50 suggestions (fast!)
+                    ↓
+8. User Scrolls Editor → Viewport updates → setAiSuggestions() with new subset
+                    ↓
+9. User Scrolls ChangeList → Auto-load next 500 batch to state
 ```
 
 ### API Design
@@ -235,18 +235,20 @@ No backend changes required. All optimizations are client-side.
 ## Implementation Phases
 
 ### Phase 1: Foundation (Week 1-2)
-- [ ] Create `ViewportTracker` component with Intersection Observer
-- [ ] Implement `useViewportSuggestions` hook for position filtering
+- [ ] Research TipTap `setAiSuggestions()` API behavior (replace vs merge?) ✅
+- [ ] Create `ViewportTracker` component with scroll events or Intersection Observer
+- [ ] Implement `useViewportAiSuggestions` hook using `setAiSuggestions()`
 - [ ] Add viewport bounds tracking to Editor.tsx
 - [ ] Test viewport detection accuracy with various scroll positions
 - [ ] **Deliverable**: Viewport bounds correctly identified and tracked
 
-### Phase 2: Viewport-Based Decorations (Week 3-4)
-- [ ] Modify `suggestionsPlugin.ts` to accept viewport bounds
-- [ ] Implement decoration filtering based on viewport
-- [ ] Add debounced scroll handler for decoration updates
+### Phase 2: Viewport-Based Rendering (Week 3-4)
+- [ ] Integrate `useViewportAiSuggestions` hook into Editor.tsx
+- [ ] Connect viewport bounds to `setAiSuggestions()` command
+- [ ] Add debounced scroll handler for smooth updates
 - [ ] Test with 5,000 suggestions - verify freeze eliminated
-- [ ] **Deliverable**: Decorations only render for viewport-visible suggestions
+- [ ] Verify TipTap correctly updates decorations on `setAiSuggestions()` calls
+- [ ] **Deliverable**: Only viewport-visible suggestions render in editor
 
 ### Phase 3: Progressive Loading (Week 5-6)
 - [ ] Create `ProgressiveLoader` component/hook
@@ -286,30 +288,31 @@ No backend changes required. All optimizations are client-side.
 
 ### Code Dependencies
 - **Modified Files**:
-  - `src/components/workspace/Editor.tsx` - Add progressive loading logic
-  - `src/lib/suggestionsPlugin.ts` - Add viewport filtering
-  - `src/hooks/useTiptapEditor.ts` - Pass viewport bounds to extension
+  - `src/components/workspace/Editor.tsx` - Add viewport filtering and progressive loading
+  - NO changes to `src/lib/suggestionsPlugin.ts` (manual suggestions system)
+  - NO changes to `src/hooks/useTiptapEditor.ts` (extension config is fine)
 
 - **New Files**:
   - `src/components/workspace/virtualization/ViewportTracker.tsx`
   - `src/components/workspace/virtualization/ProgressiveLoader.tsx`
-  - `src/hooks/useViewportSuggestions.ts`
-  - `src/lib/viewportDecorations.ts`
+  - `src/hooks/useViewportAiSuggestions.ts` (uses `setAiSuggestions()`)
 
 ### Blockers
 - [ ] **None** - All dependencies available, no external blockers
-- [ ] **Risk**: Must maintain TipTap AI Suggestion extension compatibility
+- [ ] **Risk**: Must verify `setAiSuggestions()` behavior (does it replace or merge?)
+- [ ] **Risk**: Viewport position calculation must be accurate across document sizes
 
 ## Risks & Mitigations
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
 | **Viewport calculation inaccurate for complex layouts** | High | Medium | Use ProseMirror's native position-to-coords API; Add comprehensive tests with various scroll positions |
-| **Decoration re-rendering causes new jank** | High | Medium | Debounce scroll events (100ms); Use `requestAnimationFrame` for smooth updates; Profile with React DevTools |
-| **TipTap's position mapping still freezes** | Critical | Low | Progressive loading limits initial suggestions (500); Consider Web Worker for position mapping if needed |
-| **Memory leaks from decoration churn** | Medium | Medium | Aggressive cleanup on scroll; Use WeakMap for decoration refs; Memory profiling with Chrome DevTools |
-| **Breaking existing accept/reject flow** | High | Low | Maintain existing suggestion data structure; Extensive integration testing; Feature flag for gradual rollout |
+| **setAiSuggestions() causes re-render jank** | High | Medium | Debounce scroll events (100-200ms); Use `requestAnimationFrame` for smooth updates; Test with React DevTools |
+| **setAiSuggestions() doesn't replace suggestions** | Critical | Low | Test API behavior first; If merge-only, clear suggestions before setting; Document actual behavior |
+| **TipTap's position mapping still freezes** | Critical | Low | Progressive loading limits initial render (500); Viewport rendering prevents rendering all 5K at once |
+| **Breaking existing accept/reject flow** | High | Low | setAiSuggestions() should preserve TipTap's native commands; Test thoroughly; Feature flag for gradual rollout |
 | **Browser compatibility issues** | Medium | Low | Polyfill Intersection Observer for older browsers; Graceful degradation to full rendering |
+| **Modifying wrong system (manual suggestions)** | Critical | Medium | Code review catches suggestionsPlugin.ts changes; Clear documentation; Use correct file paths |
 
 ## Success Metrics
 
@@ -429,17 +432,99 @@ const useVirtualization =
 - **CSS Containment**: [web.dev article](https://web.dev/articles/content-visibility)
 
 ### Internal Documentation
-- **Current Implementation**: `/Users/andresterranova/manuscript-ballast/docs/ai-suggestions/suggestion-rendering.md`
+- **AI Suggestions Quick Reference**: `/Users/andresterranova/manuscript-ballast/docs/ai-suggestions/ai-suggestions-quick-reference.md` ⭐
+- **Current Implementation**: `/Users/andresterranova/manuscript-ballast/src/components/workspace/Editor.tsx`
+- **Extension Config**: `/Users/andresterranova/manuscript-ballast/src/hooks/useTiptapEditor.ts`
 - **Large Document Processing**: `/Users/andresterranova/manuscript-ballast/docs/technical/large-documents.md`
-- **AI Suggestions Flow**: `/Users/andresterranova/manuscript-ballast/docs/ai-suggestions/ai-suggestions-flow.md`
 
 ### TipTap Resources
+- **AI Suggestion API Reference**: [https://tiptap.dev/docs/content-ai/capabilities/suggestion/api-reference](https://tiptap.dev/docs/content-ai/capabilities/suggestion/api-reference) ⭐
+- **Configure When to Load**: [https://tiptap.dev/docs/content-ai/capabilities/suggestion/features/configure-when-to-load-suggestions](https://tiptap.dev/docs/content-ai/capabilities/suggestion/features/configure-when-to-load-suggestions)
 - **Performance Guide**: [https://tiptap.dev/docs/guides/performance](https://tiptap.dev/docs/guides/performance)
-- **Decorations API**: ProseMirror [https://prosemirror.net/docs/ref/#view.Decorations](https://prosemirror.net/docs/ref/#view.Decorations)
 
 ---
 
-**Last Updated**: October 6, 2025
+## Research Findings & API Verification
+
+### TipTap `setAiSuggestions()` Command
+
+**Status**: ✅ Confirmed to exist via TipTap documentation
+
+**Purpose**: Programmatically set which AI suggestions to display without calling the API
+
+**Signature**: `editor.commands.setAiSuggestions(suggestions: Suggestion[])`
+
+**Behavior** (requires testing):
+- ⚠️ **Unknown**: Does it replace existing suggestions or merge?
+- ⚠️ **Unknown**: Does it trigger position re-mapping?
+- ⚠️ **Unknown**: Performance characteristics with frequent updates
+
+**Use Cases** (per TipTap docs):
+1. Display pre-prepared suggestion lists
+2. Clear existing suggestions (`setAiSuggestions([])`)
+3. Use alternative suggestion sources (our viewport filtering!)
+
+**Testing Priority**: HIGH - Must verify before implementation
+
+### Current Implementation Analysis
+
+**File**: `src/components/workspace/Editor.tsx`
+
+**How suggestions are retrieved**:
+```typescript
+const allSuggestions = editor.storage.aiSuggestion.getSuggestions()
+```
+
+**How suggestions are currently applied**:
+```typescript
+editor.commands.applyAiSuggestion({ suggestionId, replacementOptionId, format: 'plain-text' })
+editor.commands.rejectAiSuggestion(suggestionId)
+```
+
+**Conversion to UI format**:
+- Function: `convertAiSuggestionsToUI()`
+- Sorts by position: `.sort((a, b) => a.pmFrom - b.pmFrom)`
+- Already converts TipTap format → our UISuggestion format
+
+### Implementation Strategy
+
+**Phase 1 Prototype**:
+```typescript
+// In Editor.tsx, after AI pass completes
+const allSuggestions = editor.storage.aiSuggestion.getSuggestions();
+
+// Test setAiSuggestions with first 100 suggestions
+const testSubset = allSuggestions.slice(0, 100);
+editor.commands.setAiSuggestions(testSubset);
+
+// Verify:
+// 1. Only 100 suggestions render in editor
+// 2. All 5K suggestions still available via storage.getSuggestions()
+// 3. Accept/reject commands still work
+```
+
+**Phase 2 Integration**:
+```typescript
+// Add viewport tracking
+const { setViewportBounds } = useViewportAiSuggestions(editor, allSuggestions);
+
+// On scroll, update visible subset
+const visibleSubset = allSuggestions.filter(s => isInViewport(s, viewportBounds));
+editor.commands.setAiSuggestions(visibleSubset);
+```
+
+### Key Differences from Original Spec
+
+| Original Spec | Corrected Spec |
+|---------------|----------------|
+| Modify `suggestionsPlugin.ts` | Use TipTap's `setAiSuggestions()` ✅ |
+| Create custom decoration logic | Let TipTap handle decorations ✅ |
+| Complex ProseMirror plugin | Simple React hook with TipTap command ✅ |
+| Manual suggestions system | AI suggestions system (different!) ✅ |
+
+---
+
+**Last Updated**: January 2025 (Corrected to use TipTap Pro AI Suggestion APIs)
 
 ## Tags
 #performance #virtualization #phase2 #react #tiptap #prosemirror #optimization #large-documents

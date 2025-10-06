@@ -6,21 +6,22 @@
 
 **Root Cause**: Synchronous position mapping (TipTap) + synchronous React rendering of 5,000+ DOM decorations.
 
-**Solution**: Hybrid virtualization approach combining viewport-based decoration rendering with progressive suggestion loading.
+**Solution**: Hybrid virtualization using **TipTap Pro's native `setAiSuggestions()` API** to limit viewport-visible decorations + progressive loading.
 
 ---
 
-## 🎯 Selected Approach: Hybrid Virtualization (Option D)
+## 🎯 Selected Approach: Hybrid Virtualization with TipTap Native APIs (Option D)
 
 ### Why This Approach?
 
-After researching TanStack Virtual, ProseMirror decoration optimization, and viewport-based rendering patterns, the optimal solution combines:
+After researching TipTap Pro AI Suggestion extension documentation and testing `setAiSuggestions()` command behavior, the optimal solution uses TipTap's native APIs:
 
-1. **Viewport-Based Decorations** (Primary fix for freeze)
-   - Only render decorations for suggestions visible in editor viewport
-   - Use Intersection Observer API to track visible editor region
-   - Update decorations on scroll (debounced)
+1. **Viewport-Based Rendering via `setAiSuggestions()`** (Primary fix for freeze)
+   - Use `editor.commands.setAiSuggestions(subset)` to control which suggestions render
+   - Track viewport bounds with Intersection Observer
+   - Filter suggestions to viewport on scroll (debounced)
    - **Impact**: Reduces 5,000 decorations → ~50-100 decorations
+   - **Key**: Uses TipTap's native command, NOT modifying suggestionsPlugin.ts!
 
 2. **Progressive Loading** (UX enhancement)
    - Load suggestions in batches of 500
@@ -31,10 +32,16 @@ After researching TanStack Virtual, ProseMirror decoration optimization, and vie
 
 | Decision | Rationale | Alternative Considered |
 |----------|-----------|------------------------|
-| **Viewport-based decorations** | Solves root cause (too many DOM nodes) | React virtualization (doesn't solve ProseMirror decorations) |
+| **Use TipTap's `setAiSuggestions()` API** | Native API for controlling decoration rendering | Modify suggestionsPlugin.ts (WRONG - that's for manual suggestions) |
 | **Progressive loading (500/batch)** | Prevents initial position mapping freeze | Load all at once (current behavior - freezes) |
 | **Keep ChangeList pagination** | Already works well (25 items/page) | Replace with TanStack Virtual (unnecessary complexity) |
 | **Client-side only** | No backend changes needed | Queue system (doesn't solve rendering freeze) |
+
+### 🚨 Critical Distinction
+
+**Two Separate Suggestion Systems**:
+- ✅ **TipTap AI Suggestion Extension**: What we're virtualizing (uses `setAiSuggestions()`)
+- ❌ **Manual Suggestions Plugin** (`suggestionsPlugin.ts`): DO NOT MODIFY - different system!
 
 ---
 
@@ -44,30 +51,36 @@ After researching TanStack Virtual, ProseMirror decoration optimization, and vie
 
 ```
 src/components/workspace/virtualization/
-├── ViewportTracker.tsx           # Tracks editor viewport bounds using Intersection Observer
-├── ProgressiveLoader.tsx         # Manages batch loading of suggestions (500 at a time)
-└── useViewportSuggestions.ts     # Hook to filter suggestions by viewport bounds
+├── ViewportTracker.tsx              # Tracks editor viewport bounds using Intersection Observer
+├── ProgressiveLoader.tsx            # Manages batch loading of suggestions (500 at a time)
+└── useViewportAiSuggestions.ts      # Hook using setAiSuggestions() for viewport filtering
 ```
 
 ### Modified Components
 
 ```
-src/lib/suggestionsPlugin.ts      # Add viewport filtering to decoration rendering
-src/components/workspace/Editor.tsx # Integrate progressive loading + viewport tracking
-src/hooks/useTiptapEditor.ts       # Pass viewport bounds to extension
+src/components/workspace/Editor.tsx       # Integrate useViewportAiSuggestions hook
+```
+
+### Files NOT Modified
+
+```
+❌ src/lib/suggestionsPlugin.ts          # Manual suggestions - DO NOT TOUCH
+❌ src/hooks/useTiptapEditor.ts          # Extension config already correct
 ```
 
 ### Core Algorithm
 
 ```typescript
-// Viewport-based decoration rendering
+// Viewport-based rendering using TipTap's native API
 const visibleSuggestions = allSuggestions.filter(s =>
   s.pmFrom <= viewportBounds.toPos + overscan &&
   s.pmTo >= viewportBounds.fromPos - overscan
 );
 
-// Only render decorations for visible suggestions (50-100 instead of 5,000)
-const decorations = visibleSuggestions.map(s => createDecoration(s));
+// Use TipTap's native command to set which suggestions render
+// This replaces ALL decorations with viewport-visible subset
+editor.commands.setAiSuggestions(visibleSuggestions);
 ```
 
 ---
@@ -132,22 +145,34 @@ const decorations = visibleSuggestions.map(s => createDecoration(s));
 
 ## 🔬 Research Findings
 
-### Libraries Evaluated
-1. **TanStack Virtual** ✅ Proven pattern, used for inspiration
-2. **Intersection Observer API** ✅ Native browser API, excellent performance
-3. **React 18 Concurrent Features** ✅ `useTransition`, `useDeferredValue` for smooth UX
+### TipTap Pro AI Suggestion Extension Research
+
+**Key Discovery**: TipTap provides `editor.commands.setAiSuggestions(suggestions)` command specifically for controlling which suggestions render.
+
+**Documentation References**:
+- [API Reference](https://tiptap.dev/docs/content-ai/capabilities/suggestion/api-reference) - `setAiSuggestions()` command
+- [Configure When to Load](https://tiptap.dev/docs/content-ai/capabilities/suggestion/features/configure-when-to-load-suggestions) - Load control patterns
+
+**API Behavior** (verified via testing):
+- ✅ **Replaces** existing suggestions (not merge)
+- ✅ Updates decorations immediately
+- ✅ Preserves accept/reject commands
+- ✅ All suggestions still in `storage.getSuggestions()`
+
+### Libraries & Browser APIs
+1. **Intersection Observer API** ✅ Native browser API for viewport tracking
+2. **React 18 Concurrent Features** ✅ `useTransition`, `useDeferredValue` for smooth UX
+3. **TanStack Virtual** ℹ️ Not needed - TipTap API handles decoration rendering
 
 ### Patterns Researched
-- **Virtual Scrolling**: Only render visible items in a list (TanStack Virtual pattern)
-- **Viewport-Based Rendering**: ProseMirror decoration optimization (custom implementation)
-- **Progressive Loading**: Batch loading with Intersection Observer triggers
+- **Viewport-Based Rendering**: Use `setAiSuggestions()` to control decorations
+- **Progressive Loading**: Batch loading with auto-load on scroll
 - **CSS Containment**: `contain: strict` for rendering performance
 
-### TipTap-Specific Insights
-- TipTap decorations are synchronous (can't be async)
-- ProseMirror position mapping is synchronous (can't avoid)
-- **Solution**: Reduce number of decorations, not optimize single decoration rendering
-- Viewport filtering is the only way to reduce decoration count
+### Critical TipTap Insights
+- TipTap AI Suggestion extension provides `setAiSuggestions()` for custom rendering control
+- suggestionsPlugin.ts is for MANUAL suggestions (different system!)
+- **Solution**: Use native TipTap API to limit decorations, not modify plugins
 
 ---
 
@@ -189,16 +214,17 @@ useEffect(() => {
 }, [scrollPosition]);
 ```
 
-### 3. Viewport-Based Decorations
+### 3. Viewport-Based Rendering (TipTap API)
 ```typescript
-// Filter suggestions to viewport
+// Filter suggestions to viewport bounds
 const visibleSuggestions = allSuggestions.filter(s =>
   s.pmFrom <= viewportBounds.toPos + overscan &&
   s.pmTo >= viewportBounds.fromPos - overscan
 );
 
-// Render only visible decorations (50-100 instead of 5,000)
-return DecorationSet.create(tr.doc, visibleSuggestions.map(createDecoration));
+// Use TipTap's native command to set which suggestions render
+// This replaces ALL decorations with viewport-visible subset (50-100 instead of 5,000)
+editor.commands.setAiSuggestions(visibleSuggestions);
 ```
 
 ---
@@ -296,9 +322,13 @@ docs/product/features/virtualized-ai-suggestions/
 ---
 
 **Created**: October 6, 2025
-**Status**: Planning
+**Status**: Planning - Corrected to use TipTap native APIs
 **Estimated Effort**: 10 weeks
 **Priority**: High (Performance Critical)
 
 ## Tags
-#virtualization #performance #phase2 #implementation-plan
+#virtualization #performance #phase2 #implementation-plan #tiptap-api
+
+---
+
+**Last Updated**: January 2025 - Corrected to use TipTap Pro `setAiSuggestions()` API instead of modifying suggestionsPlugin.ts

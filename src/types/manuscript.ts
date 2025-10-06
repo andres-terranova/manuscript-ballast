@@ -22,6 +22,7 @@ export interface ManuscriptDB {
   style_rules: string[];
   suggestions: SuggestionData[];
   comments: CommentData[];
+  snapshots: any[] | null;  // Array of Snapshot objects (defined in snapshotService)
   
   // Metadata
   excerpt: string | null;
@@ -64,6 +65,7 @@ export interface Manuscript {
   comments?: CommentData[];
   checks?: CheckData[];
   newContent?: NewContentData[];
+  snapshots?: any[] | null;  // Array of Snapshot objects (defined in snapshotService)
 }
 
 // Supporting data types
@@ -134,6 +136,7 @@ export interface ManuscriptUpdateInput {
   style_rules?: string[];
   suggestions?: SuggestionData[];
   comments?: CommentData[];
+  snapshots?: any[] | null;  // Array of Snapshot objects (defined in snapshotService)
   excerpt?: string;
   word_count?: number;
   character_count?: number;
@@ -176,6 +179,7 @@ export function dbToFrontend(dbManuscript: ManuscriptDB): Manuscript {
       status: s.status
     })),
     comments: dbManuscript.comments,
+    snapshots: dbManuscript.snapshots,
     checks: [], // Simplified for MVP
     newContent: [] // Simplified for MVP
   };
