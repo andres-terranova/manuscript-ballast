@@ -22,6 +22,12 @@
 
 ## Test Scenarios
 
+### Core Testing Approach
+
+**IMPORTANT**: This UAT tests the virtualized rendering feature using TipTap Pro's `setAiSuggestions()` API. We are testing:
+- ✅ TipTap AI Suggestion extension (uses `setAiSuggestions()`)
+- ❌ NOT manual suggestions plugin (suggestionsPlugin.ts - different system!)
+
 ### Scenario 1: [Happy Path - Large Document Initial Load]
 **Objective**: Verify virtualized rendering eliminates freeze on large documents
 
@@ -51,22 +57,25 @@
 
 ---
 
-### Scenario 2: [Viewport-Based Decoration Rendering]
-**Objective**: Verify only viewport-visible suggestions render decorations
+### Scenario 2: [Viewport-Based Rendering via TipTap API]
+**Objective**: Verify TipTap's `setAiSuggestions()` API correctly limits decorations to viewport-visible subset
 
 **Steps**:
 1. Load Large test manuscript with 5,000 suggestions (from Scenario 1)
-2. Open Browser DevTools → Elements tab
-3. Inspect editor content area
-4. Count suggestion decorations in DOM (look for `.suggest-replace`, `.suggest-delete` classes)
-5. Scroll down in editor 3 full pages
-6. Re-inspect DOM and count decorations again
-7. Note: Total decorations should remain ~50-100 (not 5,000)
+2. Open Browser DevTools → Console
+3. Run: `editor.storage.aiSuggestion.getSuggestions().length` (should show ~5,000 total)
+4. Scroll to middle of document
+5. Inspect editor DOM for TipTap AI suggestion decorations
+6. Count rendered decorations (should be ~50-100, not 5,000)
+7. Scroll down 3 full pages
+8. Re-count decorations (should still be ~50-100, with different suggestions)
+9. Verify all 5,000 suggestions still in storage (run step 3 again)
 
 **Expected Results**:
-- ✅ Initial render shows ~50-100 decorations (viewport + overscan area)
-- ✅ After scrolling, decoration count remains ~50-100 (not 5,000)
-- ✅ Decorations update smoothly as viewport changes
+- ✅ Storage contains all 5,000 suggestions (via `getSuggestions()`)
+- ✅ DOM shows only ~50-100 decorations (viewport + overscan)
+- ✅ Scrolling updates decorations smoothly (debounced)
+- ✅ `setAiSuggestions()` correctly replaces viewport subset
 - ✅ No visual flicker or jank during scroll
 - ✅ Suggestions remain clickable and interactive
 
@@ -126,27 +135,30 @@
 
 ---
 
-### Scenario 5: [Accept/Reject Suggestion Flow]
-**Objective**: Verify suggestion actions work correctly with virtualization
+### Scenario 5: [Accept/Reject with setAiSuggestions()]
+**Objective**: Verify TipTap's accept/reject commands work correctly after using `setAiSuggestions()`
 
 **Steps**:
 1. Load Medium test manuscript (2,500 suggestions)
 2. Scroll to middle of ChangeList (suggestion #1250)
 3. Click on a suggestion card to navigate to editor position
 4. Verify suggestion highlights in editor
-5. Click "Accept" on the suggestion
-6. Observe:
-   - Suggestion removed from list
+5. Open DevTools → Console
+6. Before accepting, run: `editor.storage.aiSuggestion.getSuggestions().length` (note count)
+7. Click "Accept" on the suggestion
+8. Observe:
+   - Suggestion removed from storage (re-run step 6, count should decrease by 1)
    - Text updated in editor
-   - Remaining suggestions re-render correctly
-7. Repeat with "Reject" action
-8. Verify no browser freeze during actions
+   - Viewport re-renders with updated subset (via `setAiSuggestions()`)
+9. Repeat with "Reject" action
+10. Verify no browser freeze during actions
 
 **Expected Results**:
 - ✅ Clicking suggestion scrolls editor to correct position
 - ✅ Suggestion highlights correctly in editor
-- ✅ "Accept" applies change and removes suggestion (<50ms)
-- ✅ "Reject" dismisses suggestion without applying (<50ms)
+- ✅ "Accept" applies change and removes from storage (<50ms)
+- ✅ "Reject" dismisses suggestion from storage without applying (<50ms)
+- ✅ Viewport subset updates automatically (no manual re-filtering needed)
 - ✅ Remaining suggestions maintain correct positions
 - ✅ No full re-render of all 2,500 suggestions (only viewport updates)
 - ✅ ChangeList updates immediately
@@ -156,7 +168,38 @@
 
 ---
 
-### Scenario 6: [Memory Leak Detection]
+### Scenario 6: [TipTap setAiSuggestions() API Behavior]
+**Objective**: Verify TipTap's `setAiSuggestions()` command works as expected for viewport filtering
+
+**Steps**:
+1. Load Medium test manuscript (2,500 suggestions)
+2. Open DevTools → Console
+3. Get all suggestions: `const all = editor.storage.aiSuggestion.getSuggestions()`
+4. Log total count: `console.log('Total:', all.length)` (should be ~2,500)
+5. Create test subset (first 100): `const subset = all.slice(0, 100)`
+6. Apply subset: `editor.commands.setAiSuggestions(subset)`
+7. Verify:
+   - Only 100 suggestions render in editor (inspect DOM)
+   - All 2,500 still in storage: `editor.storage.aiSuggestion.getSuggestions().length`
+   - Accept/reject still works on visible suggestions
+8. Restore all: `editor.commands.setAiSuggestions(all)`
+9. Verify all 2,500 now render (DOM count increases)
+
+**Expected Results**:
+- ✅ `setAiSuggestions(subset)` renders only 100 suggestions
+- ✅ Storage still contains all 2,500 (API doesn't modify storage)
+- ✅ DOM decorations match subset length (~100)
+- ✅ Accept/reject commands work on subset suggestions
+- ✅ `setAiSuggestions(all)` restores full rendering
+- ✅ Command replaces (not merges) decorations
+- ✅ No console errors or warnings
+
+**Actual Results**: [To be filled during testing]
+**Status**: ⏸️ Not Started | ✅ Pass | ❌ Fail
+
+---
+
+### Scenario 7: [Memory Leak Detection]
 **Objective**: Verify no memory leaks during extended usage
 
 **Steps**:
@@ -184,7 +227,7 @@
 
 ---
 
-### Scenario 7: [Edge Case - Suggestions at Document Boundaries]
+### Scenario 8: [Edge Case - Suggestions at Document Boundaries]
 **Objective**: Verify correct handling of suggestions at start/end of document
 
 **Steps**:
@@ -210,7 +253,7 @@
 
 ---
 
-### Scenario 8: [Fallback Mode - Browser Compatibility]
+### Scenario 9: [Fallback Mode - Browser Compatibility]
 **Objective**: Verify graceful degradation on older browsers
 
 **Steps**:
@@ -236,7 +279,7 @@
 
 ---
 
-### Scenario 9: [Dynamic Document Editing with Suggestions]
+### Scenario 10: [Dynamic Document Editing with Suggestions]
 **Objective**: Verify position remapping works with virtualized decorations
 
 **Steps**:
@@ -262,7 +305,7 @@
 
 ---
 
-### Scenario 10: [Stress Test - 50,000 Suggestions]
+### Scenario 11: [Stress Test - 50,000 Suggestions]
 **Objective**: Verify system handles extreme edge case gracefully
 
 **Steps**:
@@ -317,12 +360,35 @@ Record these metrics during testing:
 Verify virtualization doesn't break existing functionality:
 
 - [ ] **Small documents (<1,000 suggestions)** work as before
-- [ ] **Manual suggestions** render and accept/reject correctly
+- [ ] **Manual suggestions (suggestionsPlugin.ts)** render and accept/reject correctly (DIFFERENT system!)
 - [ ] **Style checks** (checksPlugin.ts) render correctly
-- [ ] **TipTap AI popover** appears on hover/click
+- [ ] **TipTap AI popover** appears on hover/click for AI suggestions
 - [ ] **Keyboard navigation** (arrow keys) works in ChangeList
 - [ ] **Filter by AI role** in ChangeList works correctly
 - [ ] **"Apply All Suggestions"** button works (if <1,000 suggestions)
+
+### Critical Verification: Two Separate Systems
+
+**Test Scenario**: Verify AI suggestions and manual suggestions coexist correctly
+
+**Steps**:
+1. Load document with 2,000 AI suggestions (from AI Pass)
+2. Manually add a suggestion using track changes UI
+3. Verify:
+   - AI suggestions render via TipTap AI extension (with virtualization)
+   - Manual suggestion renders via suggestionsPlugin.ts (unchanged)
+   - Both systems work independently
+   - No cross-contamination of rendering logic
+
+**Expected Results**:
+- ✅ AI suggestions use `setAiSuggestions()` API (virtualized)
+- ✅ Manual suggestions use suggestionsPlugin.ts decorations (NOT virtualized)
+- ✅ Both types render correctly in editor
+- ✅ Both types appear in ChangeList
+- ✅ Accept/reject works for both types
+- ✅ No console errors or warnings
+
+**Status**: ⏸️ Not Started | ✅ Pass | ❌ Fail
 
 ---
 
@@ -384,6 +450,9 @@ Document any issues found during testing:
 - [ ] 60 FPS scroll performance maintained
 - [ ] No regressions on existing functionality
 - [ ] Browser compatibility verified on 4 major browsers
+- [ ] **Technical verification**: Only Editor.tsx modified, suggestionsPlugin.ts unchanged
+- [ ] **Technical verification**: `setAiSuggestions()` API used correctly for viewport filtering
+- [ ] **Technical verification**: Manual suggestions system (suggestionsPlugin.ts) not affected
 
 ### Approvals
 - [ ] **Product Owner**: [Name] - Date: [___]
@@ -401,7 +470,36 @@ Document any issues found during testing:
 
 ---
 
-**Last Updated**: October 6, 2025
+## Technical Implementation Verification Checklist
+
+**Before UAT sign-off, verify implementation matches corrected approach:**
+
+### Code Review Checklist
+- [ ] **Editor.tsx** modified to use `useViewportAiSuggestions` hook
+- [ ] **useViewportAiSuggestions.ts** created and uses `editor.commands.setAiSuggestions()`
+- [ ] **ViewportTracker.tsx** created for Intersection Observer tracking
+- [ ] **ProgressiveLoader.tsx** created for batch loading (optional)
+- [ ] **suggestionsPlugin.ts** NOT modified (manual suggestions system)
+- [ ] **useTiptapEditor.ts** NOT modified (extension config already correct)
+
+### API Usage Verification
+- [ ] Calls `editor.storage.aiSuggestion.getSuggestions()` to get all suggestions
+- [ ] Calls `editor.commands.setAiSuggestions(subset)` to set viewport-visible subset
+- [ ] Does NOT modify ProseMirror decorations directly
+- [ ] Does NOT modify TipTap AI Suggestion extension internals
+
+### Architecture Verification
+- [ ] Viewport filtering happens in React layer (useViewportAiSuggestions hook)
+- [ ] TipTap API handles all decoration rendering
+- [ ] No custom ProseMirror plugin modifications
+- [ ] Clear separation: AI suggestions (TipTap API) vs Manual suggestions (suggestionsPlugin.ts)
+
+**Reviewed By**: _____________
+**Date**: _____________
+
+---
+
+**Last Updated**: January 2025 - Corrected to test TipTap Pro `setAiSuggestions()` API approach
 
 ## Tags
-#uat #testing #virtualization #performance #phase2
+#uat #testing #virtualization #performance #phase2 #tiptap-api

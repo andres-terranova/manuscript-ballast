@@ -25,16 +25,18 @@ import { testTiptapAuth, validateJWTFormat } from "@/utils/testTiptapAuth";
 import { SuggestionPopover } from "./SuggestionPopover";
 import { useTiptapJWT } from "@/hooks/useTiptapJWT";
 
-import { 
-  RotateCcw, 
-  Settings2, 
-  Play, 
-  Download, 
+import {
+  RotateCcw,
+  Settings2,
+  Play,
+  Download,
   Send,
   User,
   SettingsIcon,
   Plus,
-  Loader2
+  Loader2,
+  History,
+  Save
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
@@ -47,6 +49,8 @@ import { ManuscriptService } from "@/services/manuscriptService";
 import { AIProgressIndicator } from "./AIProgressIndicator";
 import type { AIProgressState } from "@/types/aiProgress";
 import { createInitialProgressState } from "@/types/aiProgress";
+import { createSnapshot } from '@/services/snapshotService';
+import { VersionHistory } from './VersionHistory';
 
 const Editor = () => {
   const { id } = useParams<{ id: string }>();
@@ -64,6 +68,7 @@ const Editor = () => {
   const [showToolRunning, setShowToolRunning] = useState(false);
   const aiCancelledRef = useRef(false);
   const [aiProgress, setAiProgress] = useState<AIProgressState>(createInitialProgressState());
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // Handle AI progress updates
   const handleProgressUpdate = useCallback((progress: AIProgressState) => {
@@ -98,6 +103,43 @@ const Editor = () => {
       });
     }
   }, [toast]);
+
+  // Helper to create snapshot with error handling
+  const createSnapshotSafe = useCallback(async (
+    event: 'upload' | 'send_to_author' | 'return_to_editor' | 'manual',
+    label?: string
+  ) => {
+    const editor = getGlobalEditor();
+    if (!editor || !manuscript) return;
+
+    try {
+      // Get current user (in MVP, we can use a placeholder)
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || 'system';
+
+      await createSnapshot(editor, manuscript.id, event, userId, label);
+      console.log(`✅ Snapshot created: ${event}`);
+
+      // Show success toast for manual snapshots
+      if (event === 'manual') {
+        toast({
+          title: "Snapshot created",
+          description: "Version saved successfully"
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create snapshot:', error);
+      // Show error for manual snapshots
+      if (event === 'manual') {
+        toast({
+          title: "Failed to create snapshot",
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive'
+        });
+      }
+    }
+  }, [manuscript, toast]);
+
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   
@@ -1153,8 +1195,23 @@ const Editor = () => {
 
           {/* Right: Action buttons */}
           <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
-            <Button variant="outline" size="sm" className="hidden lg:flex">
-              <RotateCcw className="mr-2 h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => createSnapshotSafe('manual')}
+              className="hidden lg:flex"
+              title="Create a snapshot of the current version"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Save Version
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowVersionHistory(true)}
+              className="hidden lg:flex"
+            >
+              <History className="mr-2 h-4 w-4" />
               History
             </Button>
             {!isReviewed && (
@@ -1499,6 +1556,26 @@ const Editor = () => {
               </Button>
             </div>
           </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Version History Sheet */}
+      <Sheet open={showVersionHistory} onOpenChange={setShowVersionHistory}>
+        <SheetContent className="w-96">
+          <SheetHeader>
+            <SheetTitle>Version History</SheetTitle>
+          </SheetHeader>
+          <VersionHistory
+            manuscriptId={manuscript.id}
+            onRestore={() => {
+              // Refresh editor state after restore
+              setShowVersionHistory(false);
+              toast({
+                title: "Document restored",
+                description: "The document has been restored from the selected version"
+              });
+            }}
+          />
         </SheetContent>
       </Sheet>
 
