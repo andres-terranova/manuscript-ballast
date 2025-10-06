@@ -1,6 +1,28 @@
 # Manuscript Ballast - Claude Code Triage Guide
 
-**10-Second Summary**: AI-powered manuscript editor using TipTap Pro. Handles 85K+ word documents. React + TypeScript + Supabase.
+**10-Second Summary**: AI-powered collaborative manuscript editor with Word-style track changes, versioning, and role-based workflows. Built with TipTap Pro, handles 85K+ word documents. React + TypeScript + Supabase.
+
+## 🎯 Project Vision & Status
+
+**Vision**: AI-assisted manuscript editor with editor-author collaboration, CMOS compliance, and Word-style track changes.
+
+**Current Status: MVP (v0.5)** - Functional single-user editor
+- ✅ AI suggestions (Copy Editor, Line Editor, Proofreader)
+- ✅ Track changes UI with accept/reject
+- ✅ CMOS style rules configuration
+- ✅ Large document support (85K+ words)
+- ✅ DOCX upload & processing
+- ✅ TipTap Pro + 24hr JWT
+
+**v1.0 Goals** (Simplified from PRD):
+- 🚧 Editor ↔ Author workflow (Send/Return)
+- 🚧 Role-based UI (hide AI from authors)
+- 🚧 TipTap snapshot versioning
+- 🚧 Basic comments & activity feed
+- 🚧 DOCX export with track changes
+- 🚧 Email notifications
+
+**Not in v1.0**: PDF export, diff viewer, admin portal, production role, organization settings
 
 ## 🔴 Critical Issues (Fix These First)
 
@@ -24,7 +46,7 @@
 - **Implementation**:
   - Custom apiResolver in `src/hooks/useTiptapEditor.ts` (lines 116-188)
   - Edge function: `supabase/functions/ai-suggestions-html/`
-- **Test Results**: docs/02-technical/large-documents/UAT-PHASE1-FINDINGS.md
+- **Test Results**: docs/technical/large-documents.md
 - **Next Steps**: Phase 2 background queue recommended for production scale (better UX)
 
 ### 2. ✅ TipTap JWT Authentication - RESOLVED
@@ -32,31 +54,41 @@
 - **Solution**: Extended JWT expiration from 1hr → 24hr (prevents editor reload)
 - **Critical Fix**: Prevents suggestion loss when JWT refreshes during rendering
 - **Key Discovery**: TipTap accepts any valid JWT signed with Content AI Secret
-- **Docs**: docs/02-technical/authentication/tiptap-jwt.md
+- **Docs**: docs/technical/tiptap-jwt.md
 
-## 🎯 Quick Decision Tree - What Do You Need?
+## 👥 User Roles (v1.0 Simplified)
+
+**Editors** (Primary - MVP functional)
+- ✅ Run AI, configure style rules, accept/reject suggestions
+- 🚧 Send to Author (v1.0)
+
+**Authors** (v1.0 - Pending)
+- 🚧 Review changes, add comments
+- 🚧 Cannot access AI tools
+- 🚧 Return to Editor
+
+**Current MVP**: Single-user, editor-only mode
+
+## 🎯 Quick Decision Tree
 
 ```
-Need to fix something?
-├── ✅ Large docs (RESOLVED - Phase 1 deployed, up to 85K words) → docs/02-technical/large-documents/
-├── ✅ JWT authentication (RESOLVED - 24hr expiration) → docs/02-technical/authentication/tiptap-jwt.md
-├── 📍 Wrong suggestion positions → `/prosemirror` → docs/02-technical/troubleshooting/
-├── 🔧 Editor not working → `/tiptap` → docs/03-components/editors/
-├── 📄 DOCX upload stuck → `/queue` → docs/04-backend/queue-system.md
-└── 🗄️ Database/RLS issues → `/supabase` → Use Supabase MCP tools
+Fix something?
+├── 📍 Wrong suggestion positions → `/prosemirror` → docs/technical/troubleshooting.md
+├── 🔧 Editor not working → `/tiptap` → docs/technical/editor-component.md
+├── 📄 DOCX upload stuck → `/queue` → docs/architecture/queue-system.md
+└── 🗄️ Database issues → `/supabase` → docs/architecture/database.md
 
-Need to build something?
-├── ➕ Add suggestion type → AIEditorRules.tsx (add to AI_EDITOR_RULES array)
+Build v1.0 features?
+├── 🚧 See "Immediate Next Steps" below
+└── 📖 Full PRD → /Users/andresterranova/manuscript-ballast/Ballast-original-PRD.md
+
+Enhance MVP?
+├── ➕ Add AI editor role → AIEditorRules.tsx (AI_EDITOR_RULES array)
 ├── 📏 Add style rule → src/lib/styleRuleConstants.ts + styleValidator.ts
-├── 🎨 Modify UI → docs/03-components/ (use shadcn/ui)
-├── ⚡ Add edge function → docs/04-backend/edge-functions.md
-└── 🏗️ Major feature → `/architecture` → docs/05-architecture/
+└── 🎨 Modify UI → docs/technical/ (component docs)
 
-Need to understand something?
-├── 📖 Complete documentation → docs/README.md (documentation hub)
-├── 🧩 Component details → docs/03-components/
-├── 🔧 Backend & edge functions → docs/04-backend/
-└── ☁️ Architecture & system design → docs/05-architecture/
+Documentation?
+└── 📚 Main docs hub → docs/README.md (streamlined structure)
 ```
 
 ## 📊 System Specs
@@ -70,6 +102,18 @@ Need to understand something?
 - **Port**: 8080 (`pnpm run dev`)
 - **Branch**: main (Phase 1 deployed)
 
+## 🗄️ Database Architecture
+
+**Current & v1.0 Approach**: Keep JSON model (it works!)
+- `manuscripts` table with JSONB fields
+- `suggestions`, `comments`, `style_rules` as JSONB arrays
+- Add `snapshots` JSONB array for versioning (TipTap native snapshots)
+- Add `activity` JSONB array for simple audit trail
+- Supabase Auth for users with role field (editor/author)
+- Simple RLS policies by role
+
+**No separate tables needed** - JSON approach handles current scale efficiently
+
 ## 🚨 Critical Don'ts
 
 ❌ Edit src/components/ui/ (shadcn managed)
@@ -78,30 +122,16 @@ Need to understand something?
 ❌ Expose secrets client-side
 ❌ Use npm/yarn (pnpm only)
 
-## 📂 Claude Code Agents (docs/07-claude/agents.md)
+## 🏗️ Architecture Notes
 
-```
-Performance & Scale
-├── /chunking - Large document timeout mitigation
-└── /performance - Profiling & optimization
+**TipTap Snapshots**: Using native TipTap snapshot API for versioning (https://tiptap.dev/docs/collaboration/documents/snapshot)
+- Stored as JSON in `manuscripts.snapshots` array
+- Capture on: Upload, Send to Author, Return to Editor
 
-Core Systems
-├── /tiptap - Editor, JWT, extensions
-├── /queue - DOCX processing, background jobs
-├── /supabase - Database, edge functions, RLS
-└── /architecture - System design, data flow
-
-Domain Experts
-├── /prosemirror - Position calculations, decorations
-├── /auth - Dual auth (Supabase + TipTap JWT)
-├── /suggestions - Mapping & rendering
-└── /ui - React components, shadcn/ui
-
-Meta & Debug
-├── /product - Roadmap, requirements
-├── /debug - General troubleshooting
-└── /mcp - MCP tool operations
-```
+**AI Suggestions** (Under Review):
+- Current: All rules run together, stored in manuscripts.suggestions JSONB
+- Exploring: One rule at a time, separate storage, performance optimization
+- May experiment with different approaches for better memory/speed
 
 ## 🎬 Quick Start Commands
 
@@ -111,40 +141,43 @@ supabase functions logs queue-processor   # Check edge function logs
 supabase db reset                         # Reset database (caution!)
 ```
 
-## 🎯 Current Priorities
+## 🎯 Immediate Next Steps (v1.0)
 
-1. ✅ ~~**Large document processing**~~ (RESOLVED - Phase 1 deployed October 2025)
-2. ✅ ~~**TipTap JWT authentication**~~ (RESOLVED - 24hr expiration prevents reload)
-3. ✅ ~~**Editor component naming**~~ (RESOLVED - ExperimentalEditor renamed to Editor, October 2025)
-4. **📋 Phase 2 Planning**: Background queue system for production-scale UX
-   - Address browser freeze on 5,000+ suggestions
-   - Improve memory efficiency beyond 85K words
-   - Add progress tracking and resumability
-   - Timeline: 12-week implementation estimate
-5. **📊 Production Monitoring**: Track Phase 1 usage patterns
-   - Document size distribution
-   - Processing times and memory usage
-   - User feedback on browser freeze UX
-6. **🎨 UI Optimization**: Progressive rendering for large suggestion sets
+### 1. Send to Author Flow (2-3 weeks)
+- Add `role` field to Supabase Auth users (editor/author)
+- Implement "Send to Author" action:
+  - Create TipTap snapshot, save to `manuscripts.snapshots`
+  - Set `ball_in_court = 'author'`
+  - Lock editor controls (UI only visible to authors)
+  - Send email notification (hardcoded template)
+
+### 2. Return to Editor (1-2 weeks)
+- "Return to Editor" button for authors
+- Create snapshot on return
+- Increment `round` counter
+- Flip `ball_in_court = 'editor'`
+- Send email notification
+
+### 3. Basic Export & Comments (2-3 weeks)
+- DOCX export with track changes (leverage existing DOCX processing)
+- Activate Comments tab with flat comments
+- Simple activity feed in `manuscripts.activity` JSONB
+
+**Total: ~10 weeks to functional v1.0**
+
+**Not in v1.0**: PDF export, diff viewer, admin portal, organization settings, production role
+
+## 📝 Key Files
+
+**Primary Editor**: `src/components/workspace/Editor.tsx` (production-ready)
+**AI Rules**: `src/components/workspace/AIEditorRules.tsx` (AI_EDITOR_RULES array)
+**PRD Reference**: `/Users/andresterranova/manuscript-ballast/Ballast-original-PRD.md` (full vision)
 
 ---
 
-**Need detailed documentation?** → docs/README.md (documentation hub)
-**Working on components?** → docs/03-components/
-**Working on backend?** → docs/04-backend/
-**Understanding architecture?** → docs/05-architecture/
-**Product planning?** → docs/06-product/
-
-## 📝 Component Structure
-
-**Primary Editor**: `src/components/workspace/Editor.tsx` (production-ready, handles all manuscript editing)
-**Legacy Editor**: `src/components/workspace/ManuscriptWorkspace.tsx` (deprecated, maintained for backward compatibility)
-
----
-
-**Last Updated**: October 5, 2025
+**Last Updated**: October 5, 2025 (Streamlined for v1.0 + restructured docs)
 
 ## Tags
 
-#triage #documentation #quick_start #architecture #tiptap #supabase #edge_function #AI #large_documents #phase1 #JWT #authentication #performance #troubleshooting #deployment #command #react #typescript #prosemirror
-- always update the "Last updated" date whenever you update an .md doc
+#triage #mvp #v1.0 #tiptap #supabase #AI #collaboration #workflow #CMOS #snapshot #simplified
+- Always update "Last Updated" when modifying this file

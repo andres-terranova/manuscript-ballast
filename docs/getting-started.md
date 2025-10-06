@@ -2,6 +2,11 @@
 
 **Quick orientation for new developers and Claude Code sessions**
 
+## Current Status
+
+**MVP v0.5** - Production-ready single-user AI-assisted editor
+**Next Milestone**: v1.0 - Editor ↔ Author collaboration
+
 ## System Overview
 
 Manuscript Ballast is an AI-powered manuscript editor that handles 85K+ word documents using:
@@ -9,12 +14,57 @@ Manuscript Ballast is an AI-powered manuscript editor that handles 85K+ word doc
 - **Backend**: Supabase (PostgreSQL + Edge Functions)
 - **AI**: TipTap Pro AI (OpenAI integration)
 - **Language**: TypeScript
+- **Database**: JSON-based model (simple, flexible)
+
+## What's Working Now (v0.5)
+
+✅ **Large Document Processing**
+- Handles up to 85K words (tested with 488K characters)
+- Parallel batch processing (5 chunks concurrent)
+- 99.9%+ position accuracy
+- ~15-20 min processing time for 85K words
+
+✅ **AI Suggestions**
+- Copy Editor (grammar, spelling)
+- Line Editor (sentence flow)
+- Proofreader (style consistency)
+- Track changes UI with inline highlights
+
+✅ **Core Infrastructure**
+- Queue-based DOCX processing
+- TipTap JWT authentication (24hr expiration)
+- Auto-save functionality
+
+## What's Coming in v1.0 (~10 weeks)
+
+**Focus: Editor ↔ Author Collaboration**
+
+🎯 **Send/Return Workflow**
+- Editors generate AI suggestions → Send to authors
+- Authors review suggestions → Return to editors
+- Role-based UI (hide AI controls from authors)
+
+🎯 **Version Control**
+- TipTap snapshots for versioning
+- Simple snapshot-based history
+
+🎯 **Basic Comments**
+- Editor notes for authors
+- Author replies/questions
+
+🎯 **DOCX Export**
+- Download edited manuscripts
+- Track changes format
+
+**What's NOT in v1.0:**
+- ❌ PDF export
+- ❌ Admin portal
+- ❌ Complex production workflows
+- ❌ Database migrations (keeping JSON model)
 
 ## 📋 Quick Reference
 
 **Port**: 8080 (`pnpm run dev`)
-
-**Current Branch**: cleanup/docs (check `git status` for actual branch)
 
 **Main Branch**: main (for PRs)
 
@@ -49,36 +99,33 @@ git status                   # Check current state
 
 ## 🔑 Key Concepts
 
-### 1. Primary Editor
-- **ManuscriptEditor** (Editor): Production editor, uses TipTap Pro AI
-- **Standard Editor**: Deprecated, legacy OpenAI integration
+### 1. Primary Editor Component
+- **Editor** (src/components/workspace/Editor.tsx): Production-ready TipTap Pro AI editor
+- Handles all manuscript editing, AI suggestions, and track changes UI
 
-### 2. Document Processing Limits
-- ✅ **Up to 27K words**: Working (console.log fix applied)
-- 🟡 **27K-85K words**: Untested (may hit browser timeout)
-- ❌ **85K+ words**: Needs custom resolver (Chrome 2-min timeout)
+### 2. Document Processing (RESOLVED ✅)
+- **Up to 85K words**: Fully working with parallel batch processing
+- Custom apiResolver bypasses browser timeout
+- Processes 5 chunks concurrently for 3-5x speedup
+- 99.9%+ position accuracy across all document sizes
 
-### 3. Queue-Based DOCX Processing
+### 3. Queue-Based DOCX Import
 - Upload → Storage → Queue → Edge Function → Processed
 - Auto-polling every 10s
-- Handles 60K+ word documents
+- Handles full-length manuscripts
 
 ### 4. AI Suggestion Workflow
 1. User clicks "Run AI Pass"
-2. TipTap chunks document (chunkSize: 5)
-3. AI analyzes each chunk
+2. Custom apiResolver chunks document (5 chunks concurrent)
+3. AI analyzes each chunk in parallel
 4. Suggestions mapped to ProseMirror positions
 5. Rendered as decorations + ChangeList
 
-## 📍 Current Status (October 2, 2025)
-
-**Recently Resolved**:
-- ✅ TipTap JWT authentication (Oct 1)
-- ✅ Console.log CPU load fix (Oct 1) - enabled 27K word processing
-
-**Active Work**:
-- 🟡 Custom resolver for 85K+ word documents (browser timeout bypass)
-- 🟡 Deprecate Standard Editor (migration complete for primary editor)
+### 5. Technical Stack
+- **React 18** + **TypeScript**
+- **TipTap v3 Pro** (editor + AI)
+- **Supabase** (database + auth + edge functions)
+- **JSON database model** (flexible, no migrations needed)
 
 ## 🏷️ Documentation by Tag
 
@@ -170,7 +217,7 @@ Find documentation by topic using these tag-based groupings:
 
 ## Tags
 
-#getting_started #quick_start #react #typescript #tiptap #supabase #development #commands #architecture #queue #authentication #editor #AI #deployment
+#getting_started #quick_start #react #typescript #tiptap #supabase #development #commands #architecture #queue #authentication #editor #AI #deployment #mvp #v1.0 #collaboration
 
 ---
 
