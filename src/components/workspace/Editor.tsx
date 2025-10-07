@@ -379,14 +379,14 @@ const Editor = () => {
   };
 
   // Helper to get rule title by ID
-  const getRuleTitle = (ruleId: string | undefined): string | undefined => {
+  const getRuleTitle = useCallback((ruleId: string | undefined): string | undefined => {
     if (!ruleId) return undefined;
     const rule = availableRules.find(r => r.id === ruleId);
     return rule?.title;
-  };
+  }, [availableRules]);
 
   // Convert AI suggestions to UISuggestion format for ChangeList
-  const convertAiSuggestionsToUI = (editor: TiptapEditor): UISuggestion[] => {
+  const convertAiSuggestionsToUI = useCallback((editor: TiptapEditor): UISuggestion[] => {
     try {
       // Use extensionStorage as documented in TipTap docs
       const aiStorage = editor.extensionStorage?.aiSuggestion;
@@ -394,26 +394,26 @@ const Editor = () => {
         console.log('No AI suggestion extension storage found');
         return [];
       }
-      
+
       // Use the getSuggestions function to get current suggestions
-      const aiSuggestions = typeof aiStorage.getSuggestions === 'function' 
-        ? aiStorage.getSuggestions() 
+      const aiSuggestions = typeof aiStorage.getSuggestions === 'function'
+        ? aiStorage.getSuggestions()
         : [];
-        
+
       console.log(`📝 Converting ${aiSuggestions.length} AI suggestions to UI format`);
 
       return aiSuggestions.map((suggestion: unknown, index: number) => {
         // Extract rule information from the TipTap suggestion
         const ruleId = suggestion.rule?.id || suggestion.ruleId;
         const ruleTitle = suggestion.rule?.title || getRuleTitle(ruleId);
-        
+
         console.log('Processing AI suggestion:', {
           id: suggestion.id,
           ruleId,
           ruleTitle,
           suggestion: suggestion
         });
-        
+
         return {
           id: suggestion.id || `ai-suggestion-${index}`,
           type: suggestion.replacementOptions && suggestion.replacementOptions.length > 0 ? 'replace' : 'delete' as SuggestionType,
@@ -440,7 +440,7 @@ const Editor = () => {
       console.error('Error converting AI suggestions:', error);
       return [];
     }
-  };
+  }, [getRuleTitle]);
 
   // Event-based waiting using TipTap's transaction events (no polling)
   const waitForAiSuggestions = async (editor: TiptapEditor): Promise<UISuggestion[]> => {
@@ -1199,7 +1199,7 @@ const Editor = () => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [manuscript?.id]); // Re-run when manuscript changes
+  }, [manuscript?.id, convertAiSuggestionsToUI]); // Re-run when manuscript changes
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
