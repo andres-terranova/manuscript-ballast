@@ -4,7 +4,7 @@ import { JSONContent } from '@tiptap/core';
 import type { Suggestion } from '@tiptap-pro/extension-ai-suggestion';
 
 // Snapshot event types matching workflow milestones
-export type SnapshotEvent = 'upload' | 'send_to_author' | 'return_to_editor' | 'manual';
+export type SnapshotEvent = 'upload' | 'send_to_author' | 'return_to_editor' | 'manual' | 'ai_pass_complete' | 'apply_all';
 
 // Snapshot structure stored in JSONB array
 export interface Snapshot {

@@ -58,10 +58,50 @@ This feature allows snapshots to capture and restore AI suggestions, preserving 
 ## Key Features
 
 ✅ Save AI suggestions with snapshots
-✅ Restore suggestions when snapshot is loaded
+✅ Restore suggestions when snapshot is loaded (page load + manual restore)
+✅ Auto-restore AI suggestions on page load from latest snapshot
+✅ Track current version across page loads and manual restores
 ✅ Backward compatible (old snapshots work fine)
-✅ UI shows suggestion count
+✅ UI shows suggestion count in version history
 ✅ Handles 5K+ suggestions
+
+## Recent Updates (January 2025)
+
+**Bug Fixes Implemented**:
+
+1. **Page Load Restoration** (`Editor.tsx:1120-1193`)
+   - Fixed: AI suggestions vanished after page refresh
+   - Solution: Added useEffect hook that fetches latest snapshot and restores suggestions on mount
+   - Updates both editor state (`setAiSuggestions`) and UI state (`convertAiSuggestionsToUI`)
+
+2. **Manual Restore UI Sync** (`Editor.tsx:1647-1672`)
+   - Fixed: Version History restore didn't populate Change List
+   - Solution: Updated `onRestore` callback to convert suggestions to UI format and update React state
+   - Now fully synchronizes editor and UI after manual restoration
+
+3. **Version Tracking** (`Editor.tsx:72, VersionHistory.tsx:10-14`)
+   - Fixed: Version History always marked latest as "Current Version"
+   - Solution: Added `currentVersion` state tracking across page loads, restores, and snapshot creation
+   - Users can now restore to any version including the latest after using older versions
+
+**New Features**:
+
+4. **Automatic Snapshots on AI Pass Completion** (`Editor.tsx:1033-1055`)
+   - Automatically creates snapshot after AI Pass generates suggestions
+   - Event type: `'ai_pass_complete'`
+   - Label includes role count (e.g., "3 roles applied")
+   - Only creates snapshot if suggestions were generated
+
+5. **Automatic Snapshots on Apply All** (`Editor.tsx:762-784`)
+   - Automatically creates snapshot after applying all AI suggestions
+   - Event type: `'apply_all'`
+   - Label includes suggestion count (e.g., "Applied 328 suggestions")
+   - Tracks count before applying for accurate labeling
+
+6. **Extended Snapshot Event Types** (`snapshotService.ts:7`, `VersionHistory.tsx:96-97`)
+   - Added `'ai_pass_complete'` → "AI Pass Complete"
+   - Added `'apply_all'` → "Applied All Suggestions"
+   - Version History displays new event types with proper labels
 
 ## Questions?
 

@@ -70,6 +70,7 @@ const Editor = () => {
   const [aiProgress, setAiProgress] = useState<AIProgressState>(createInitialProgressState());
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<number | undefined>(undefined);
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
 
   // Handle AI progress updates
   const handleProgressUpdate = useCallback((progress: AIProgressState) => {
@@ -113,6 +114,11 @@ const Editor = () => {
     const editor = getGlobalEditor();
     if (!editor || !manuscript) return;
 
+    // Show loading overlay for manual snapshots
+    if (event === 'manual') {
+      setIsSavingSnapshot(true);
+    }
+
     try {
       // Get current user (in MVP, we can use a placeholder)
       const { data: { user } } = await supabase.auth.getUser();
@@ -128,7 +134,7 @@ const Editor = () => {
         console.log(`✅ Current version updated to ${latestSnapshot.version}`);
       }
 
-      // Show success toast for manual snapshots
+      // Show success toast for manual snapshots (after overlay closes)
       if (event === 'manual') {
         toast({
           title: "Snapshot created",
@@ -144,6 +150,11 @@ const Editor = () => {
           description: error instanceof Error ? error.message : 'Unknown error',
           variant: 'destructive'
         });
+      }
+    } finally {
+      // Hide loading overlay
+      if (event === 'manual') {
+        setIsSavingSnapshot(false);
       }
     }
   }, [manuscript, toast]);
@@ -741,21 +752,48 @@ const Editor = () => {
       return;
     }
 
+    // Track how many suggestions exist before applying
+    const suggestionCountBefore = suggestions.length;
+
     try {
       console.log('Applying all AI suggestions...');
-      
+
       // Use Tiptap's built-in applyAllAiSuggestions command
       const result = editor.commands.applyAllAiSuggestions();
       console.log('Apply all suggestions result:', result);
-      
+
       if (result) {
         // Wait a moment for the changes to be processed
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         // Refresh suggestions to get the updated state
         const updatedSuggestions = await waitForAiSuggestions(editor);
         setSuggestions(updatedSuggestions);
-        
+
+        // Create snapshot after applying all suggestions
+        if (manuscript?.id && suggestionCountBefore > 0) {
+          try {
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id || 'system';
+
+            const label = suggestionCountBefore === 1
+              ? 'Applied 1 suggestion'
+              : `Applied ${suggestionCountBefore} suggestions`;
+            await createSnapshot(editor, manuscript.id, 'apply_all', userId, label);
+            console.log(`✅ Snapshot created after Apply All: ${label}`);
+
+            // Update current version to the newly created snapshot
+            const latestSnapshot = await getLatestSnapshot(manuscript.id);
+            if (latestSnapshot) {
+              setCurrentVersion(latestSnapshot.version);
+            }
+          } catch (error) {
+            console.error('Failed to create snapshot after Apply All:', error);
+            // Don't show error to user - snapshot failure shouldn't block workflow
+          }
+        }
+
         toast({
           title: "All suggestions applied successfully",
           description: "Your document has been updated with all AI suggestions.",
@@ -763,7 +801,7 @@ const Editor = () => {
       } else {
         throw new Error('Failed to apply suggestions');
       }
-      
+
     } catch (error) {
       console.error('Error applying all suggestions:', error);
       toast({
@@ -1006,6 +1044,30 @@ const Editor = () => {
 
       console.log('Generated', uiSuggestions.length, 'AI suggestions');
       setSuggestions(uiSuggestions);
+
+      // Create snapshot after AI Pass completes (only if suggestions were generated)
+      if (uiSuggestions.length > 0 && manuscript?.id) {
+        try {
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id || 'system';
+
+          const roleLabel = selectedRuleIds.length === 1
+            ? '1 role applied'
+            : `${selectedRuleIds.length} roles applied`;
+          await createSnapshot(editor, manuscript.id, 'ai_pass_complete', userId, roleLabel);
+          console.log(`✅ Snapshot created after AI Pass: ${uiSuggestions.length} suggestions, ${roleLabel}`);
+
+          // Update current version to the newly created snapshot
+          const latestSnapshot = await getLatestSnapshot(manuscript.id);
+          if (latestSnapshot) {
+            setCurrentVersion(latestSnapshot.version);
+          }
+        } catch (error) {
+          console.error('Failed to create snapshot after AI Pass:', error);
+          // Don't show error to user - snapshot failure shouldn't block workflow
+        }
+      }
 
       if (uiSuggestions.length > 0) {
         toast({
@@ -1562,9 +1624,11 @@ const Editor = () => {
                 // Initialize selectedRuleIds from database-enabled rules on first load
                 if (!rulesInitialized && rules.length > 0) {
                   const enabledRuleIds = rules.filter(r => r.enabled).map(r => r.id);
-                  setSelectedRuleIds(enabledRuleIds);
+                  // Only select first 2 enabled rules by default
+                  const defaultSelectedIds = enabledRuleIds.slice(0, 2);
+                  setSelectedRuleIds(defaultSelectedIds);
                   setRulesInitialized(true);
-                  console.log('✅ Initialized selectedRuleIds from database:', enabledRuleIds);
+                  console.log('✅ Initialized selectedRuleIds from database (first 2):', defaultSelectedIds);
                 }
               }}
             />
@@ -1702,6 +1766,27 @@ const Editor = () => {
             >
               Cancel
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Version Loading Overlay */}
+      <Dialog open={isSavingSnapshot}>
+        <DialogContent
+          className="sm:max-w-md [&>button]:hidden"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Saving Version</DialogTitle>
+          </DialogHeader>
+          <div className="py-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary flex-shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                Creating snapshot of your document...
+              </p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
