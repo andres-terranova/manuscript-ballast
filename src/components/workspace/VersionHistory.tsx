@@ -182,6 +182,14 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
                   {snapshot.metadata.wordCount.toLocaleString()} words
                   {' · '}
                   {snapshot.metadata.characterCount.toLocaleString()} characters
+                  {snapshot.metadata?.suggestionCount && snapshot.metadata.suggestionCount > 0 && (
+                    <>
+                      {' · '}
+                      <span className="font-medium text-foreground">
+                        {snapshot.metadata.suggestionCount} suggestion{snapshot.metadata.suggestionCount !== 1 ? 's' : ''}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <Button
