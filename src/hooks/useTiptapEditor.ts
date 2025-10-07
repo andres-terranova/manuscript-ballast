@@ -86,12 +86,35 @@ export const useTiptapEditor = ({
         try {
           // Validate JWT token format (should have 3 parts separated by dots)
           const isValidJWT = aiSuggestionConfig.token?.split('.').length === 3;
-          
-          
+
+
           if (!isValidJWT) {
             console.warn('Token does not appear to be a valid JWT format (should have 3 parts separated by dots)');
           }
-          
+
+          // EXPERIMENT 8: Dynamic configuration based on document size
+          // Extract text from HTML to get character count
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = contentHtml;
+          const textContent = tempDiv.textContent || tempDiv.innerText || '';
+          const charCount = textContent.length;
+
+          // Determine optimal config based on character count
+          // Ranges adjusted to match test documents:
+          // - SMALL (1K words) ≈ 5-6K chars
+          // - MEDIUM (27K words) ≈ 135-162K chars
+          // - MEDIUM-LARGE (61K words) ≈ 305-366K chars
+          // - LARGE (85K words) ≈ 425-510K chars
+          const getOptimalConfig = (chars: number) => {
+            if (chars < 100000) return { chunkSize: 10, batchSize: 3 };       // < 100K chars (~20K words)
+            if (chars < 250000) return { chunkSize: 20, batchSize: 5 };       // 100K-250K chars (~20K-50K words)
+            if (chars < 400000) return { chunkSize: 30, batchSize: 7 };       // 250K-400K chars (~50K-80K words)
+            return { chunkSize: 40, batchSize: 10 };                          // 400K+ chars (~80K+ words)
+          };
+
+          const { chunkSize, batchSize } = getOptimalConfig(charCount);
+          console.log(`🔧 EXPERIMENT 8: Dynamic config selected based on ${charCount.toLocaleString()} chars: chunkSize=${chunkSize}, batchSize=${batchSize}`);
+
           const config = {
             rules: aiSuggestionConfig.rules || [
               {
@@ -111,7 +134,7 @@ export const useTiptapEditor = ({
             model: 'gpt-4o-mini' as const,
             // Use TipTap's native chunking system for large documents
             enableCache: true,      // Enable caching to avoid redundant API calls (default: true)
-            chunkSize: 20,          // UAT Winner: 19% faster than chunkSize 10 (5.7min vs 7.1min)
+            chunkSize,              // EXPERIMENT 8: Dynamic chunkSize based on document size
 
             // 🆕 CUSTOM RESOLVER FOR LARGE DOCUMENTS
             async resolver({ defaultResolver, rules, ...options }: { defaultResolver: (opts: unknown) => Promise<unknown>; rules: unknown; [key: string]: unknown }) {
@@ -127,7 +150,7 @@ export const useTiptapEditor = ({
                   const startTime = Date.now();
 
                   // 🆕 PARALLEL BATCH PROCESSING
-                  const BATCH_SIZE = 5; // Process 5 chunks simultaneously
+                  const BATCH_SIZE = batchSize; // EXPERIMENT 8: Dynamic batchSize based on document size
                   const totalBatches = Math.ceil(htmlChunks.length / BATCH_SIZE);
                   let processedBatchCount = 0;
                   let processedChunkCount = 0;
