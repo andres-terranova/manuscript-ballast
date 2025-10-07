@@ -69,6 +69,7 @@ const Editor = () => {
   const aiCancelledRef = useRef(false);
   const [aiProgress, setAiProgress] = useState<AIProgressState>(createInitialProgressState());
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<number | undefined>(undefined);
 
   // Handle AI progress updates
   const handleProgressUpdate = useCallback((progress: AIProgressState) => {
@@ -119,6 +120,13 @@ const Editor = () => {
 
       await createSnapshot(editor, manuscript.id, event, userId, label);
       console.log(`✅ Snapshot created: ${event}`);
+
+      // Update current version to the newly created snapshot
+      const latestSnapshot = await getLatestSnapshot(manuscript.id);
+      if (latestSnapshot) {
+        setCurrentVersion(latestSnapshot.version);
+        console.log(`✅ Current version updated to ${latestSnapshot.version}`);
+      }
 
       // Show success toast for manual snapshots
       if (event === 'manual') {
@@ -1173,7 +1181,8 @@ const Editor = () => {
           // Convert to UI format and update state
           const uiSuggestions = convertAiSuggestionsToUI(editor);
           setSuggestions(uiSuggestions);
-          console.log(`✅ Updated UI with ${uiSuggestions.length} suggestions`);
+          setCurrentVersion(snapshot.version); // Track current version
+          console.log(`✅ Updated UI with ${uiSuggestions.length} suggestions from version ${snapshot.version}`);
         } else {
           console.warn('⚠️ setAiSuggestions returned false - restoration may have failed');
         }
@@ -1642,7 +1651,8 @@ const Editor = () => {
           </SheetHeader>
           <VersionHistory
             manuscriptId={manuscript.id}
-            onRestore={() => {
+            currentVersion={currentVersion}
+            onRestore={(restoredVersion) => {
               // Refresh editor state after restore
               setShowVersionHistory(false);
 
@@ -1653,6 +1663,10 @@ const Editor = () => {
                   const uiSuggestions = convertAiSuggestionsToUI(editor);
                   setSuggestions(uiSuggestions);
                   console.log(`✅ Refreshed UI with ${uiSuggestions.length} restored suggestions`);
+
+                  // Update current version to the restored version
+                  setCurrentVersion(restoredVersion);
+                  console.log(`✅ Current version set to ${restoredVersion}`);
                 } catch (error) {
                   console.error('Failed to convert restored suggestions to UI:', error);
                 }
