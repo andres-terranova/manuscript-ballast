@@ -49,7 +49,7 @@ import { ManuscriptService } from "@/services/manuscriptService";
 import { AIProgressIndicator } from "./AIProgressIndicator";
 import type { AIProgressState } from "@/types/aiProgress";
 import { createInitialProgressState } from "@/types/aiProgress";
-import { createSnapshot } from '@/services/snapshotService';
+import { createSnapshot, getLatestSnapshot } from '@/services/snapshotService';
 import { VersionHistory } from './VersionHistory';
 
 const Editor = () => {
@@ -69,6 +69,7 @@ const Editor = () => {
   const aiCancelledRef = useRef(false);
   const [aiProgress, setAiProgress] = useState<AIProgressState>(createInitialProgressState());
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<number | undefined>(undefined);
 
   // Handle AI progress updates
   const handleProgressUpdate = useCallback((progress: AIProgressState) => {
@@ -119,6 +120,13 @@ const Editor = () => {
 
       await createSnapshot(editor, manuscript.id, event, userId, label);
       console.log(`✅ Snapshot created: ${event}`);
+
+      // Update current version to the newly created snapshot
+      const latestSnapshot = await getLatestSnapshot(manuscript.id);
+      if (latestSnapshot) {
+        setCurrentVersion(latestSnapshot.version);
+        console.log(`✅ Current version updated to ${latestSnapshot.version}`);
+      }
 
       // Show success toast for manual snapshots
       if (event === 'manual') {
@@ -1117,6 +1125,82 @@ const Editor = () => {
     loadManuscript();
   }, [id, navigate, getManuscriptById, retryCount, refreshManuscripts]);
 
+  // Restore AI suggestions from latest snapshot on page load
+  useEffect(() => {
+    const restoreAiSuggestionsOnLoad = async () => {
+      // Only run after manuscript is loaded and editor is ready
+      if (!manuscript?.id) return;
+
+      const editor = getGlobalEditor();
+      if (!editor) {
+        console.log('⏳ Editor not ready yet for AI restoration');
+        return;
+      }
+
+      // Check if AI extension is available
+      const aiStorage = editor.extensionStorage?.aiSuggestion;
+      if (!aiStorage) {
+        console.log('ℹ️ AI Suggestion extension not available - skipping restoration');
+        return;
+      }
+
+      // Only restore if editor doesn't already have suggestions
+      const existingSuggestions = aiStorage.getSuggestions?.() || [];
+      if (existingSuggestions.length > 0) {
+        console.log(`✅ Editor already has ${existingSuggestions.length} suggestions loaded`);
+        // Convert existing suggestions to UI format
+        const uiSuggestions = convertAiSuggestionsToUI(editor);
+        setSuggestions(uiSuggestions);
+        return;
+      }
+
+      try {
+        console.log('🔄 Attempting to restore AI suggestions from latest snapshot...');
+
+        // Fetch latest snapshot
+        const snapshot = await getLatestSnapshot(manuscript.id);
+
+        if (!snapshot) {
+          console.log('ℹ️ No snapshots found for manuscript');
+          return;
+        }
+
+        if (!snapshot.aiSuggestions || snapshot.aiSuggestions.length === 0) {
+          console.log('ℹ️ Latest snapshot has no AI suggestions to restore');
+          return;
+        }
+
+        console.log(`📥 Restoring ${snapshot.aiSuggestions.length} AI suggestions from snapshot v${snapshot.version}...`);
+
+        // Restore AI suggestions to editor
+        const success = editor.commands.setAiSuggestions(snapshot.aiSuggestions);
+
+        if (success) {
+          console.log(`✅ Restored ${snapshot.aiSuggestions.length} AI suggestions to editor`);
+
+          // Convert to UI format and update state
+          const uiSuggestions = convertAiSuggestionsToUI(editor);
+          setSuggestions(uiSuggestions);
+          setCurrentVersion(snapshot.version); // Track current version
+          console.log(`✅ Updated UI with ${uiSuggestions.length} suggestions from version ${snapshot.version}`);
+        } else {
+          console.warn('⚠️ setAiSuggestions returned false - restoration may have failed');
+        }
+
+      } catch (error) {
+        console.error('❌ Failed to restore AI suggestions on page load:', error);
+        // Don't show error toast - this is a silent background operation
+      }
+    };
+
+    // Run restoration after a short delay to ensure editor is fully initialized
+    const timer = setTimeout(() => {
+      restoreAiSuggestionsOnLoad();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [manuscript?.id]); // Re-run when manuscript changes
+
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
       case "In Review":
@@ -1567,9 +1651,27 @@ const Editor = () => {
           </SheetHeader>
           <VersionHistory
             manuscriptId={manuscript.id}
-            onRestore={() => {
+            currentVersion={currentVersion}
+            onRestore={(restoredVersion) => {
               // Refresh editor state after restore
               setShowVersionHistory(false);
+
+              // Convert restored AI suggestions to UI format
+              const editor = getGlobalEditor();
+              if (editor) {
+                try {
+                  const uiSuggestions = convertAiSuggestionsToUI(editor);
+                  setSuggestions(uiSuggestions);
+                  console.log(`✅ Refreshed UI with ${uiSuggestions.length} restored suggestions`);
+
+                  // Update current version to the restored version
+                  setCurrentVersion(restoredVersion);
+                  console.log(`✅ Current version set to ${restoredVersion}`);
+                } catch (error) {
+                  console.error('Failed to convert restored suggestions to UI:', error);
+                }
+              }
+
               toast({
                 title: "Document restored",
                 description: "The document has been restored from the selected version"

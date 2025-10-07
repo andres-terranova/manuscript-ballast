@@ -1,6 +1,7 @@
 import { Editor } from '@tiptap/core';
 import { supabase } from '@/integrations/supabase/client';
 import { JSONContent } from '@tiptap/core';
+import type { Suggestion } from '@tiptap-pro/extension-ai-suggestion';
 
 // Snapshot event types matching workflow milestones
 export type SnapshotEvent = 'upload' | 'send_to_author' | 'return_to_editor' | 'manual';
@@ -12,9 +13,11 @@ export interface Snapshot {
   event: SnapshotEvent;         // Event that triggered snapshot
   label?: string;               // Optional user-provided label
   content: JSONContent;         // TipTap document JSON from editor.getJSON()
+  aiSuggestions?: Suggestion[];  // AI suggestions from editor.extensionStorage.aiSuggestion.getSuggestions()
   metadata: {
     wordCount: number;
     characterCount: number;
+    suggestionCount?: number;   // Track count for UI display
   };
   createdAt: string;            // ISO 8601 timestamp
   createdBy: string;            // User ID (auth.uid())
@@ -43,6 +46,23 @@ export async function createSnapshot(
     const content = editor.getJSON();
     const text = editor.getText();
 
+    // Step 1b: Capture AI suggestions if available
+    let aiSuggestions: Suggestion[] = [];
+    try {
+      const aiStorage = editor.extensionStorage?.aiSuggestion;
+      if (aiStorage && typeof aiStorage.getSuggestions === 'function') {
+        const suggestions = aiStorage.getSuggestions();
+        // Filter out rejected suggestions (optional - keep if you want full state)
+        aiSuggestions = suggestions.filter((s: Suggestion) => !s.isRejected);
+        console.log(`📸 Capturing ${aiSuggestions.length} AI suggestions with snapshot`);
+      } else {
+        console.log('📸 No AI suggestions found (extension not loaded or no suggestions)');
+      }
+    } catch (error) {
+      console.error('Error capturing AI suggestions:', error);
+      // Continue without suggestions - don't fail snapshot creation
+    }
+
     // Step 2: Calculate metadata
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const characterCount = text.length;
@@ -70,9 +90,11 @@ export async function createSnapshot(
       event,
       label,
       content,
+      aiSuggestions: aiSuggestions.length > 0 ? aiSuggestions : undefined,
       metadata: {
         wordCount,
-        characterCount
+        characterCount,
+        suggestionCount: aiSuggestions.length
       },
       createdAt: new Date().toISOString(),
       createdBy: userId
@@ -94,7 +116,8 @@ export async function createSnapshot(
       version,
       event,
       wordCount,
-      characterCount
+      characterCount,
+      suggestionCount: aiSuggestions.length
     });
 
   } catch (error) {
@@ -141,6 +164,27 @@ export async function restoreSnapshot(
     // Step 3: Restore content to editor (TipTap setContent command)
     editor.commands.setContent(snapshot.content);
 
+    // Step 3b: Restore AI suggestions if present
+    if (snapshot.aiSuggestions && snapshot.aiSuggestions.length > 0) {
+      try {
+        // CRITICAL: Suggestions must be restored AFTER content
+        // to ensure positions are valid
+        const success = editor.commands.setAiSuggestions(snapshot.aiSuggestions);
+
+        if (success) {
+          console.log(`✅ Restored ${snapshot.aiSuggestions.length} AI suggestions`);
+        } else {
+          console.warn('⚠️ setAiSuggestions returned false - suggestions may not be restored');
+        }
+      } catch (error) {
+        console.error('Error restoring AI suggestions:', error);
+        // Don't fail the entire restore - document is already restored
+        // User can run AI pass again if needed
+      }
+    } else {
+      console.log('ℹ️ No AI suggestions to restore');
+    }
+
     // Step 4: Update database with restored content
     // This ensures database stays in sync with editor
     const { error: updateError } = await supabase
@@ -162,7 +206,8 @@ export async function restoreSnapshot(
       manuscriptId,
       version,
       event: snapshot.event,
-      wordCount: snapshot.metadata.wordCount
+      wordCount: snapshot.metadata.wordCount,
+      suggestionsRestored: snapshot.aiSuggestions?.length || 0
     });
 
   } catch (error) {
