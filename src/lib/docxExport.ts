@@ -41,10 +41,30 @@ export async function exportEditorToDocx(
       contentLength: JSON.stringify(documentContent).length
     });
 
-    // Export using TipTap Pro extension
+    // Export using TipTap Pro extension with proper paragraph formatting
     const docxBlob = await exportDocx({
       document: documentContent,
-      exportType: 'blob'
+      exportType: 'blob',
+      styleOverrides: {
+        paragraphStyles: [
+          {
+            id: 'Normal',
+            name: 'Normal',
+            basedOn: 'Normal',
+            next: 'Normal',
+            run: {
+              size: 24, // 12pt font (half-points)
+              font: 'Times New Roman',
+            },
+            paragraph: {
+              spacing: {
+                after: 200, // Space after paragraph (in twentieths of a point)
+                line: 276,  // Line spacing (1.15 lines = 276)
+              },
+            },
+          },
+        ],
+      },
     });
 
     console.log('✅ DOCX export successful', {
