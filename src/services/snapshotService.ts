@@ -2,9 +2,10 @@ import { Editor } from '@tiptap/core';
 import { supabase } from '@/integrations/supabase/client';
 import { JSONContent } from '@tiptap/core';
 import type { Suggestion } from '@tiptap-pro/extension-ai-suggestion';
+import type { UISuggestion } from '@/lib/types';
 
 // Snapshot event types matching workflow milestones
-export type SnapshotEvent = 'upload' | 'send_to_author' | 'return_to_editor' | 'manual' | 'ai_pass_complete' | 'apply_all';
+export type SnapshotEvent = 'upload' | 'send_to_author' | 'return_to_editor' | 'manual' | 'ai_pass_complete' | 'apply_all' | 'ai_pass_start';
 
 // Snapshot structure stored in JSONB array
 export interface Snapshot {
@@ -14,10 +15,13 @@ export interface Snapshot {
   label?: string;               // Optional user-provided label
   content: JSONContent;         // TipTap document JSON from editor.getJSON()
   aiSuggestions?: Suggestion[];  // AI suggestions from editor.extensionStorage.aiSuggestion.getSuggestions()
+  manualSuggestions?: UISuggestion[]; // Manual suggestions from React state
   metadata: {
     wordCount: number;
     characterCount: number;
-    suggestionCount?: number;   // Track count for UI display
+    suggestionCount?: number;   // Total: AI + manual
+    aiSuggestionCount?: number; // Breakdown for AI
+    manualSuggestionCount?: number; // Breakdown for manual
   };
   createdAt: string;            // ISO 8601 timestamp
   createdBy: string;            // User ID (auth.uid())
@@ -31,6 +35,7 @@ export interface Snapshot {
  * @param event - Event type triggering snapshot
  * @param userId - User ID creating snapshot
  * @param label - Optional custom label for snapshot
+ * @param manualSuggestions - Optional manual suggestions from React state
  * @returns Promise<void>
  * @throws Error if database operations fail
  */
@@ -39,7 +44,8 @@ export async function createSnapshot(
   manuscriptId: string,
   event: SnapshotEvent,
   userId: string,
-  label?: string
+  label?: string,
+  manualSuggestions?: UISuggestion[]
 ): Promise<void> {
   try {
     // Step 1: Capture current document state from editor
@@ -62,6 +68,10 @@ export async function createSnapshot(
       console.error('Error capturing AI suggestions:', error);
       // Continue without suggestions - don't fail snapshot creation
     }
+
+    // Step 1c: Capture manual suggestions if provided
+    const manualSuggestionsToSave = manualSuggestions || [];
+    console.log(`📸 Capturing ${manualSuggestionsToSave.length} manual suggestions with snapshot`);
 
     // Step 2: Calculate metadata
     const wordCount = text.split(/\s+/).filter(Boolean).length;
@@ -91,10 +101,13 @@ export async function createSnapshot(
       label,
       content,
       aiSuggestions: aiSuggestions.length > 0 ? aiSuggestions : undefined,
+      manualSuggestions: manualSuggestionsToSave.length > 0 ? manualSuggestionsToSave : undefined,
       metadata: {
         wordCount,
         characterCount,
-        suggestionCount: aiSuggestions.length
+        suggestionCount: aiSuggestions.length + manualSuggestionsToSave.length,
+        aiSuggestionCount: aiSuggestions.length,
+        manualSuggestionCount: manualSuggestionsToSave.length
       },
       createdAt: new Date().toISOString(),
       createdBy: userId
@@ -117,7 +130,9 @@ export async function createSnapshot(
       event,
       wordCount,
       characterCount,
-      suggestionCount: aiSuggestions.length
+      aiSuggestionCount: aiSuggestions.length,
+      manualSuggestionCount: manualSuggestionsToSave.length,
+      totalSuggestionCount: aiSuggestions.length + manualSuggestionsToSave.length
     });
 
   } catch (error) {
@@ -132,14 +147,14 @@ export async function createSnapshot(
  * @param editor - TipTap editor instance
  * @param manuscriptId - Manuscript UUID
  * @param version - Snapshot version number to restore
- * @returns Promise<void>
+ * @returns Promise<{ manualSuggestions: UISuggestion[] }> - Manual suggestions from snapshot
  * @throws Error if snapshot not found or restoration fails
  */
 export async function restoreSnapshot(
   editor: Editor,
   manuscriptId: string,
   version: number
-): Promise<void> {
+): Promise<{ manualSuggestions: UISuggestion[] }> {
   try {
     // Step 1: Fetch snapshots from database
     const { data: manuscript, error: fetchError } = await supabase
@@ -185,6 +200,11 @@ export async function restoreSnapshot(
       console.log('ℹ️ No AI suggestions to restore');
     }
 
+    // Step 3c: Return manual suggestions to caller
+    // (Can't restore directly to React state - must be done in component)
+    const manualSuggestionsToRestore = snapshot.manualSuggestions || [];
+    console.log(`ℹ️ ${manualSuggestionsToRestore.length} manual suggestions available for restore`);
+
     // Step 4: Update database with restored content
     // This ensures database stays in sync with editor
     const { error: updateError } = await supabase
@@ -207,8 +227,11 @@ export async function restoreSnapshot(
       version,
       event: snapshot.event,
       wordCount: snapshot.metadata.wordCount,
-      suggestionsRestored: snapshot.aiSuggestions?.length || 0
+      aiSuggestionsRestored: snapshot.aiSuggestions?.length || 0,
+      manualSuggestionsRestored: manualSuggestionsToRestore.length
     });
+
+    return { manualSuggestions: manualSuggestionsToRestore };
 
   } catch (error) {
     console.error('Snapshot restoration failed:', error);

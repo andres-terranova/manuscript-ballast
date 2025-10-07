@@ -124,7 +124,7 @@ const Editor = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id || 'system';
 
-      await createSnapshot(editor, manuscript.id, event, userId, label);
+      await createSnapshot(editor, manuscript.id, event, userId, label, suggestions);
       console.log(`✅ Snapshot created: ${event}`);
 
       // Update current version to the newly created snapshot
@@ -397,6 +397,18 @@ const Editor = () => {
   }, [availableRules]);
 
   // Convert AI suggestions to UISuggestion format for ChangeList
+  // Helper function to sort suggestions by position
+  const sortSuggestionsByPosition = useCallback((suggestions: UISuggestion[]): UISuggestion[] => {
+    return [...suggestions].sort((a, b) => {
+      // Primary sort: by start position (pmFrom)
+      if (a.pmFrom !== b.pmFrom) {
+        return a.pmFrom - b.pmFrom;
+      }
+      // Secondary sort: by end position (pmTo) if start positions are equal
+      return a.pmTo - b.pmTo;
+    });
+  }, []);
+
   const convertAiSuggestionsToUI = useCallback((editor: TiptapEditor): UISuggestion[] => {
     try {
       // Use extensionStorage as documented in TipTap docs
@@ -665,7 +677,7 @@ const Editor = () => {
         const plainText = editor.getText();
         const remapped = mapPlainTextToPM(editor, plainText, serverSuggestions);
         const manualSuggestions = remaining.filter(s => s.origin === 'manual');
-        setSuggestions([...remapped, ...manualSuggestions]);
+        setSuggestions(sortSuggestionsByPosition([...remapped, ...manualSuggestions]));
       }
 
       toast({
@@ -780,7 +792,7 @@ const Editor = () => {
             const label = suggestionCountBefore === 1
               ? 'Applied 1 suggestion'
               : `Applied ${suggestionCountBefore} suggestions`;
-            await createSnapshot(editor, manuscript.id, 'apply_all', userId, label);
+            await createSnapshot(editor, manuscript.id, 'apply_all', userId, label, suggestions);
             console.log(`✅ Snapshot created after Apply All: ${label}`);
 
             // Update current version to the newly created snapshot
@@ -904,7 +916,7 @@ const Editor = () => {
       actor: "Editor"
     };
 
-    setSuggestions(prev => [...prev, suggestion]);
+    setSuggestions(prev => sortSuggestionsByPosition([...prev, suggestion]));
     
     const tr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
     editor.view.dispatch(tr);
@@ -923,14 +935,14 @@ const Editor = () => {
 
     editor.view.dispatch = (tr: Transaction) => {
       originalDispatch(tr);
-      
+
       if (tr.docChanged && suggestions.length > 0) {
-        setSuggestions(prev => prev.map(s => {
+        setSuggestions(prev => sortSuggestionsByPosition(prev.map(s => {
           const from = tr.mapping.map(s.pmFrom);
           const to = tr.mapping.map(s.pmTo);
           return { ...s, pmFrom: from, pmTo: Math.max(from, to) };
-        }));
-        
+        })));
+
         setTimeout(() => {
           const refreshTr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
           editor.view.dispatch(refreshTr);
@@ -977,7 +989,7 @@ const Editor = () => {
           const roleLabel = selectedRuleIds.length === 1
             ? '1 role'
             : `${selectedRuleIds.length} roles`;
-          await createSnapshot(editor, manuscript.id, 'ai_pass_start', userId, `Before AI Pass (${roleLabel})`);
+          await createSnapshot(editor, manuscript.id, 'ai_pass_start', userId, `Before AI Pass (${roleLabel})`, suggestions);
           console.log(`✅ Snapshot created before AI Pass: ${roleLabel}`);
 
           // Update current version
@@ -1078,7 +1090,7 @@ const Editor = () => {
           const roleLabel = selectedRuleIds.length === 1
             ? '1 role applied'
             : `${selectedRuleIds.length} roles applied`;
-          await createSnapshot(editor, manuscript.id, 'ai_pass_complete', userId, roleLabel);
+          await createSnapshot(editor, manuscript.id, 'ai_pass_complete', userId, roleLabel, suggestions);
           console.log(`✅ Snapshot created after AI Pass: ${uiSuggestions.length} suggestions, ${roleLabel}`);
 
           // Update current version to the newly created snapshot
@@ -1739,23 +1751,27 @@ const Editor = () => {
           <VersionHistory
             manuscriptId={manuscript.id}
             currentVersion={currentVersion}
-            onRestore={(restoredVersion) => {
+            onRestore={(restoredVersion, manualSuggestions) => {
               // Refresh editor state after restore
               setShowVersionHistory(false);
 
-              // Convert restored AI suggestions to UI format
+              // Convert restored AI suggestions to UI format and merge with manual suggestions
               const editor = getGlobalEditor();
               if (editor) {
                 try {
-                  const uiSuggestions = convertAiSuggestionsToUI(editor);
-                  setSuggestions(uiSuggestions);
-                  console.log(`✅ Refreshed UI with ${uiSuggestions.length} restored suggestions`);
+                  const aiSuggestions = convertAiSuggestionsToUI(editor);
+
+                  // Merge AI and manual suggestions, sorted by position
+                  const allSuggestions = sortSuggestionsByPosition([...aiSuggestions, ...manualSuggestions]);
+                  setSuggestions(allSuggestions);
+
+                  console.log(`✅ Restored ${aiSuggestions.length} AI + ${manualSuggestions.length} manual suggestions`);
 
                   // Update current version to the restored version
                   setCurrentVersion(restoredVersion);
                   console.log(`✅ Current version set to ${restoredVersion}`);
                 } catch (error) {
-                  console.error('Failed to convert restored suggestions to UI:', error);
+                  console.error('Failed to restore suggestions:', error);
                 }
               }
 

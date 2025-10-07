@@ -7,11 +7,12 @@ import { getSnapshots, restoreSnapshot, type Snapshot } from '@/services/snapsho
 import { getGlobalEditor } from '@/lib/editorUtils';
 import { useToast } from '@/hooks/use-toast';
 import { RotateCcw, Clock, AlertTriangle } from 'lucide-react';
+import type { UISuggestion } from '@/lib/types';
 
 interface VersionHistoryProps {
   manuscriptId: string;
   currentVersion?: number;  // Currently loaded version number
-  onRestore?: (restoredVersion: number) => void;  // Optional callback after successful restore
+  onRestore?: (restoredVersion: number, manualSuggestions: UISuggestion[]) => void;  // Optional callback after successful restore
 }
 
 export function VersionHistory({ manuscriptId, currentVersion, onRestore }: VersionHistoryProps) {
@@ -68,15 +69,15 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
     setShowRestoreDialog(false);
     setRestoring(versionToRestore);
     try {
-      await restoreSnapshot(editor, manuscriptId, versionToRestore);
+      const { manualSuggestions } = await restoreSnapshot(editor, manuscriptId, versionToRestore);
 
       toast({
         title: 'Version restored successfully',
         description: `Document restored to version ${versionToRestore}`
       });
 
-      // Call optional callback with restored version number
-      onRestore?.(versionToRestore);
+      // Call optional callback with restored version number and manual suggestions
+      onRestore?.(versionToRestore, manualSuggestions);
 
       // Reload snapshots to refresh UI
       await loadSnapshots();
