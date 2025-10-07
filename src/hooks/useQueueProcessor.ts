@@ -141,7 +141,7 @@ export function useQueueProcessor() {
       console.log('Cleaning up queue processor polling');
       clearInterval(intervalId);
     };
-  }, []); // No dependencies - creates stable, persistent interval
+  }, [processQueue, refreshProcessingStatuses, refreshManuscripts, processingStatuses]);
 
   // Function to get status for a specific manuscript
   const getManuscriptStatus = useCallback((manuscriptId: string): ProcessingStatus | null => {

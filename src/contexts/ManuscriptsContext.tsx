@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { DEFAULT_STYLE_RULES } from '@/lib/styleRuleConstants';
 import { ManuscriptService } from '@/services/manuscriptService';
 import { Manuscript, ManuscriptCreateInput, ManuscriptUpdateInput, dbToFrontend } from '@/types/manuscript';
@@ -33,16 +33,16 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Load manuscripts on mount
   useEffect(() => {
     refreshManuscripts();
-  }, []);
+  }, [refreshManuscripts]);
 
-  const refreshManuscripts = async () => {
+  const refreshManuscripts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Ensure sample data exists (for new users)
       await ensureSampleData();
-      
+
       const dbManuscripts = await ManuscriptService.getAllManuscripts();
       const frontendManuscripts = dbManuscripts.map(dbToFrontend);
       setManuscripts(frontendManuscripts);
@@ -58,7 +58,7 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const getManuscriptById = (id: string) => {
     return manuscripts.find(m => m.id === id);
@@ -157,10 +157,12 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 };
 
-export const useManuscripts = () => {
+function useManuscripts() {
   const context = useContext(ManuscriptsContext);
   if (context === undefined) {
     throw new Error('useManuscripts must be used within a ManuscriptsProvider');
   }
   return context;
-};
+}
+
+export { useManuscripts };

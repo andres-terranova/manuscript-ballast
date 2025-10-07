@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -21,9 +21,9 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
   // Load snapshots on mount and when manuscriptId changes
   useEffect(() => {
     loadSnapshots();
-  }, [manuscriptId]);
+  }, [manuscriptId, loadSnapshots]);
 
-  const loadSnapshots = async () => {
+  const loadSnapshots = useCallback(async () => {
     setLoading(true);
     try {
       const history = await getSnapshots(manuscriptId);
@@ -39,7 +39,7 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, [manuscriptId, toast]);
 
   const handleRestore = async (version: number) => {
     const editor = getGlobalEditor();

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { UISuggestion, SuggestionType } from "@/lib/types";
 import { isAISuggestion } from "@/lib/types";
 import { ChangeCard } from "./ChangeCard";
@@ -78,7 +78,7 @@ export const ChangeList = ({
   );
 
   // Reset to page 1 when filter changes
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [ruleFilter]);
 
