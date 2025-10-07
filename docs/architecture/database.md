@@ -35,7 +35,7 @@ CREATE TABLE manuscripts (
 
   -- JSONB fields for flexible data
   suggestions JSONB DEFAULT '[]'::jsonb,  -- AI suggestions array
-  snapshots JSONB DEFAULT '[]'::jsonb,    -- Version snapshots (TipTap format)
+  snapshots JSONB DEFAULT '[]'::jsonb,    -- Version snapshots (TipTap JSONContent format) ⭐ NEW
   activity JSONB DEFAULT '[]'::jsonb,     -- Simple audit trail
   metadata JSONB DEFAULT '{}'::jsonb,     -- Additional flexible data
 
@@ -48,6 +48,9 @@ CREATE TABLE manuscripts (
 CREATE INDEX idx_manuscripts_user_id ON manuscripts(user_id);
 CREATE INDEX idx_manuscripts_status ON manuscripts(status);
 CREATE INDEX idx_manuscripts_updated_at ON manuscripts(updated_at);
+
+-- GIN index for snapshots array (added via migration)
+CREATE INDEX idx_manuscripts_snapshots ON manuscripts USING gin (snapshots);
 ```
 
 ### profiles
@@ -143,33 +146,35 @@ interface Suggestion {
 
 The current all-rules-together approach works but may evolve based on performance testing.
 
-### manuscripts.snapshots
+### manuscripts.snapshots ⭐ (Production-Ready)
 
-Array of TipTap document snapshots for versioning.
+Array of TipTap document snapshots for versioning. **Fully implemented with manual snapshots via "Save Version" button.**
 
 ```typescript
 // TypeScript interface
 interface Snapshot {
   id: string;                    // UUID
-  version: number;               // Sequential version number
-  event: string;                 // 'upload', 'send_to_author', 'return_to_editor'
-  content: object;               // TipTap document JSON
+  version: number;               // Sequential version number (v1, v2, v3...)
+  event: string;                 // 'manual', 'upload', 'send_to_author', 'return_to_editor'
+  content: JSONContent;          // TipTap document JSON (from editor.getJSON())
   metadata: {
     wordCount: number;
     characterCount: number;
     suggestionCount: number;
+    acceptedCount?: number;      // For workflow events
+    rejectedCount?: number;      // For workflow events
   };
   createdAt: string;            // ISO timestamp
-  createdBy: string;            // User ID
+  createdBy: string;            // User ID (from auth context)
 }
 
 // Example JSON structure
 {
   "snapshots": [
     {
-      "id": "snapshot-uuid",
+      "id": "snapshot-uuid-1",
       "version": 1,
-      "event": "upload",
+      "event": "manual",  // User clicked "Save Version"
       "content": {
         "type": "doc",
         "content": [
@@ -179,9 +184,25 @@ interface Snapshot {
       "metadata": {
         "wordCount": 85000,
         "characterCount": 488000,
-        "suggestionCount": 0
+        "suggestionCount": 120
       },
-      "createdAt": "2025-10-05T10:00:00Z",
+      "createdAt": "2025-01-06T10:00:00Z",
+      "createdBy": "user-uuid"
+    },
+    {
+      "id": "snapshot-uuid-2",
+      "version": 2,
+      "event": "manual",  // Another manual save
+      "content": {
+        "type": "doc",
+        "content": [...]
+      },
+      "metadata": {
+        "wordCount": 85200,
+        "characterCount": 489500,
+        "suggestionCount": 95
+      },
+      "createdAt": "2025-01-06T14:30:00Z",
       "createdBy": "user-uuid"
     }
   ]
@@ -192,6 +213,7 @@ interface Snapshot {
 - No complex immutable snapshot tables
 - No custom diff viewers (planned for future)
 - Captured at key lifecycle events only
+- **Migration applied**: `20250106_add_snapshots_to_manuscripts.sql`
 
 ### manuscripts.activity
 
@@ -367,7 +389,7 @@ CREATE INDEX idx_snapshots_version
 
 ---
 
-**Last Updated**: October 5, 2025
+**Last Updated**: January 6, 2025 - Added production-ready snapshots implementation details
 
 ## Tags
 

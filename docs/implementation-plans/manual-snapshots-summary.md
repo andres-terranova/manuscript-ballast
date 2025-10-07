@@ -230,7 +230,9 @@ Feature is **COMPLETE** when:
 2. Manual "Create Snapshot" button with label input
 3. Snapshot cleanup (delete old versions)
 4. Export snapshot as DOCX
-5. Snapshot on AI Pass completion
+5. Snapshot after AI suggestions are applied (not just generated)
+
+**Important Note**: Snapshots capture document content only. Unapplied AI suggestions (stored in editor.extensionStorage.aiSuggestion) are NOT preserved in snapshots. Only applied AI suggestions (which become permanent text changes) are captured.
 
 ---
 
