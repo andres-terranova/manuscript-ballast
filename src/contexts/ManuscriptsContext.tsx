@@ -3,13 +3,9 @@ import { DEFAULT_STYLE_RULES } from '@/lib/styleRuleConstants';
 import { ManuscriptService } from '@/services/manuscriptService';
 import { Manuscript, ManuscriptCreateInput, ManuscriptUpdateInput, dbToFrontend } from '@/types/manuscript';
 import { useToast } from '@/hooks/use-toast';
-import { ensureSampleData } from '@/utils/seedDatabase';
 
 // Export Manuscript type for backward compatibility
 export type { Manuscript } from '@/types/manuscript';
-
-// Remove legacy mock data - we're now DOCX-first
-const seedManuscripts: Manuscript[] = [];
 
 interface ManuscriptsContextType {
   manuscripts: Manuscript[];
@@ -40,9 +36,6 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       setLoading(true);
       setError(null);
-
-      // Ensure sample data exists (for new users)
-      await ensureSampleData();
 
       const dbManuscripts = await ManuscriptService.getAllManuscripts();
       const frontendManuscripts = dbManuscripts.map(dbToFrontend);
