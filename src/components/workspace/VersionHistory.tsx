@@ -9,10 +9,11 @@ import { RotateCcw, Clock } from 'lucide-react';
 
 interface VersionHistoryProps {
   manuscriptId: string;
-  onRestore?: () => void;  // Optional callback after successful restore
+  currentVersion?: number;  // Currently loaded version number
+  onRestore?: (restoredVersion: number) => void;  // Optional callback after successful restore
 }
 
-export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps) {
+export function VersionHistory({ manuscriptId, currentVersion, onRestore }: VersionHistoryProps) {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<number | null>(null);
@@ -69,8 +70,8 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
         description: `Document restored to version ${version}`
       });
 
-      // Call optional callback
-      onRestore?.();
+      // Call optional callback with restored version number
+      onRestore?.(version);
 
       // Reload snapshots to refresh UI
       await loadSnapshots();
@@ -152,6 +153,9 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
         <div className="p-4 space-y-3">
           {snapshots.map((snapshot, index) => {
             const isLatest = index === 0; // First item after reverse
+            const isCurrent = currentVersion !== undefined
+              ? snapshot.version === currentVersion
+              : isLatest; // Fallback to latest if currentVersion not provided
             const isRestoring = restoring === snapshot.version;
 
             return (
@@ -196,7 +200,7 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
                   size="sm"
                   variant="outline"
                   onClick={() => handleRestore(snapshot.version)}
-                  disabled={restoring !== null || isLatest}
+                  disabled={restoring !== null || isCurrent}
                   className="w-full"
                 >
                   {isRestoring ? (
@@ -204,7 +208,7 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
                       <div className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full mr-2" />
                       Restoring...
                     </>
-                  ) : isLatest ? (
+                  ) : isCurrent ? (
                     <>
                       <RotateCcw className="h-3 w-3 mr-2" />
                       Current Version
