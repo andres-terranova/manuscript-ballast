@@ -395,6 +395,306 @@ suggestions.sort((a, b) => a.pmFrom - b.pmFrom)
 
 ---
 
+# MANUAL SUGGESTIONS IN SNAPSHOTS
+
+**Status**: ✅ Implemented (January 2025)
+**Location**: `src/services/snapshotService.ts`, `src/components/workspace/Editor.tsx`
+
+## Overview
+
+Manual suggestions (created via "Add Suggestion" in editor) are now saved and restored with snapshots, providing complete version control for both AI and editor-added changes.
+
+## What Changed
+
+**Before**:
+- ✅ Snapshots saved AI suggestions (from TipTap extension)
+- ❌ Manual suggestions lost when restoring snapshots
+- ❌ Inconsistent UX: AI suggestions persisted, manual ones didn't
+
+**After**:
+- ✅ Snapshots save BOTH AI and manual suggestions
+- ✅ Snapshots restore BOTH types correctly
+- ✅ Metadata tracks counts separately (AI vs manual)
+
+## Implementation Details
+
+### 1. Updated Snapshot Type
+
+```typescript
+// src/services/snapshotService.ts
+export interface Snapshot {
+  id: string;
+  version: number;
+  event: SnapshotEvent;
+  label?: string;
+  content: JSONContent;
+  aiSuggestions?: Suggestion[];      // From TipTap AI extension
+  manualSuggestions?: UISuggestion[]; // From React state
+  metadata: {
+    wordCount: number;
+    characterCount: number;
+    suggestionCount?: number;         // Total: AI + manual
+    aiSuggestionCount?: number;       // AI count
+    manualSuggestionCount?: number;   // Manual count
+  };
+  createdAt: string;
+  createdBy: string;
+}
+```
+
+### 2. Creating Snapshots
+
+All `createSnapshot()` calls now include manual suggestions:
+
+```typescript
+// src/components/workspace/Editor.tsx
+await createSnapshot(
+  editor,
+  manuscript.id,
+  event,
+  userId,
+  label,
+  suggestions  // NEW: Pass manual suggestions
+);
+```
+
+**Snapshot locations** (all updated):
+- Line 127: Manual snapshots (user-triggered)
+- Line 783: After "Apply All" suggestions
+- Line 980: Before AI Pass starts
+- Line 1058: After AI Pass completes
+
+### 3. Restoring Snapshots
+
+```typescript
+// src/services/snapshotService.ts
+export async function restoreSnapshot(
+  editor: Editor,
+  manuscriptId: string,
+  version: number
+): Promise<{ manualSuggestions: UISuggestion[] }>
+```
+
+Returns manual suggestions to caller (can't restore directly to React state).
+
+**Restore flow** (Editor.tsx:1719):
+```typescript
+const { manualSuggestions } = await restoreSnapshot(...);
+
+// Convert AI suggestions from TipTap
+const uiSuggestions = convertAiSuggestionsToUI(editor);
+
+// Merge with manual suggestions and sort by position
+const allSuggestions = [...uiSuggestions, ...manualSuggestions]
+  .sort((a, b) => a.pmFrom - b.pmFrom);
+
+setSuggestions(allSuggestions);
+```
+
+### 4. Position Remapping
+
+Manual suggestions use ProseMirror positions (`pmFrom`, `pmTo`). When restoring old snapshots, positions are restored as-is and existing remapping logic (Editor.tsx:918-946) handles alignment with current document structure.
+
+## Database Impact
+
+**No schema migration needed** - snapshots stored as JSONB arrays in `manuscripts.snapshots`, so adding `manualSuggestions` field is backward-compatible.
+
+**Storage estimate**:
+- Manual suggestion: ~300 bytes (JSON)
+- 100 manual suggestions: ~30KB
+- Negligible compared to document content
+
+## Testing
+
+**Verified**:
+- ✅ Manual suggestions saved in snapshots
+- ✅ Restore includes manual suggestions in ChangeList
+- ✅ Positions accurate after document edits
+- ✅ Old snapshots (before feature) work without errors
+- ✅ Both AI + manual suggestions appear together
+
+---
+
+# DOCX EXPORT
+
+**Status**: ✅ Phase 1 Complete (Basic Clean Export)
+**Location**: `src/lib/docxExport.ts`, `src/components/workspace/Editor.tsx`
+**Confidence**: 85% (Standard TipTap feature, well-documented)
+
+## Overview
+
+Basic DOCX export functionality using TipTap Pro's `@tiptap-pro/extension-export-docx` package. Exports clean manuscript (accepted text only).
+
+## Features
+
+**Current (Phase 1)**:
+- ✅ Export button in Editor toolbar (laptop icon, next to "Mark Reviewed")
+- ✅ Exports current document state as clean DOCX (no suggestions)
+- ✅ Automatic filename generation from manuscript title
+- ✅ Document metadata included (title, creator, timestamp)
+- ✅ Size validation before export
+- ✅ Warning for large documents (>100K words)
+- ✅ Loading state during export
+- ✅ Success/error toast notifications
+
+**Limitations**:
+- ❌ AI suggestions NOT exported (clean document only)
+- ❌ Manual suggestions NOT exported
+- ❌ Word track changes format NOT supported
+- ❌ Comments NOT included in export
+
+**Why?** TipTap's export extension exports current document state (accepted text) but does NOT convert TipTap's AI suggestions into Word's track changes format.
+
+## How to Use
+
+### For Users
+
+1. Open manuscript in Editor
+2. Click **Export** button in toolbar (laptop icon)
+3. Wait for export to complete (usually <5 seconds)
+4. DOCX file downloads automatically
+
+**Important**: Only accepted text is exported - AI suggestions are NOT included.
+
+### For Developers
+
+**Export programmatically**:
+```typescript
+import { exportEditorToDocx } from '@/lib/docxExport';
+
+const result = await exportEditorToDocx(editor, {
+  filename: 'my-document.docx',
+  includeMetadata: true
+});
+
+if (result.success) {
+  console.log('Export successful!', result.blob);
+} else {
+  console.error('Export failed:', result.error);
+}
+```
+
+**Check if export is safe**:
+```typescript
+import { canSafelyExport } from '@/lib/docxExport';
+
+const { safe, warning } = canSafelyExport(editor);
+if (warning) {
+  console.warn(warning);
+}
+```
+
+## Technical Details
+
+### Export Flow
+
+1. User clicks Export button → `handleExportDocx()` called (Editor.tsx:1179)
+2. Safety check via `canSafelyExport()` (size validation)
+3. Show warning toast if document is large
+4. Call `exportEditorToDocx()` with editor instance
+5. TipTap converts editor JSON to DOCX buffer
+6. Create blob from buffer
+7. Trigger browser download
+8. Clean up blob URL
+9. Show success toast
+
+### File Size Estimates
+
+| Document Size | Estimated DOCX | Export Time |
+|--------------|----------------|-------------|
+| 1K words     | ~50 KB         | <1 second   |
+| 20K words    | ~500 KB        | 2-3 seconds |
+| 50K words    | ~1.2 MB        | 5-10 seconds|
+| 85K words    | ~2 MB          | 15-30 seconds|
+| 150K+ words  | ~3.5 MB        | Blocked (too large)|
+
+**Note**: Actual times depend on document complexity (images, tables, formatting)
+
+### Dependencies
+
+```json
+{
+  "@tiptap-pro/extension-export-docx": "1.0.0-beta.7"
+}
+```
+
+**Version**: Beta 7 (as of January 2025)
+**License**: Requires TipTap Pro subscription
+**Registry**: Private NPM registry (auth via `.npmrc`)
+
+## Future Enhancements (Phase 2+)
+
+### Path 2: Export with Comments
+
+**Goal**: Export AI suggestions as Word comments
+
+**Implementation Plan**:
+1. Install `docx` library for DOCX manipulation
+2. Export base document via TipTap
+3. Parse exported DOCX buffer
+4. Inject AI suggestions as Word comments at correct positions
+5. Re-serialize and download
+
+**Estimated Effort**: 2-3 days
+**Confidence**: 60% (requires experimentation)
+
+**Benefits**:
+- Preserves suggestion content for author review
+- Authors can see suggestions in Word
+- Uses standard Word commenting feature
+
+**Limitations**:
+- Suggestions become comments (NOT track changes)
+- Position mapping may be fragile
+- Increased complexity
+
+### Path 3: True Track Changes (Future)
+
+**Goal**: Export with Word track changes format
+
+**Status**: Not recommended for MVP
+
+**Why?**
+- Very complex (requires building DOCX from scratch)
+- High risk of position misalignment
+- TipTap doesn't natively support this
+- Would take 1-2 weeks to implement
+- Uncertain outcome
+
+**Alternative**: Contact TipTap support to request native track changes export
+
+## Known Issues
+
+### TipTap Pro Token Warning
+
+You may see this warning in terminal:
+```
+WARN  Issue while reading ".npmrc". Failed to replace env in config: ${TIPTAP_PRO_TOKEN}
+```
+
+**Impact**: None - package already installed and functioning
+**Why**: Warning appears because pnpm tries to read `.npmrc` but token only needed during initial install
+
+## Testing Checklist
+
+**Manual Testing**:
+- ✅ Small document (1-10K words) - exports quickly
+- ✅ Medium document (20-50K words) - exports with warning
+- ✅ Large document (80K+ words) - exports with warning, completes
+- ✅ Very large document (150K+ words) - blocked with error
+- ✅ Filename generation works correctly
+- ✅ Toast notifications appear
+- ✅ Loading state displays during export
+- ✅ Exported DOCX opens in Word/Google Docs
+- ✅ Formatting preserved (headings, bold, italic, etc.)
+
+**Browser Compatibility**:
+- ✅ Chrome/Edge
+- ✅ Firefox
+- ✅ Safari
+
+---
+
 # ARCHITECTURE
 
 ## Database Schema (JSON-First Design)
