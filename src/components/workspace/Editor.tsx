@@ -51,6 +51,7 @@ import type { AIProgressState } from "@/types/aiProgress";
 import { createInitialProgressState } from "@/types/aiProgress";
 import { createSnapshot, getLatestSnapshot } from '@/services/snapshotService';
 import { VersionHistory } from './VersionHistory';
+import { exportEditorToDocx, canSafelyExport } from '@/lib/docxExport';
 
 const Editor = () => {
   const { id } = useParams<{ id: string }>();
@@ -71,6 +72,7 @@ const Editor = () => {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<number | undefined>(undefined);
   const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Handle AI progress updates
   const handleProgressUpdate = useCallback((progress: AIProgressState) => {
@@ -1173,6 +1175,54 @@ const Editor = () => {
     });
   };
 
+  // Handle Export to DOCX
+  const handleExportDocx = async () => {
+    const editor = getGlobalEditor();
+    if (!editor || !manuscript) return;
+
+    // Check if export is safe
+    const { safe, warning } = canSafelyExport(editor);
+
+    if (warning) {
+      toast({
+        title: safe ? "Large document" : "Document too large",
+        description: warning,
+        variant: safe ? "default" : "destructive"
+      });
+
+      if (!safe) return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const filename = `${manuscript.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`;
+
+      const result = await exportEditorToDocx(editor, {
+        filename,
+        includeMetadata: true
+      });
+
+      if (result.success) {
+        toast({
+          title: "Export successful",
+          description: `Downloaded ${filename}`
+        });
+      } else {
+        throw new Error(result.error || 'Export failed');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Unable to export document",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   useEffect(() => {
     const loadManuscript = async () => {
       console.log('[Editor] Loading manuscript with ID:', id);
@@ -1425,9 +1475,18 @@ const Editor = () => {
             >
               {isReviewed ? "Reviewed" : "Mark Reviewed"}
             </Button>
-            <Button variant="outline" size="sm" className="hidden lg:flex">
-              <Download className="mr-2 h-4 w-4" />
-              <span className="hidden xl:inline">Export</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden lg:flex"
+              onClick={handleExportDocx}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden xl:inline">Exporting...</span></>
+              ) : (
+                <><Download className="mr-2 h-4 w-4" /><span className="hidden xl:inline">Export</span></>
+              )}
             </Button>
             <Button variant="outline" size="sm" className="hidden lg:flex">
               <Send className="mr-2 h-4 w-4" />
