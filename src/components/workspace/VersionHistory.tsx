@@ -21,7 +21,8 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
   // Load snapshots on mount and when manuscriptId changes
   useEffect(() => {
     loadSnapshots();
-  }, [manuscriptId, loadSnapshots]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manuscriptId]);
 
   const loadSnapshots = useCallback(async () => {
     setLoading(true);

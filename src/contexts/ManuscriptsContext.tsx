@@ -33,7 +33,8 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Load manuscripts on mount
   useEffect(() => {
     refreshManuscripts();
-  }, [refreshManuscripts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const refreshManuscripts = useCallback(async () => {
     try {
