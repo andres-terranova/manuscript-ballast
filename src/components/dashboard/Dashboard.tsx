@@ -369,7 +369,7 @@ const Dashboard = () => {
                           Drop your manuscript file here
                         </h3>
                         <p className="text-gray-600 mb-4">
-                          Supports Markdown (.md) and Word (.docx) files
+                          Supports Word (.docx) files
                         </p>
                         <input
                           id="file-upload-input"
@@ -570,8 +570,8 @@ const Dashboard = () => {
                             return <Badge variant="secondary" className="text-xs animate-pulse">⏳ Queued</Badge>;
                           }
                           if (queueStatus?.status === 'processing') {
-                            const progress = queueStatus.progress?.progress || 0;
-                            const step = queueStatus.progress?.step || 'processing';
+                            const progress = (queueStatus.progress?.progress as number) || 0;
+                            const step = (queueStatus.progress?.step as string) || 'processing';
                             return (
                               <Badge variant="outline" className="text-xs animate-pulse">
                                 ⚡ {step} ({progress}%)

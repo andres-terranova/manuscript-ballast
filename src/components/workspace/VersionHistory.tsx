@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSnapshots, restoreSnapshot, type Snapshot } from '@/services/snapshotService';
 import { getGlobalEditor } from '@/lib/editorUtils';
 import { useToast } from '@/hooks/use-toast';
-import { RotateCcw, Clock } from 'lucide-react';
+import { RotateCcw, Clock, AlertTriangle } from 'lucide-react';
 
 interface VersionHistoryProps {
   manuscriptId: string;
@@ -17,6 +18,8 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<number | null>(null);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [versionToRestore, setVersionToRestore] = useState<number | null>(null);
   const { toast } = useToast();
 
   // Load snapshots on mount and when manuscriptId changes
@@ -43,7 +46,14 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
     }
   }, [manuscriptId, toast]);
 
-  const handleRestore = async (version: number) => {
+  const handleRestoreClick = (version: number) => {
+    setVersionToRestore(version);
+    setShowRestoreDialog(true);
+  };
+
+  const handleConfirmRestore = async () => {
+    if (versionToRestore === null) return;
+
     const editor = getGlobalEditor();
     if (!editor) {
       toast({
@@ -51,27 +61,22 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
         description: 'Cannot restore snapshot without editor instance',
         variant: 'destructive'
       });
+      setShowRestoreDialog(false);
       return;
     }
 
-    // Confirmation dialog
-    const confirmed = window.confirm(
-      `Restore to version ${version}?\n\nCurrent changes will be lost. This action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    setRestoring(version);
+    setShowRestoreDialog(false);
+    setRestoring(versionToRestore);
     try {
-      await restoreSnapshot(editor, manuscriptId, version);
+      await restoreSnapshot(editor, manuscriptId, versionToRestore);
 
       toast({
         title: 'Version restored successfully',
-        description: `Document restored to version ${version}`
+        description: `Document restored to version ${versionToRestore}`
       });
 
       // Call optional callback with restored version number
-      onRestore?.(version);
+      onRestore?.(versionToRestore);
 
       // Reload snapshots to refresh UI
       await loadSnapshots();
@@ -92,7 +97,9 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
       upload: 'Initial Upload',
       send_to_author: 'Sent to Author',
       return_to_editor: 'Returned to Editor',
-      manual: 'Manual Snapshot'
+      manual: 'Manual Snapshot',
+      ai_pass_complete: 'AI Pass Complete',
+      apply_all: 'Applied All Suggestions'
     };
     return labels[event] || event;
   };
@@ -199,7 +206,7 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleRestore(snapshot.version)}
+                  onClick={() => handleRestoreClick(snapshot.version)}
                   disabled={restoring !== null || isCurrent}
                   className="w-full"
                 >
@@ -225,6 +232,46 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
           })}
         </div>
       </ScrollArea>
+
+      {/* Restore Confirmation Dialog */}
+      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <DialogContent
+          className="sm:max-w-md"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              Restore Version {versionToRestore}?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              This will restore your document to version {versionToRestore}.
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800 font-medium">
+              ☝️ Tip: Save your changes
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowRestoreDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleConfirmRestore}
+            >
+              Restore Version
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
