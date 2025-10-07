@@ -36,6 +36,8 @@ ManuscriptWorkspace.tsx (Legacy Editor - Deprecated)
 - Coordinate between editor, suggestions, and checks
 - Manage style rule configuration
 - Handle auto-save
+- **Manual snapshots/versioning** via "Save Version" button
+- **Version history management** with restore capability
 
 **State Management**:
 ```typescript
@@ -94,7 +96,7 @@ AiSuggestion.configure({
 - Prevents race conditions by waiting for valid token before initialization
 - Error state with retry button if JWT fetch fails
 
-**File Location**: `src/components/workspace/Editor.tsx` (1397 lines)
+**File Location**: `src/components/workspace/Editor.tsx` (1552 lines)
 
 **Dependencies**:
 - TipTap editor hooks (`useTiptapEditor.ts`)
@@ -104,6 +106,139 @@ AiSuggestion.configure({
   - **Note**: `lib/suggestionMapper.ts` is NOT used for TipTap AI suggestions - it's only for the legacy ManuscriptWorkspace that uses Supabase edge functions
 - Style validator (`lib/styleValidator.ts`)
 - JWT management (`hooks/useTiptapJWT.ts`)
+- **Snapshot service** (`services/snapshotService.ts`) - Version management
+
+---
+
+### Snapshot Integration (New Feature)
+
+**Purpose**: Manual versioning system using TipTap's JSON document format.
+
+**Implementation Location**: `src/components/workspace/Editor.tsx`
+- Lines 106-140: State management for snapshots
+- Lines 1198-1216: `createSnapshotSafe()` helper function
+- Lines 1537-1552: "Save Version" button in header
+
+**Key Components**:
+
+#### 1. Save Version Button
+```typescript
+// In Editor header (lines 1537-1552)
+<button
+  onClick={handleSaveVersion}
+  className="inline-flex items-center px-4 py-2..."
+  disabled={!manuscript || isSaving}
+>
+  {isSaving ? (
+    <span>Saving...</span>
+  ) : (
+    <span>Save Version</span>
+  )}
+</button>
+```
+
+#### 2. Version History Sheet
+```typescript
+// VersionHistory component integration
+<Sheet open={showVersionHistory} onOpenChange={setShowVersionHistory}>
+  <SheetContent className="w-[400px] sm:w-[540px]">
+    <VersionHistory
+      manuscriptId={manuscript.id}
+      editor={editor}
+      onVersionRestored={handleVersionRestored}
+    />
+  </SheetContent>
+</Sheet>
+```
+
+#### 3. Snapshot Creation Helper
+```typescript
+// createSnapshotSafe() function (lines 1198-1216)
+const createSnapshotSafe = useCallback(async (event: 'manual' | 'upload' | 'send_to_author' | 'return_to_editor') => {
+  const globalEditor = getGlobalEditor?.();
+  if (!globalEditor || !manuscript) return false;
+
+  try {
+    const content = globalEditor.getJSON();
+    const text = globalEditor.state.doc.textContent;
+
+    await snapshotService.createSnapshot({
+      manuscriptId: manuscript.id,
+      event,
+      content,
+      metadata: {
+        wordCount: text.split(/\s+/).filter(Boolean).length,
+        characterCount: text.length,
+        suggestionCount: suggestions.length,
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Failed to create snapshot:', error);
+    return false;
+  }
+}, [manuscript, suggestions]);
+```
+
+#### 4. TipTap Integration Points
+- **Capture state**: `editor.getJSON()` - Gets document as TipTap JSONContent
+- **Restore state**: `editor.commands.setContent(snapshot.content)` - Restores from JSON
+- **Text extraction**: `editor.state.doc.textContent` - For metadata
+
+**Snapshot Event Types**:
+- `manual` - User clicks "Save Version" button
+- `upload` - (Future) Auto-capture after DOCX processing
+- `send_to_author` - (Future) Auto-capture on workflow transition
+- `return_to_editor` - (Future) Auto-capture on workflow return
+
+---
+
+### VersionHistory.tsx (Snapshot Management)
+
+**Purpose**: Displays version history and allows restoration of previous document states.
+
+**File Location**: `src/components/workspace/VersionHistory.tsx`
+
+**Key Responsibilities**:
+- Fetch and display snapshot history
+- Show version metadata (word count, date, event type)
+- Enable restoration of previous versions
+- Handle loading and error states
+
+**Props**:
+```typescript
+interface VersionHistoryProps {
+  manuscriptId: string;
+  editor: Editor | null;
+  onVersionRestored?: (version: number) => void;
+}
+```
+
+**UI Features**:
+- Version list with metadata (v1, v2, v3...)
+- Event type badges (manual, upload, workflow transitions)
+- Word count and timestamp display
+- Restore button with confirmation
+- Empty state when no versions exist
+
+**Integration with TipTap**:
+```typescript
+const handleRestore = async (snapshot: Snapshot) => {
+  if (!editor) return;
+
+  // Restore content using TipTap's setContent command
+  editor.commands.setContent(snapshot.content);
+
+  // Update manuscript in database
+  await manuscripts.update(manuscriptId, {
+    content: editor.getHTML(),
+    word_count: snapshot.metadata.wordCount,
+  });
+
+  onVersionRestored?.(snapshot.version);
+};
+```
 
 ---
 
@@ -802,7 +937,7 @@ setSuggestions(suggestions);
 
 ---
 
-**Last Updated**: October 5, 2025
+**Last Updated**: January 6, 2025 - Added snapshot/versioning integration documentation
 
 ## Tags
 

@@ -42,6 +42,8 @@ The companion document `manual-snapshots-feature.md` is the **WHAT** document - 
 - Sequential versioning (v1, v2, v3...)
 - Snapshot events: `upload`, `send_to_author`, `return_to_editor`, `manual`
 
+**Important**: Snapshots capture document content only via `editor.getJSON()`. Unapplied AI suggestions (stored in editor.extensionStorage.aiSuggestion) are NOT preserved. Only applied AI suggestions that have become permanent text are captured.
+
 **Prerequisites to Start**:
 - Supabase running locally (check with `supabase status` or verify Docker is running)
 - Git status clean or changes committed
@@ -1266,7 +1268,7 @@ Feature is **DONE** when:
 2. Snapshot labels (custom user input)
 3. Snapshot deletion (cleanup old versions)
 4. Export snapshot as DOCX
-5. Snapshot on AI Pass completion
+5. Snapshot after AI suggestions are applied (not just generated)
 
 **Performance Optimization** (if needed):
 1. Lazy load snapshots (pagination)

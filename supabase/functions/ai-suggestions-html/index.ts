@@ -43,6 +43,12 @@ serve(async (req) => {
         throw new Error('OpenAI API key not configured');
       }
 
+      // 🔍 LOG: Verify which API key is being used
+      const keyPrefix = openaiApiKey.substring(0, 20);
+      const keySuffix = openaiApiKey.substring(openaiApiKey.length - 8);
+      console.log(`🔑 Using OpenAI API key: ${keyPrefix}...${keySuffix}`);
+      console.log(`📤 Calling OpenAI for chunk ${chunkId}, rule: ${rule.title}`);
+
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -82,9 +88,17 @@ CRITICAL INSTRUCTIONS:
         })
       });
 
+      // 🔍 LOG: Response status from OpenAI
+      console.log(`📥 OpenAI response for chunk ${chunkId}, rule ${rule.title}: HTTP ${response.status}`);
+
       if (!response.ok) {
         const error = await response.text();
-        console.error(`OpenAI API error: ${response.status} - ${error}`);
+        // 🔍 LOG: Detailed error information
+        console.error(`❌ OpenAI API ERROR for chunk ${chunkId}, rule ${rule.title}:`);
+        console.error(`   Status: ${response.status}`);
+        console.error(`   Status Text: ${response.statusText}`);
+        console.error(`   Response Body: ${error}`);
+        console.error(`   Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`);
         throw new Error(`OpenAI API failed: ${response.status}`);
       }
 

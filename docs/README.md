@@ -51,10 +51,13 @@ AI-powered suggestion system documentation
 - **[Debug Guide](./ai-suggestions/debug-suggestion-positions.md)** - Troubleshooting positions
 - **[Virtualized Suggestions](./ai-suggestions/virtualized-ai-suggestions/)** - Performance optimization (Phase 2)
 
+### [Features](./features/)
+Feature documentation and specifications
+- **[Snapshots & Versioning](./features/snapshots-versioning.md)** ⭐ - Manual versioning system (Production-ready)
+
 ### [Product](./product/)
 Product strategy, roadmap, and features
 - **[Roadmap](./product/roadmap.md)** - v1.0 timeline (~10 weeks)
-- **[Features](./product/features.md)** - Feature specifications
 
 ### [Claude](./claude/)
 Claude Code agent reference
@@ -73,7 +76,8 @@ Historical documentation and deprecated guides
 - Large documents: [`technical/large-documents.md`](./technical/large-documents.md)
 - JWT authentication: [`technical/tiptap-jwt.md`](./technical/tiptap-jwt.md)
 - Database schema: [`architecture/database.md`](./architecture/database.md)
-- Versioning: [`architecture/versioning.md`](./architecture/versioning.md)
+- **Snapshots & Versioning**: [`features/snapshots-versioning.md`](./features/snapshots-versioning.md) ⭐ NEW
+- Versioning strategy: [`architecture/versioning.md`](./architecture/versioning.md)
 - Queue system: [`architecture/queue-system.md`](./architecture/queue-system.md)
 
 **By Task:**
@@ -86,7 +90,7 @@ Historical documentation and deprecated guides
 ## 🏷️ Documentation by Tag
 
 ### Core Technologies
-- **TipTap**: [Editor Component](./technical/editor-component.md) · [JWT Auth](./technical/tiptap-jwt.md) · [Versioning](./architecture/versioning.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md)
+- **TipTap**: [Editor Component](./technical/editor-component.md) · [JWT Auth](./technical/tiptap-jwt.md) · [Versioning](./architecture/versioning.md) · [Snapshots](./features/snapshots-versioning.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md)
 - **React**: [Editor Component](./technical/editor-component.md) · [Integration Patterns](./technical/react-integration.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md) · [Getting Started](./getting-started.md)
 - **Supabase**: [Database](./architecture/database.md) · [Edge Functions](./technical/edge-functions.md) · [Queue System](./architecture/queue-system.md) · [JWT Auth](./technical/tiptap-jwt.md)
 - **ProseMirror**: [Editor Component](./technical/editor-component.md) · [Troubleshooting](./technical/troubleshooting.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md) · [Agents](./claude/agents.md)
@@ -94,7 +98,7 @@ Historical documentation and deprecated guides
 ### Architecture Topics
 - **Database & Schema**: [Database Design](./architecture/database.md) · [Versioning](./architecture/versioning.md) · [Edge Functions](./technical/edge-functions.md)
 - **Queue System**: [Queue Architecture](./architecture/queue-system.md) · [Edge Functions](./technical/edge-functions.md)
-- **Versioning & Snapshots**: [Versioning Strategy](./architecture/versioning.md) · [Database](./architecture/database.md) · [Features](./product/features.md)
+- **Versioning & Snapshots**: [Snapshots Feature](./features/snapshots-versioning.md) · [Versioning Strategy](./architecture/versioning.md) · [Database](./architecture/database.md) · [Editor Integration](./technical/editor-component.md)
 - **AI Architecture & Processing**: [AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md) · [Large Documents](./technical/large-documents.md) · [Editor Component](./technical/editor-component.md)
 - **Suggestions & AI**: [AI Suggestions Flow](./ai-suggestions/ai-suggestions-flow.md) · [Editor Component](./technical/editor-component.md) · [Suggestion Rendering](./ai-suggestions/suggestion-rendering.md) · [Troubleshooting](./technical/troubleshooting.md)
 
@@ -129,7 +133,7 @@ Historical documentation and deprecated guides
 
 ---
 
-**Last Updated**: January 2025 - Enhanced AI Suggestion documentation visibility and clarified implementation details
+**Last Updated**: January 6, 2025 - Added Snapshots & Versioning feature documentation
 
 ## Tags
 #documentation #mvp #v1.0 #streamlined

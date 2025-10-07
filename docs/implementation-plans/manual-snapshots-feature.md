@@ -21,6 +21,14 @@ Implement version history using manual snapshots stored in PostgreSQL JSONB arra
 
 ## Feature Requirements
 
+### Important: Snapshots vs AI Suggestions
+
+**Snapshots capture document content only.** They do NOT preserve unapplied AI suggestions:
+- AI suggestions are stored in `editor.extensionStorage.aiSuggestion` (extension layer)
+- Snapshots capture `editor.getJSON()` (document content layer)
+- Only applied AI suggestions (permanent text changes) are captured in snapshots
+- Restoring a snapshot will clear any pending AI suggestions
+
 ### Core Functionality
 
 1. **Snapshot Creation**
@@ -693,7 +701,7 @@ src/integrations/supabase/types.ts           (REGENERATE)
 - 🔮 Diff viewer (side-by-side comparison)
 - 🔮 Export snapshot as DOCX
 - 🔮 Delete old snapshots (cleanup)
-- 🔮 Snapshot on AI Pass completion
+- 🔮 Snapshot after AI suggestions are applied (not just generated)
 
 ---
 
