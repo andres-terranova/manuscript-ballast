@@ -968,6 +968,29 @@ const Editor = () => {
         throw new Error('Editor not available');
       }
 
+      // Create snapshot before starting AI Pass
+      if (manuscript?.id) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id || 'system';
+
+          const roleLabel = selectedRuleIds.length === 1
+            ? '1 role'
+            : `${selectedRuleIds.length} roles`;
+          await createSnapshot(editor, manuscript.id, 'ai_pass_start', userId, `Before AI Pass (${roleLabel})`);
+          console.log(`✅ Snapshot created before AI Pass: ${roleLabel}`);
+
+          // Update current version
+          const latestSnapshot = await getLatestSnapshot(manuscript.id);
+          if (latestSnapshot) {
+            setCurrentVersion(latestSnapshot.version);
+          }
+        } catch (error) {
+          console.error('Failed to create snapshot before AI Pass:', error);
+          // Continue with AI Pass even if snapshot fails
+        }
+      }
+
       const documentText = editor.getText();
       const documentLength = documentText.length;
       const isLargeDocument = documentLength > 100000; // 100K chars threshold
@@ -1261,7 +1284,7 @@ const Editor = () => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [manuscript?.id, convertAiSuggestionsToUI]); // Re-run when manuscript changes
+  }, [manuscript?.id]); // Only re-run when manuscript changes, not on function updates
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
