@@ -83,7 +83,7 @@ export const ChangeCard = memo<ChangeCardProps>(({
     <div
       key={`${suggestion.id}-${index}`}
       data-testid={`change-card-${suggestion.id}`}
-      className="group py-3 px-4 cursor-pointer rounded-lg border border-border/40 bg-background hover:bg-accent/30 hover:border-border/70 hover:shadow-sm transition-all focus-within:bg-accent/35 focus-within:border-border/80 focus-within:outline-none"
+      className="group py-3 px-4 cursor-pointer rounded-lg border border-border/40 bg-white dark:bg-slate-800 hover:bg-accent/30 hover:border-border/70 hover:shadow-sm transition-all focus-within:bg-accent/35 focus-within:border-border/80 focus-within:outline-none"
       onClick={() => onSuggestionClick(suggestion.id)}
       tabIndex={0}
       onKeyDown={handleCardKeyDown}

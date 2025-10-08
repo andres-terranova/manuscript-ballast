@@ -115,16 +115,6 @@ export const ChangeList = ({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <h3 className="font-semibold text-sm text-foreground">Change List</h3>
-            {onToggleSuggestions && (
-              <Button
-                size="sm"
-                variant={showSuggestions ? "default" : "outline"}
-                className="h-6 px-2 text-xs"
-                onClick={() => onToggleSuggestions(!showSuggestions)}
-              >
-                {showSuggestions ? "Hide" : "Show"}
-              </Button>
-            )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Apply All Button */}
@@ -132,7 +122,7 @@ export const ChangeList = ({
               <Button
                 size="sm"
                 variant="default"
-                className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700"
+                className="h-6 px-2.5 text-xs bg-emerald-600/90 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 transition-colors duration-200"
                 onClick={onApplyAllSuggestions}
                 disabled={busySuggestions.size > 0}
               >
@@ -227,7 +217,7 @@ export const ChangeList = ({
 
         {/* Pagination */}
         {totalPages > 1 && visibleSuggestions.length > 0 && (
-          <div className="sticky bottom-0 bg-background/98 backdrop-blur-sm border-t border-border/30 py-2">
+          <div className="sticky bottom-0 bg-background border-t border-border/30 py-2">
             <div className="flex items-center justify-center gap-2">
               <Button
                 size="sm"

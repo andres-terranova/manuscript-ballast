@@ -43,7 +43,8 @@ import {
   Loader2,
   History,
   Save,
-  PanelRight
+  PanelRight,
+  CheckCircle
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
@@ -1415,7 +1416,7 @@ const Editor = () => {
     <SidebarProvider defaultOpen={true}>
       <div className="min-h-screen bg-white flex w-full">
         {/* Main Content Area - Uses SidebarInset for proper spacing */}
-        <SidebarInset className="flex-1">
+        <SidebarInset className="flex-1 bg-transparent border-none">
           {/* Header */}
           <header id="header" className="border-b border-border bg-white">
             {/* Header Row 1 - Breadcrumb Navigation */}
@@ -1436,7 +1437,7 @@ const Editor = () => {
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl lg:text-3xl font-semibold text-foreground flex-1">{manuscript.title}</h1>
                 {/* Sidebar Toggle - Mobile/Desktop */}
-                <SidebarTrigger className="lg:hidden">
+                <SidebarTrigger className="lg:hidden h-8 w-8">
                   <PanelRight className="h-4 w-4" />
                 </SidebarTrigger>
               </div>
@@ -1449,80 +1450,88 @@ const Editor = () => {
                     position="first"
                     onClick={() => createSnapshotSafe('manual')}
                     title="Create a snapshot of the current version"
+                    className="h-8 px-2.5"
                   >
-                    <Save className="mr-2 h-4 w-4" />
+                    <Save className="mr-1.5 h-4 w-4" />
                     Save
                   </ButtonGroupItem>
                   <ButtonGroupItem
                     position="last"
                     onClick={() => setShowVersionHistory(true)}
+                    title="View version history"
+                    className="h-8 px-2.5"
                   >
-                    <History className="mr-2 h-4 w-4" />
+                    <History className="h-4 w-4" />
                   </ButtonGroupItem>
                 </ButtonGroup>
 
                 {!isReviewed && (
                   <>
-                    {/* Style & AI Controls */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleOpenStyleRules}
-                      className="hidden lg:flex"
-                    >
-                      <Settings2 className="mr-2 h-4 w-4" />
-                      <span className="hidden xl:inline">Style Rules</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowRunAIModal(true)}
-                      disabled={!tiptapToken || !tiptapAppId || jwtLoading}
-                      title={jwtError ? `JWT Error: ${jwtError}` : undefined}
-                      className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800"
-                    >
-                      {jwtLoading ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading JWT...</span></>
-                      ) : (
-                        <><Play className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
-                      )}
-                    </Button>
+                    {/* Style & AI Editing Group */}
+                    <ButtonGroup className="hidden lg:inline-flex">
+                      <ButtonGroupItem
+                        position="first"
+                        onClick={handleOpenStyleRules}
+                        title="Configure style rules"
+                        className="h-8 px-2.5"
+                        aria-label="Style Rules"
+                      >
+                        <Settings2 className="h-4 w-4" />
+                      </ButtonGroupItem>
+                      <ButtonGroupItem
+                        position="last"
+                        onClick={() => setShowRunAIModal(true)}
+                        disabled={!tiptapToken || !tiptapAppId || jwtLoading}
+                        title={jwtError ? `JWT Error: ${jwtError}` : "Run AI editing pass"}
+                        className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800 h-8 px-2.5"
+                      >
+                        {jwtLoading ? (
+                          <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading...</span></>
+                        ) : (
+                          <><Play className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
+                        )}
+                      </ButtonGroupItem>
+                    </ButtonGroup>
                   </>
                 )}
 
-                {/* Status Control */}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleMarkReviewed}
-                  disabled={isReviewed || busySuggestions.size > 0}
-                  data-testid="mark-reviewed-btn"
-                  className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800"
-                >
-                  {isReviewed ? "Reviewed" : "Mark Reviewed"}
-                </Button>
-
-                {/* Export & Send Group */}
+                {/* Review → Export → Send Group */}
                 <ButtonGroup className="hidden lg:inline-flex">
                   <ButtonGroupItem
                     position="first"
+                    onClick={handleMarkReviewed}
+                    disabled={isReviewed || busySuggestions.size > 0}
+                    data-testid="mark-reviewed-btn"
+                    className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800 h-8 px-2.5"
+                  >
+                    <CheckCircle className="mr-1.5 h-4 w-4" />
+                    <span className="hidden xl:inline">{isReviewed ? "Reviewed" : "Mark Reviewed"}</span>
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="middle"
                     onClick={handleExportDocx}
                     disabled={isExporting}
+                    title="Export to DOCX"
+                    className="h-8 px-2.5"
                   >
                     {isExporting ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden xl:inline">Exporting...</span></>
+                      <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /><span className="hidden xl:inline">Exporting...</span></>
                     ) : (
-                      <><Download className="mr-2 h-4 w-4" /><span className="hidden xl:inline">Export</span></>
+                      <><Download className="mr-1.5 h-4 w-4" /><span className="hidden xl:inline">Export</span></>
                     )}
                   </ButtonGroupItem>
-                  <ButtonGroupItem position="last">
-                    <Send className="mr-2 h-4 w-4" />
+                  <ButtonGroupItem
+                    position="last"
+                    title="Send to author"
+                    className="h-8 px-2.5"
+                  >
+                    <Send className="mr-1.5 h-4 w-4" />
                     <span className="hidden xl:inline">Send to Author</span>
                   </ButtonGroupItem>
                 </ButtonGroup>
 
                 {/* Desktop Sidebar Toggle */}
-                <SidebarTrigger className="hidden lg:flex ml-auto">
+                <SidebarTrigger className="hidden lg:flex ml-auto h-8 w-8">
                   <PanelRight className="h-4 w-4" />
                 </SidebarTrigger>
               </div>
@@ -1613,27 +1622,49 @@ const Editor = () => {
         </SidebarInset>
 
         {/* Right Sidebar - Full height collapsible */}
-        <Sidebar side="right" collapsible="offcanvas" className="border-l">
+        <Sidebar
+          side="right"
+          collapsible="offcanvas"
+          variant="floating"
+          className="bg-slate-50/50 dark:bg-slate-900/30 [&_[data-sidebar=sidebar]]:border-none [&_[data-sidebar=sidebar]]:mr-6 !inset-y-auto !top-6 !bottom-10 !h-auto"
+          style={{ '--sidebar-width': '400px' } as React.CSSProperties}
+        >
           <SidebarContent className="p-0">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
               {/* Tab List */}
-              <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted flex-shrink-0">
-                <TabsTrigger value="changes" className="text-xs px-2">
+              <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none bg-transparent border-b flex-shrink-0 h-12 p-0">
+                <TabsTrigger
+                  value="changes"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
                   Changes {suggestions.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                    <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
                       {suggestions.length}
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
-                <TabsTrigger value="checks" className="text-xs px-2">
+                <TabsTrigger
+                  value="comments"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
+                  Comments
+                </TabsTrigger>
+                <TabsTrigger
+                  value="checks"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
                   Checks {checks.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                    <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
                       {checks.length}
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
+                <TabsTrigger
+                  value="new-content"
+                  className="text-xs px-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
+                  New
+                </TabsTrigger>
               </TabsList>
 
               {/* Tab Content */}
