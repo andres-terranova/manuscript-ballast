@@ -4,12 +4,20 @@ import { createPortal } from "react-dom";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup, ButtonGroupItem } from "@/components/ui/button-group";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarInset
+} from "@/components/ui/sidebar";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
 import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionActor } from "@/lib/types";
@@ -26,22 +34,20 @@ import { SuggestionPopover } from "./SuggestionPopover";
 import { useTiptapJWT } from "@/hooks/useTiptapJWT";
 
 import {
-  RotateCcw,
   Settings2,
   Play,
   Download,
   Send,
   User,
-  SettingsIcon,
   Plus,
   Loader2,
   History,
-  Save
+  Save,
+  PanelRight
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
 import { ChecksList } from "./ChecksList";
-import { ProcessingStatus } from "./ProcessingStatus";
 import AIEditorRuleSelector from "./AIEditorRuleSelector";
 import type { AIEditorRule } from "@/types/aiEditorRules";
 import { supabase } from "@/integrations/supabase/client";
@@ -162,8 +168,7 @@ const Editor = () => {
   }, [manuscript, toast]);
 
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]);
-  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
-  
+
   // Run AI Settings state
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
   const [aiChecks, setAiChecks] = useState({ contradictions: true, repetitions: true });
@@ -1407,294 +1412,297 @@ const Editor = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header id="header" className="border-b border-border bg-white">
-        {/* Header Row 1 - Navigation & Actions */}
-        <div className="px-4 lg:px-6 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          {/* Left: Breadcrumb navigation */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-            <button 
-              onClick={() => navigate("/dashboard")}
-              className="hover:text-foreground transition-colors flex-shrink-0"
-            >
-              Manuscripts
-            </button>
-            <span className="flex-shrink-0">&gt;</span>
-            <span className="text-foreground font-medium truncate">{manuscript.title}</span>
-          </div>
+    <SidebarProvider defaultOpen={true}>
+      <div className="min-h-screen bg-white flex w-full">
+        {/* Main Content Area - Uses SidebarInset for proper spacing */}
+        <SidebarInset className="flex-1">
+          {/* Header */}
+          <header id="header" className="border-b border-border bg-white">
+            {/* Header Row 1 - Breadcrumb Navigation */}
+            <div className="px-4 lg:px-6 py-3 flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="hover:text-foreground transition-colors flex-shrink-0"
+              >
+                Manuscripts
+              </button>
+              <span className="flex-shrink-0">&gt;</span>
+              <span className="text-foreground font-medium truncate">{manuscript.title}</span>
+            </div>
 
-          {/* Right: Action buttons */}
-          <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => createSnapshotSafe('manual')}
-              className="hidden lg:flex"
-              title="Create a snapshot of the current version"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              Save Version
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowVersionHistory(true)}
-              className="hidden lg:flex"
-            >
-              <History className="mr-2 h-4 w-4" />
-              History
-            </Button>
-            {!isReviewed && (
-              <>
-                <Button variant="outline" size="sm" onClick={handleOpenStyleRules} className="hidden lg:flex">
-                  <Settings2 className="mr-2 h-4 w-4" />
-                  <span className="hidden xl:inline">Style Rules</span>
-                </Button>
+            {/* Header Row 2 - Title & Toolbar */}
+            <div className="px-4 lg:px-6 py-4 flex flex-col gap-4">
+              {/* Manuscript Title */}
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl lg:text-3xl font-semibold text-foreground flex-1">{manuscript.title}</h1>
+                {/* Sidebar Toggle - Mobile/Desktop */}
+                <SidebarTrigger className="lg:hidden">
+                  <PanelRight className="h-4 w-4" />
+                </SidebarTrigger>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
+                {/* Version Control Group */}
+                <ButtonGroup className="hidden lg:inline-flex">
+                  <ButtonGroupItem
+                    position="first"
+                    onClick={() => createSnapshotSafe('manual')}
+                    title="Create a snapshot of the current version"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Save
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="last"
+                    onClick={() => setShowVersionHistory(true)}
+                  >
+                    <History className="mr-2 h-4 w-4" />
+                  </ButtonGroupItem>
+                </ButtonGroup>
+
+                {!isReviewed && (
+                  <>
+                    {/* Style & AI Controls */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenStyleRules}
+                      className="hidden lg:flex"
+                    >
+                      <Settings2 className="mr-2 h-4 w-4" />
+                      <span className="hidden xl:inline">Style Rules</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRunAIModal(true)}
+                      disabled={!tiptapToken || !tiptapAppId || jwtLoading}
+                      title={jwtError ? `JWT Error: ${jwtError}` : undefined}
+                      className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800"
+                    >
+                      {jwtLoading ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading JWT...</span></>
+                      ) : (
+                        <><Play className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
+                      )}
+                    </Button>
+                  </>
+                )}
+
+                {/* Status Control */}
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
-                  onClick={() => setShowRunAIModal(true)}
-                  disabled={!tiptapToken || !tiptapAppId || jwtLoading}
-                  title={jwtError ? `JWT Error: ${jwtError}` : undefined}
+                  onClick={handleMarkReviewed}
+                  disabled={isReviewed || busySuggestions.size > 0}
+                  data-testid="mark-reviewed-btn"
+                  className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800"
                 >
-                  {jwtLoading ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading JWT...</span></>
-                  ) : (
-                    <><Play className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
-                  )}
+                  {isReviewed ? "Reviewed" : "Mark Reviewed"}
                 </Button>
-              </>
+
+                {/* Export & Send Group */}
+                <ButtonGroup className="hidden lg:inline-flex">
+                  <ButtonGroupItem
+                    position="first"
+                    onClick={handleExportDocx}
+                    disabled={isExporting}
+                  >
+                    {isExporting ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden xl:inline">Exporting...</span></>
+                    ) : (
+                      <><Download className="mr-2 h-4 w-4" /><span className="hidden xl:inline">Export</span></>
+                    )}
+                  </ButtonGroupItem>
+                  <ButtonGroupItem position="last">
+                    <Send className="mr-2 h-4 w-4" />
+                    <span className="hidden xl:inline">Send to Author</span>
+                  </ButtonGroupItem>
+                </ButtonGroup>
+
+                {/* Desktop Sidebar Toggle */}
+                <SidebarTrigger className="hidden lg:flex ml-auto">
+                  <PanelRight className="h-4 w-4" />
+                </SidebarTrigger>
+              </div>
+            </div>
+          </header>
+
+          {/* Document Canvas */}
+          <div id="document-canvas" className="h-[calc(100vh-129px)] overflow-hidden">
+            {isReviewed && (
+              <div
+                data-testid="reviewed-banner"
+                className="bg-green-50 border-b border-green-200 px-4 lg:px-6 py-2 text-sm text-green-800"
+              >
+                Reviewed — read-only
+              </div>
             )}
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              onClick={handleMarkReviewed}
-              disabled={isReviewed || busySuggestions.size > 0}
-              data-testid="mark-reviewed-btn"
-            >
-              {isReviewed ? "Reviewed" : "Mark Reviewed"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden lg:flex"
-              onClick={handleExportDocx}
-              disabled={isExporting}
-            >
-              {isExporting ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden xl:inline">Exporting...</span></>
-              ) : (
-                <><Download className="mr-2 h-4 w-4" /><span className="hidden xl:inline">Export</span></>
-              )}
-            </Button>
-            <Button variant="outline" size="sm" className="hidden lg:flex">
-              <Send className="mr-2 h-4 w-4" />
-              <span className="hidden xl:inline">Send to Author</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Header Row 2 - Status Information */}
-        <div className="px-4 lg:px-6 py-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          {/* Left: Large manuscript title */}
-          <h1 className="text-2xl lg:text-3xl font-semibold text-foreground truncate flex-1 min-w-0">{manuscript.title}</h1>
-
-          {/* Right: Status badges and metadata */}
-          <div className="flex items-center gap-2 lg:gap-4 flex-wrap lg:flex-nowrap flex-shrink-0">
-            <ProcessingStatus manuscript={manuscript} />
-            <Badge className={getStatusBadgeVariant(manuscript.status)}>
-              Round {manuscript.round}
-            </Badge>
-            <Badge className={getStatusBadgeVariant(manuscript.status)}>
-              {manuscript.status}
-            </Badge>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span>{manuscript.owner}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <SettingsIcon className="h-4 w-4" />
-              <span>Current turn</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <div className="h-[calc(100vh-129px)] flex flex-col lg:flex-row">
-        {/* Document Canvas - Left Column */}
-        <div id="document-canvas" className="flex-1 min-h-0 overflow-hidden">
-          {isReviewed && (
-            <div
-              data-testid="reviewed-banner"
-              className="bg-green-50 border-b border-green-200 px-4 lg:px-6 py-2 text-sm text-green-800"
-            >
-              Reviewed — read-only
-            </div>
-          )}
-          {/* Wait for JWT before rendering editor to ensure AiSuggestion extension is loaded */}
-          {jwtLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-                <p className="text-muted-foreground">Initializing editor...</p>
+            {/* Wait for JWT before rendering editor to ensure AiSuggestion extension is loaded */}
+            {jwtLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                  <p className="text-muted-foreground">Initializing editor...</p>
+                </div>
               </div>
-            </div>
-          ) : jwtError ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-md">
-                <div className="text-4xl mb-4">⚠️</div>
-                <h3 className="text-lg font-semibold mb-2">JWT Authentication Error</h3>
-                <p className="text-muted-foreground mb-4">{jwtError}</p>
-                <Button onClick={refreshToken} variant="outline">
-                  Retry
-                </Button>
+            ) : jwtError ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center max-w-md">
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <h3 className="text-lg font-semibold mb-2">JWT Authentication Error</h3>
+                  <p className="text-muted-foreground mb-4">{jwtError}</p>
+                  <Button onClick={refreshToken} variant="outline">
+                    Retry
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <DocumentCanvas 
-            manuscript={{...manuscript, contentText}} 
-            suggestions={isReviewed ? [] : suggestions}
-            isReadOnly={isReviewed}
-            onCreateSuggestion={createManualSuggestion}
-            getUISuggestions={getUISuggestions}
-            getChecks={getChecks}
-            maxVisibleSuggestions={maxVisibleAI}
-            maxVisibleChecks={maxVisibleChecks}
-            // Enable AI suggestions for experimental editor
-            aiSuggestionConfig={(() => {
-              // Only enable if credentials are available
-              if (!tiptapToken || !tiptapAppId) {
-                return {
-                  enabled: false,
-                  appId: undefined,
-                  token: undefined,
-                  rules: [],
+            ) : (
+              <DocumentCanvas
+              manuscript={{...manuscript, contentText}}
+              suggestions={isReviewed ? [] : suggestions}
+              isReadOnly={isReviewed}
+              onCreateSuggestion={createManualSuggestion}
+              getUISuggestions={getUISuggestions}
+              getChecks={getChecks}
+              maxVisibleSuggestions={maxVisibleAI}
+              maxVisibleChecks={maxVisibleChecks}
+              // Enable AI suggestions for experimental editor
+              aiSuggestionConfig={(() => {
+                // Only enable if credentials are available
+                if (!tiptapToken || !tiptapAppId) {
+                  return {
+                    enabled: false,
+                    appId: undefined,
+                    token: undefined,
+                    rules: [],
+                  };
+                }
+
+                // Get selected rules from available rules
+                const selectedRules = availableRules
+                  .filter(rule => selectedRuleIds.includes(rule.id))
+                  .map(rule => ({
+                    id: rule.id,
+                    title: rule.title,
+                    prompt: rule.prompt,
+                    color: rule.color,
+                    backgroundColor: rule.backgroundColor,
+                  }));
+
+                const config: Record<string, unknown> = {
+                  enabled: true,
+                  // Using fresh JWT token directly
+                  appId: tiptapAppId,
+                  token: tiptapToken,
+                  rules: selectedRules,
+                  loadOnStart: false, // Disable automatic loading as requested
+                  reloadOnUpdate: false, // Don't reload on every edit
+                  // Popover configuration
+                  onPopoverElementCreate: setPopoverElement,
+                  onSelectedSuggestionChange: setSelectedSuggestion,
+                  // Progress tracking
+                  onProgressUpdate: handleProgressUpdate,
                 };
-              }
+                return config;
+              })()}
+            />
+            )}
+          </div>
+        </SidebarInset>
 
-              // Get selected rules from available rules
-              const selectedRules = availableRules
-                .filter(rule => selectedRuleIds.includes(rule.id))
-                .map(rule => ({
-                  id: rule.id,
-                  title: rule.title,
-                  prompt: rule.prompt,
-                  color: rule.color,
-                  backgroundColor: rule.backgroundColor,
-                }));
+        {/* Right Sidebar - Full height collapsible */}
+        <Sidebar side="right" collapsible="offcanvas" className="border-l">
+          <SidebarContent className="p-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+              {/* Tab List */}
+              <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted flex-shrink-0">
+                <TabsTrigger value="changes" className="text-xs px-2">
+                  Changes {suggestions.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                      {suggestions.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
+                <TabsTrigger value="checks" className="text-xs px-2">
+                  Checks {checks.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 px-1 text-xs">
+                      {checks.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
+              </TabsList>
 
-              const config: Record<string, unknown> = {
-                enabled: true,
-                // Using fresh JWT token directly
-                appId: tiptapAppId,
-                token: tiptapToken,
-                rules: selectedRules,
-                loadOnStart: false, // Disable automatic loading as requested
-                reloadOnUpdate: false, // Don't reload on every edit
-                // Popover configuration
-                onPopoverElementCreate: setPopoverElement,
-                onSelectedSuggestionChange: setSelectedSuggestion,
-                // Progress tracking
-                onProgressUpdate: handleProgressUpdate,
-              };
-              return config;
-            })()}
-          />
-          )}
-        </div>
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
+                <TabsContent value="changes" className="h-full mt-0">
+                  <ChangeList
+                    suggestions={isReviewed ? [] : suggestions}
+                    onAcceptSuggestion={handleAcceptSuggestion}
+                    onRejectSuggestion={handleRejectSuggestion}
+                    busySuggestions={busySuggestions}
+                    isReviewed={isReviewed}
+                    showSuggestions={showSuggestions}
+                    onToggleSuggestions={setShowSuggestions}
+                    onApplyAllSuggestions={handleApplyAllSuggestions}
+                    onTriggerPopover={handleTriggerPopover}
+                    availableRules={availableRules}
+                  />
+                </TabsContent>
 
-        {/* Right Sidebar */}
-        <div id="right-sidebar" className="w-full lg:w-80 bg-muted border-t lg:border-t-0 lg:border-l border-border overflow-hidden flex-shrink-0">
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            {/* Tab List */}
-            <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
-              <TabsTrigger value="changes" className="text-xs px-2">
-                Changes {suggestions.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
-                    {suggestions.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
-              <TabsTrigger value="checks" className="text-xs px-2">
-                Checks {checks.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
-                    {checks.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
-            </TabsList>
-
-            {/* Tab Content */}
-            <div className="flex-1 overflow-hidden">
-              <TabsContent value="changes" className="h-full mt-0">
-                <ChangeList
-                  suggestions={isReviewed ? [] : suggestions}
-                  onAcceptSuggestion={handleAcceptSuggestion}
-                  onRejectSuggestion={handleRejectSuggestion}
-                  busySuggestions={busySuggestions}
-                  isReviewed={isReviewed}
-                  showSuggestions={showSuggestions}
-                  onToggleSuggestions={setShowSuggestions}
-                  onApplyAllSuggestions={handleApplyAllSuggestions}
-                  onTriggerPopover={handleTriggerPopover}
-                  availableRules={availableRules}
-                />
-              </TabsContent>
-
-              <TabsContent value="comments" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    <div className="bg-card border border-card-border rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                          <User className="h-3 w-3" />
+                <TabsContent value="comments" className="h-full mt-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                      <div className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                            <User className="h-3 w-3" />
+                          </div>
+                          <span className="text-sm font-medium">System</span>
+                          <span className="text-xs text-muted-foreground">Now</span>
                         </div>
-                        <span className="text-sm font-medium">System</span>
-                        <span className="text-xs text-muted-foreground">Now</span>
+                        <p className="text-sm mb-2">This is the AI suggestions editor. AI suggestions will appear directly in the text as you type or when you run AI Pass.</p>
+                        <p className="text-xs text-muted-foreground mb-3">AI Mode</p>
                       </div>
-                      <p className="text-sm mb-2">This is the AI suggestions editor. AI suggestions will appear directly in the text as you type or when you run AI Pass.</p>
-                      <p className="text-xs text-muted-foreground mb-3">AI Mode</p>
                     </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
+                  </ScrollArea>
+                </TabsContent>
 
-              <TabsContent value="checks" className="h-full mt-0">
-                <ChecksList 
-                  checks={isReviewed ? [] : checks}
-                  onAcceptCheck={handleAcceptCheck}
-                  onRejectCheck={handleRejectCheck}
-                  busyChecks={busyChecks}
-                  isReviewed={isReviewed}
-                  onRunChecks={handleRunChecks}
-                />
-              </TabsContent>
+                <TabsContent value="checks" className="h-full mt-0">
+                  <ChecksList
+                    checks={isReviewed ? [] : checks}
+                    onAcceptCheck={handleAcceptCheck}
+                    onRejectCheck={handleRejectCheck}
+                    busyChecks={busyChecks}
+                    isReviewed={isReviewed}
+                    onRunChecks={handleRunChecks}
+                  />
+                </TabsContent>
 
-              <TabsContent value="new-content" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    <div className="bg-card border border-card-border rounded-lg p-3">
-                      <div className="flex items-start gap-2">
-                        <Plus className="h-4 w-4 text-green-500 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Advanced AI Features</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            This editor uses TipTap Pro AI suggestions for enhanced editing capabilities.
-                          </p>
+                <TabsContent value="new-content" className="h-full mt-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                      <div className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">Advanced AI Features</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              This editor uses TipTap Pro AI suggestions for enhanced editing capabilities.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-            </div>
-          </Tabs>
-        </div>
+                  </ScrollArea>
+                </TabsContent>
+              </div>
+            </Tabs>
+          </SidebarContent>
+        </Sidebar>
       </div>
 
       {/* Run AI Settings Modal */}
@@ -1898,7 +1906,7 @@ const Editor = () => {
         />,
         popoverElement
       )}
-    </div>
+    </SidebarProvider>
   );
 };
 

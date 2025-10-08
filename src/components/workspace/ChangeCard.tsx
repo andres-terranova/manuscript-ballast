@@ -1,6 +1,5 @@
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, X, Plus, Minus, ArrowRightLeft } from "lucide-react";
 import type { UISuggestion, SuggestionType } from "@/lib/types";
@@ -30,16 +29,16 @@ const getSuggestionIcon = (type: SuggestionType) => {
   }
 };
 
-const getSuggestionColor = (type: SuggestionType) => {
+const getSuggestionIconColor = (type: SuggestionType) => {
   switch (type) {
     case 'insert':
-      return 'text-green-700 bg-green-50 border-green-200';
+      return 'text-green-600';
     case 'delete':
-      return 'text-red-700 bg-red-50 border-red-200';
+      return 'text-red-600';
     case 'replace':
-      return 'text-amber-700 bg-amber-50 border-amber-200';
+      return 'text-amber-600';
     default:
-      return 'text-muted-foreground bg-muted border-border';
+      return 'text-muted-foreground';
   }
 };
 
@@ -81,111 +80,117 @@ export const ChangeCard = memo<ChangeCardProps>(({
   };
 
   return (
-    <Card 
-      key={`${suggestion.id}-${index}`} 
+    <div
+      key={`${suggestion.id}-${index}`}
       data-testid={`change-card-${suggestion.id}`}
-      className="border-card-border cursor-pointer hover:bg-muted/50 transition-colors focus-within:ring-2 focus-within:ring-primary"
+      className="group py-3 px-4 cursor-pointer rounded-lg border border-border/40 bg-background hover:bg-accent/30 hover:border-border/70 hover:shadow-sm transition-all focus-within:bg-accent/35 focus-within:border-border/80 focus-within:outline-none"
       onClick={() => onSuggestionClick(suggestion.id)}
       tabIndex={0}
       onKeyDown={handleCardKeyDown}
     >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`p-1 rounded border ${getSuggestionColor(suggestion.type)}`}>
-              {getSuggestionIcon(suggestion.type)}
-            </div>
-            {isAISuggestion(suggestion) && suggestion.ruleTitle ? (
-              <Badge 
-                variant="outline" 
-                className="text-xs gap-1"
-                style={{
-                  borderColor: getSuggestionRuleColor(suggestion.ruleId),
-                  color: getSuggestionRuleColor(suggestion.ruleId),
-                }}
-              >
-                <div
-                  className="w-2 h-2 rounded-sm"
-                  style={{ backgroundColor: getSuggestionRuleColor(suggestion.ruleId) }}
-                />
-                {suggestion.ruleTitle}
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="text-xs">
-                {suggestion.actor === 'Tool' ? 'AI Tool' : 'Manual'}
-              </Badge>
-            )}
-          </div>
+      {/* Header: Icon + Badge */}
+      <div className="flex items-center gap-2.5">
+        <div className={`shrink-0 ${getSuggestionIconColor(suggestion.type)}`}>
+          {getSuggestionIcon(suggestion.type)}
         </div>
-      </CardHeader>
-      <CardContent className="pb-3">
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{suggestion.note}</div>
-          
-          {suggestion.type === 'replace' && (
-            <div className="text-xs">
-              <span className="text-muted-foreground">From:</span> "{suggestion.before}" →{' '}
-              <span className="text-muted-foreground">To:</span> "{suggestion.after}"
+        {isAISuggestion(suggestion) && suggestion.ruleTitle ? (
+          <Badge
+            variant="outline"
+            className="text-[10px] font-normal gap-1 px-1.5 py-0.5 border-0 bg-background/50"
+            style={{
+              color: getSuggestionRuleColor(suggestion.ruleId),
+            }}
+          >
+            <div
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: getSuggestionRuleColor(suggestion.ruleId) }}
+            />
+            {suggestion.ruleTitle}
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0.5">
+            {suggestion.actor === 'Tool' ? 'AI Tool' : 'Manual'}
+          </Badge>
+        )}
+      </div>
+
+      {/* Note */}
+      <div className="text-sm font-medium leading-relaxed text-foreground mt-2">{suggestion.note}</div>
+
+      {/* Content Changes */}
+      <div className="mt-2">
+        {suggestion.type === 'replace' && (
+          <div className="text-xs space-y-1 pl-0.5">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground/60 shrink-0 font-normal">From:</span>
+              <span className="text-red-500/80 line-through break-words">"{suggestion.before}"</span>
             </div>
-          )}
-          
-          {suggestion.type === 'insert' && (
-            <div className="text-xs">
-              <span className="text-muted-foreground">Insert:</span> "{suggestion.after}"
+            <div className="flex gap-2">
+              <span className="text-muted-foreground/60 shrink-0 font-normal">To:</span>
+              <span className="text-green-600/80 font-normal break-words">"{suggestion.after}"</span>
             </div>
-          )}
-          
-          {suggestion.type === 'delete' && (
-            <div className="text-xs">
-              <span className="text-muted-foreground">Remove:</span> "{suggestion.before}"
-            </div>
-          )}
-          
-          <div className="flex gap-2 pt-2">
-            <Button
-              data-testid={`change-card-accept-${suggestion.id}`}
-              size="sm"
-              variant="outline"
-              className="flex-1 text-xs h-7"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAccept?.(suggestion.id);
-                // Focus next card after action
-                setTimeout(() => {
-                  const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
-                  nextCard?.focus();
-                }, 100);
-              }}
-              disabled={!onAccept || isBusy}
-              aria-keyshortcuts="Enter"
-            >
-              <Check className="mr-1 h-3 w-3" />
-              Accept
-            </Button>
-            <Button
-              data-testid={`change-card-reject-${suggestion.id}`}
-              size="sm"
-              variant="outline"
-              className="flex-1 text-xs h-7"
-              onClick={(e) => {
-                e.stopPropagation();
-                onReject?.(suggestion.id);
-                // Focus next card after action
-                setTimeout(() => {
-                  const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
-                  nextCard?.focus();
-                }, 100);
-              }}
-              disabled={!onReject || isBusy}
-              aria-keyshortcuts="Shift+Enter"
-            >
-              <X className="mr-1 h-3 w-3" />
-              Reject
-            </Button>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        )}
+        
+        {suggestion.type === 'insert' && (
+          <div className="text-xs pl-0.5">
+            <span className="text-muted-foreground/60 font-normal">Insert:</span>{' '}
+            <span className="text-green-600/80 font-normal break-words">"{suggestion.after}"</span>
+          </div>
+        )}
+        
+        {suggestion.type === 'delete' && (
+          <div className="text-xs pl-0.5">
+            <span className="text-muted-foreground/60 font-normal">Remove:</span>{' '}
+            <span className="text-red-500/80 line-through break-words">"{suggestion.before}"</span>
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 mt-3">
+        <Button
+          data-testid={`change-card-accept-${suggestion.id}`}
+          size="sm"
+          variant="ghost"
+          className="flex-1 text-xs h-7 font-normal border border-border/40 bg-background hover:bg-green-50 hover:text-green-700 hover:border-green-200 dark:hover:bg-green-950/30 dark:hover:text-green-400 dark:hover:border-green-900"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAccept?.(suggestion.id);
+            // Focus next card after action
+            setTimeout(() => {
+              const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
+              nextCard?.focus();
+            }, 100);
+          }}
+          disabled={!onAccept || isBusy}
+          aria-keyshortcuts="Enter"
+        >
+          <Check className="mr-1.5 h-3.5 w-3.5" />
+          Accept
+        </Button>
+        <Button
+          data-testid={`change-card-reject-${suggestion.id}`}
+          size="sm"
+          variant="ghost"
+          className="flex-1 text-xs h-7 font-normal border border-border/40 bg-background hover:bg-red-50 hover:text-red-700 hover:border-red-200 dark:hover:bg-red-950/30 dark:hover:text-red-400 dark:hover:border-red-900"
+          onClick={(e) => {
+            e.stopPropagation();
+            onReject?.(suggestion.id);
+            // Focus next card after action
+            setTimeout(() => {
+              const nextCard = document.querySelector(`[data-testid="${getNextFocusableCard(index)}"]`) as HTMLElement;
+              nextCard?.focus();
+            }, 100);
+          }}
+          disabled={!onReject || isBusy}
+          aria-keyshortcuts="Shift+Enter"
+        >
+          <X className="mr-1.5 h-3.5 w-3.5" />
+          Reject
+        </Button>
+      </div>
+    </div>
   );
 });
 
