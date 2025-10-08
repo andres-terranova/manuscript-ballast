@@ -617,15 +617,6 @@ const Dashboard = () => {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/manuscript/${manuscript.id}/legacy`);
-                            }}
-                          >
-                            Open in Legacy Editor
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
                               setDeleteConfirmManuscript(manuscript);
                             }}
                             className="text-red-600 focus:text-red-600"
