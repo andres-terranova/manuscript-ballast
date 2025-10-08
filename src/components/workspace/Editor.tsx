@@ -4,12 +4,20 @@ import { createPortal } from "react-dom";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup, ButtonGroupItem } from "@/components/ui/button-group";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarInset
+} from "@/components/ui/sidebar";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
 import { mapPlainTextToPM, type UISuggestion } from "@/lib/suggestionMapper";
 import type { ServerSuggestion, SuggestionType, SuggestionCategory, SuggestionActor } from "@/lib/types";
@@ -26,22 +34,21 @@ import { SuggestionPopover } from "./SuggestionPopover";
 import { useTiptapJWT } from "@/hooks/useTiptapJWT";
 
 import {
-  RotateCcw,
   Settings2,
   Play,
   Download,
   Send,
   User,
-  SettingsIcon,
   Plus,
   Loader2,
   History,
-  Save
+  Save,
+  PanelRight,
+  CheckCircle
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
 import { ChecksList } from "./ChecksList";
-import { ProcessingStatus } from "./ProcessingStatus";
 import AIEditorRuleSelector from "./AIEditorRuleSelector";
 import type { AIEditorRule } from "@/types/aiEditorRules";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,8 +56,9 @@ import { ManuscriptService } from "@/services/manuscriptService";
 import { AIProgressIndicator } from "./AIProgressIndicator";
 import type { AIProgressState } from "@/types/aiProgress";
 import { createInitialProgressState } from "@/types/aiProgress";
-import { createSnapshot } from '@/services/snapshotService';
+import { createSnapshot, getLatestSnapshot } from '@/services/snapshotService';
 import { VersionHistory } from './VersionHistory';
+import { exportEditorToDocx, canSafelyExport } from '@/lib/docxExport';
 
 const Editor = () => {
   const { id } = useParams<{ id: string }>();
@@ -69,6 +77,9 @@ const Editor = () => {
   const aiCancelledRef = useRef(false);
   const [aiProgress, setAiProgress] = useState<AIProgressState>(createInitialProgressState());
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<number | undefined>(undefined);
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Handle AI progress updates
   const handleProgressUpdate = useCallback((progress: AIProgressState) => {
@@ -112,15 +123,27 @@ const Editor = () => {
     const editor = getGlobalEditor();
     if (!editor || !manuscript) return;
 
+    // Show loading overlay for manual snapshots
+    if (event === 'manual') {
+      setIsSavingSnapshot(true);
+    }
+
     try {
       // Get current user (in MVP, we can use a placeholder)
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id || 'system';
 
-      await createSnapshot(editor, manuscript.id, event, userId, label);
+      await createSnapshot(editor, manuscript.id, event, userId, label, suggestions);
       console.log(`✅ Snapshot created: ${event}`);
 
-      // Show success toast for manual snapshots
+      // Update current version to the newly created snapshot
+      const latestSnapshot = await getLatestSnapshot(manuscript.id);
+      if (latestSnapshot) {
+        setCurrentVersion(latestSnapshot.version);
+        console.log(`✅ Current version updated to ${latestSnapshot.version}`);
+      }
+
+      // Show success toast for manual snapshots (after overlay closes)
       if (event === 'manual') {
         toast({
           title: "Snapshot created",
@@ -137,12 +160,16 @@ const Editor = () => {
           variant: 'destructive'
         });
       }
+    } finally {
+      // Hide loading overlay
+      if (event === 'manual') {
+        setIsSavingSnapshot(false);
+      }
     }
   }, [manuscript, toast]);
 
   const [tempStyleRules, setTempStyleRules] = useState<StyleRuleKey[]>([]);
-  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
-  
+
   // Run AI Settings state
   const [aiScope, setAiScope] = useState<"Entire Document" | "Current Section" | "Selected Text">("Entire Document");
   const [aiChecks, setAiChecks] = useState({ contradictions: true, repetitions: true });
@@ -371,14 +398,26 @@ const Editor = () => {
   };
 
   // Helper to get rule title by ID
-  const getRuleTitle = (ruleId: string | undefined): string | undefined => {
+  const getRuleTitle = useCallback((ruleId: string | undefined): string | undefined => {
     if (!ruleId) return undefined;
     const rule = availableRules.find(r => r.id === ruleId);
     return rule?.title;
-  };
+  }, [availableRules]);
 
   // Convert AI suggestions to UISuggestion format for ChangeList
-  const convertAiSuggestionsToUI = (editor: TiptapEditor): UISuggestion[] => {
+  // Helper function to sort suggestions by position
+  const sortSuggestionsByPosition = useCallback((suggestions: UISuggestion[]): UISuggestion[] => {
+    return [...suggestions].sort((a, b) => {
+      // Primary sort: by start position (pmFrom)
+      if (a.pmFrom !== b.pmFrom) {
+        return a.pmFrom - b.pmFrom;
+      }
+      // Secondary sort: by end position (pmTo) if start positions are equal
+      return a.pmTo - b.pmTo;
+    });
+  }, []);
+
+  const convertAiSuggestionsToUI = useCallback((editor: TiptapEditor): UISuggestion[] => {
     try {
       // Use extensionStorage as documented in TipTap docs
       const aiStorage = editor.extensionStorage?.aiSuggestion;
@@ -386,26 +425,26 @@ const Editor = () => {
         console.log('No AI suggestion extension storage found');
         return [];
       }
-      
+
       // Use the getSuggestions function to get current suggestions
-      const aiSuggestions = typeof aiStorage.getSuggestions === 'function' 
-        ? aiStorage.getSuggestions() 
+      const aiSuggestions = typeof aiStorage.getSuggestions === 'function'
+        ? aiStorage.getSuggestions()
         : [];
-        
+
       console.log(`📝 Converting ${aiSuggestions.length} AI suggestions to UI format`);
 
       return aiSuggestions.map((suggestion: unknown, index: number) => {
         // Extract rule information from the TipTap suggestion
         const ruleId = suggestion.rule?.id || suggestion.ruleId;
         const ruleTitle = suggestion.rule?.title || getRuleTitle(ruleId);
-        
+
         console.log('Processing AI suggestion:', {
           id: suggestion.id,
           ruleId,
           ruleTitle,
           suggestion: suggestion
         });
-        
+
         return {
           id: suggestion.id || `ai-suggestion-${index}`,
           type: suggestion.replacementOptions && suggestion.replacementOptions.length > 0 ? 'replace' : 'delete' as SuggestionType,
@@ -432,7 +471,7 @@ const Editor = () => {
       console.error('Error converting AI suggestions:', error);
       return [];
     }
-  };
+  }, [getRuleTitle]);
 
   // Event-based waiting using TipTap's transaction events (no polling)
   const waitForAiSuggestions = async (editor: TiptapEditor): Promise<UISuggestion[]> => {
@@ -646,7 +685,7 @@ const Editor = () => {
         const plainText = editor.getText();
         const remapped = mapPlainTextToPM(editor, plainText, serverSuggestions);
         const manualSuggestions = remaining.filter(s => s.origin === 'manual');
-        setSuggestions([...remapped, ...manualSuggestions]);
+        setSuggestions(sortSuggestionsByPosition([...remapped, ...manualSuggestions]));
       }
 
       toast({
@@ -733,21 +772,48 @@ const Editor = () => {
       return;
     }
 
+    // Track how many suggestions exist before applying
+    const suggestionCountBefore = suggestions.length;
+
     try {
       console.log('Applying all AI suggestions...');
-      
+
       // Use Tiptap's built-in applyAllAiSuggestions command
       const result = editor.commands.applyAllAiSuggestions();
       console.log('Apply all suggestions result:', result);
-      
+
       if (result) {
         // Wait a moment for the changes to be processed
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         // Refresh suggestions to get the updated state
         const updatedSuggestions = await waitForAiSuggestions(editor);
         setSuggestions(updatedSuggestions);
-        
+
+        // Create snapshot after applying all suggestions
+        if (manuscript?.id && suggestionCountBefore > 0) {
+          try {
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id || 'system';
+
+            const label = suggestionCountBefore === 1
+              ? 'Applied 1 suggestion'
+              : `Applied ${suggestionCountBefore} suggestions`;
+            await createSnapshot(editor, manuscript.id, 'apply_all', userId, label, suggestions);
+            console.log(`✅ Snapshot created after Apply All: ${label}`);
+
+            // Update current version to the newly created snapshot
+            const latestSnapshot = await getLatestSnapshot(manuscript.id);
+            if (latestSnapshot) {
+              setCurrentVersion(latestSnapshot.version);
+            }
+          } catch (error) {
+            console.error('Failed to create snapshot after Apply All:', error);
+            // Don't show error to user - snapshot failure shouldn't block workflow
+          }
+        }
+
         toast({
           title: "All suggestions applied successfully",
           description: "Your document has been updated with all AI suggestions.",
@@ -755,7 +821,7 @@ const Editor = () => {
       } else {
         throw new Error('Failed to apply suggestions');
       }
-      
+
     } catch (error) {
       console.error('Error applying all suggestions:', error);
       toast({
@@ -858,7 +924,7 @@ const Editor = () => {
       actor: "Editor"
     };
 
-    setSuggestions(prev => [...prev, suggestion]);
+    setSuggestions(prev => sortSuggestionsByPosition([...prev, suggestion]));
     
     const tr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
     editor.view.dispatch(tr);
@@ -877,14 +943,14 @@ const Editor = () => {
 
     editor.view.dispatch = (tr: Transaction) => {
       originalDispatch(tr);
-      
+
       if (tr.docChanged && suggestions.length > 0) {
-        setSuggestions(prev => prev.map(s => {
+        setSuggestions(prev => sortSuggestionsByPosition(prev.map(s => {
           const from = tr.mapping.map(s.pmFrom);
           const to = tr.mapping.map(s.pmTo);
           return { ...s, pmFrom: from, pmTo: Math.max(from, to) };
-        }));
-        
+        })));
+
         setTimeout(() => {
           const refreshTr = editor.state.tr.setMeta(suggestionsPluginKey, "refresh");
           editor.view.dispatch(refreshTr);
@@ -920,6 +986,29 @@ const Editor = () => {
       const editor = getGlobalEditor();
       if (!editor) {
         throw new Error('Editor not available');
+      }
+
+      // Create snapshot before starting AI Pass
+      if (manuscript?.id) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id || 'system';
+
+          const roleLabel = selectedRuleIds.length === 1
+            ? '1 role'
+            : `${selectedRuleIds.length} roles`;
+          await createSnapshot(editor, manuscript.id, 'ai_pass_start', userId, `Before AI Pass (${roleLabel})`, suggestions);
+          console.log(`✅ Snapshot created before AI Pass: ${roleLabel}`);
+
+          // Update current version
+          const latestSnapshot = await getLatestSnapshot(manuscript.id);
+          if (latestSnapshot) {
+            setCurrentVersion(latestSnapshot.version);
+          }
+        } catch (error) {
+          console.error('Failed to create snapshot before AI Pass:', error);
+          // Continue with AI Pass even if snapshot fails
+        }
       }
 
       const documentText = editor.getText();
@@ -999,6 +1088,30 @@ const Editor = () => {
       console.log('Generated', uiSuggestions.length, 'AI suggestions');
       setSuggestions(uiSuggestions);
 
+      // Create snapshot after AI Pass completes (only if suggestions were generated)
+      if (uiSuggestions.length > 0 && manuscript?.id) {
+        try {
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id || 'system';
+
+          const roleLabel = selectedRuleIds.length === 1
+            ? '1 role applied'
+            : `${selectedRuleIds.length} roles applied`;
+          await createSnapshot(editor, manuscript.id, 'ai_pass_complete', userId, roleLabel, suggestions);
+          console.log(`✅ Snapshot created after AI Pass: ${uiSuggestions.length} suggestions, ${roleLabel}`);
+
+          // Update current version to the newly created snapshot
+          const latestSnapshot = await getLatestSnapshot(manuscript.id);
+          if (latestSnapshot) {
+            setCurrentVersion(latestSnapshot.version);
+          }
+        } catch (error) {
+          console.error('Failed to create snapshot after AI Pass:', error);
+          // Don't show error to user - snapshot failure shouldn't block workflow
+        }
+      }
+
       if (uiSuggestions.length > 0) {
         toast({
           title: `Generated ${uiSuggestions.length} AI suggestions`,
@@ -1068,6 +1181,54 @@ const Editor = () => {
     });
   };
 
+  // Handle Export to DOCX
+  const handleExportDocx = async () => {
+    const editor = getGlobalEditor();
+    if (!editor || !manuscript) return;
+
+    // Check if export is safe
+    const { safe, warning } = canSafelyExport(editor);
+
+    if (warning) {
+      toast({
+        title: safe ? "Large document" : "Document too large",
+        description: warning,
+        variant: safe ? "default" : "destructive"
+      });
+
+      if (!safe) return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const filename = `${manuscript.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`;
+
+      const result = await exportEditorToDocx(editor, {
+        filename,
+        includeMetadata: true
+      });
+
+      if (result.success) {
+        toast({
+          title: "Export successful",
+          description: `Downloaded ${filename}`
+        });
+      } else {
+        throw new Error(result.error || 'Export failed');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Unable to export document",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   useEffect(() => {
     const loadManuscript = async () => {
       console.log('[Editor] Loading manuscript with ID:', id);
@@ -1116,6 +1277,82 @@ const Editor = () => {
     
     loadManuscript();
   }, [id, navigate, getManuscriptById, retryCount, refreshManuscripts]);
+
+  // Restore AI suggestions from latest snapshot on page load
+  useEffect(() => {
+    const restoreAiSuggestionsOnLoad = async () => {
+      // Only run after manuscript is loaded and editor is ready
+      if (!manuscript?.id) return;
+
+      const editor = getGlobalEditor();
+      if (!editor) {
+        console.log('⏳ Editor not ready yet for AI restoration');
+        return;
+      }
+
+      // Check if AI extension is available
+      const aiStorage = editor.extensionStorage?.aiSuggestion;
+      if (!aiStorage) {
+        console.log('ℹ️ AI Suggestion extension not available - skipping restoration');
+        return;
+      }
+
+      // Only restore if editor doesn't already have suggestions
+      const existingSuggestions = aiStorage.getSuggestions?.() || [];
+      if (existingSuggestions.length > 0) {
+        console.log(`✅ Editor already has ${existingSuggestions.length} suggestions loaded`);
+        // Convert existing suggestions to UI format
+        const uiSuggestions = convertAiSuggestionsToUI(editor);
+        setSuggestions(uiSuggestions);
+        return;
+      }
+
+      try {
+        console.log('🔄 Attempting to restore AI suggestions from latest snapshot...');
+
+        // Fetch latest snapshot
+        const snapshot = await getLatestSnapshot(manuscript.id);
+
+        if (!snapshot) {
+          console.log('ℹ️ No snapshots found for manuscript');
+          return;
+        }
+
+        if (!snapshot.aiSuggestions || snapshot.aiSuggestions.length === 0) {
+          console.log('ℹ️ Latest snapshot has no AI suggestions to restore');
+          return;
+        }
+
+        console.log(`📥 Restoring ${snapshot.aiSuggestions.length} AI suggestions from snapshot v${snapshot.version}...`);
+
+        // Restore AI suggestions to editor
+        const success = editor.commands.setAiSuggestions(snapshot.aiSuggestions);
+
+        if (success) {
+          console.log(`✅ Restored ${snapshot.aiSuggestions.length} AI suggestions to editor`);
+
+          // Convert to UI format and update state
+          const uiSuggestions = convertAiSuggestionsToUI(editor);
+          setSuggestions(uiSuggestions);
+          setCurrentVersion(snapshot.version); // Track current version
+          console.log(`✅ Updated UI with ${uiSuggestions.length} suggestions from version ${snapshot.version}`);
+        } else {
+          console.warn('⚠️ setAiSuggestions returned false - restoration may have failed');
+        }
+
+      } catch (error) {
+        console.error('❌ Failed to restore AI suggestions on page load:', error);
+        // Don't show error toast - this is a silent background operation
+      }
+    };
+
+    // Run restoration after a short delay to ensure editor is fully initialized
+    const timer = setTimeout(() => {
+      restoreAiSuggestionsOnLoad();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [manuscript?.id]); // Only re-run when manuscript changes, not on function updates
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
@@ -1176,285 +1413,327 @@ const Editor = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header id="header" className="border-b border-border bg-white">
-        {/* Header Row 1 - Navigation & Actions */}
-        <div className="px-4 lg:px-6 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          {/* Left: Breadcrumb navigation */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-            <button 
-              onClick={() => navigate("/dashboard")}
-              className="hover:text-foreground transition-colors flex-shrink-0"
-            >
-              Manuscripts
-            </button>
-            <span className="flex-shrink-0">&gt;</span>
-            <span className="text-foreground font-medium truncate">{manuscript.title}</span>
-          </div>
+    <SidebarProvider defaultOpen={true}>
+      <div className="min-h-screen bg-white flex w-full">
+        {/* Main Content Area - Uses SidebarInset for proper spacing */}
+        <SidebarInset className="flex-1 bg-transparent border-none">
+          {/* Header */}
+          <header id="header" className="border-b border-border bg-white">
+            {/* Header Row 1 - Breadcrumb Navigation */}
+            <div className="px-4 lg:px-6 py-3 flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="hover:text-foreground transition-colors flex-shrink-0"
+              >
+                Manuscripts
+              </button>
+              <span className="flex-shrink-0">&gt;</span>
+              <span className="text-foreground font-medium truncate">{manuscript.title}</span>
+            </div>
 
-          {/* Right: Action buttons */}
-          <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => createSnapshotSafe('manual')}
-              className="hidden lg:flex"
-              title="Create a snapshot of the current version"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              Save Version
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowVersionHistory(true)}
-              className="hidden lg:flex"
-            >
-              <History className="mr-2 h-4 w-4" />
-              History
-            </Button>
-            {!isReviewed && (
-              <>
-                <Button variant="outline" size="sm" onClick={handleOpenStyleRules} className="hidden lg:flex">
-                  <Settings2 className="mr-2 h-4 w-4" />
-                  <span className="hidden xl:inline">Style Rules</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowRunAIModal(true)}
-                  disabled={!tiptapToken || !tiptapAppId || jwtLoading}
-                  title={jwtError ? `JWT Error: ${jwtError}` : undefined}
-                >
-                  {jwtLoading ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading JWT...</span></>
-                  ) : (
-                    <><Play className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
-                  )}
-                </Button>
-              </>
+            {/* Header Row 2 - Title & Toolbar */}
+            <div className="px-4 lg:px-6 py-4 flex flex-col gap-4">
+              {/* Manuscript Title */}
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl lg:text-3xl font-semibold text-foreground flex-1">{manuscript.title}</h1>
+                {/* Sidebar Toggle - Mobile/Desktop */}
+                <SidebarTrigger className="lg:hidden h-8 w-8">
+                  <PanelRight className="h-4 w-4" />
+                </SidebarTrigger>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
+                {/* Version Control Group */}
+                <ButtonGroup className="hidden lg:inline-flex">
+                  <ButtonGroupItem
+                    position="first"
+                    onClick={() => createSnapshotSafe('manual')}
+                    title="Create a snapshot of the current version"
+                    className="h-8 px-2.5"
+                  >
+                    <Save className="mr-1.5 h-4 w-4" />
+                    Save
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="last"
+                    onClick={() => setShowVersionHistory(true)}
+                    title="View version history"
+                    className="h-8 px-2.5"
+                  >
+                    <History className="h-4 w-4" />
+                  </ButtonGroupItem>
+                </ButtonGroup>
+
+                {!isReviewed && (
+                  <>
+                    {/* Style & AI Editing Group */}
+                    <ButtonGroup className="hidden lg:inline-flex">
+                      <ButtonGroupItem
+                        position="first"
+                        onClick={handleOpenStyleRules}
+                        title="Configure style rules"
+                        className="h-8 px-2.5"
+                        aria-label="Style Rules"
+                      >
+                        <Settings2 className="h-4 w-4" />
+                      </ButtonGroupItem>
+                      <ButtonGroupItem
+                        position="last"
+                        onClick={() => setShowRunAIModal(true)}
+                        disabled={!tiptapToken || !tiptapAppId || jwtLoading}
+                        title={jwtError ? `JWT Error: ${jwtError}` : "Run AI editing pass"}
+                        className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800 h-8 px-2.5"
+                      >
+                        {jwtLoading ? (
+                          <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading...</span></>
+                        ) : (
+                          <><Play className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
+                        )}
+                      </ButtonGroupItem>
+                    </ButtonGroup>
+                  </>
+                )}
+
+                {/* Review → Export → Send Group */}
+                <ButtonGroup className="hidden lg:inline-flex">
+                  <ButtonGroupItem
+                    position="first"
+                    onClick={handleMarkReviewed}
+                    disabled={isReviewed || busySuggestions.size > 0}
+                    data-testid="mark-reviewed-btn"
+                    className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800 h-8 px-2.5"
+                  >
+                    <CheckCircle className="mr-1.5 h-4 w-4" />
+                    <span className="hidden xl:inline">{isReviewed ? "Reviewed" : "Mark Reviewed"}</span>
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="middle"
+                    onClick={handleExportDocx}
+                    disabled={isExporting}
+                    title="Export to DOCX"
+                    className="h-8 px-2.5"
+                  >
+                    {isExporting ? (
+                      <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /><span className="hidden xl:inline">Exporting...</span></>
+                    ) : (
+                      <><Download className="mr-1.5 h-4 w-4" /><span className="hidden xl:inline">Export</span></>
+                    )}
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="last"
+                    title="Send to author"
+                    className="h-8 px-2.5"
+                  >
+                    <Send className="mr-1.5 h-4 w-4" />
+                    <span className="hidden xl:inline">Send to Author</span>
+                  </ButtonGroupItem>
+                </ButtonGroup>
+
+                {/* Desktop Sidebar Toggle */}
+                <SidebarTrigger className="hidden lg:flex ml-auto h-8 w-8">
+                  <PanelRight className="h-4 w-4" />
+                </SidebarTrigger>
+              </div>
+            </div>
+          </header>
+
+          {/* Document Canvas */}
+          <div id="document-canvas" className="h-[calc(100vh-129px)] overflow-hidden">
+            {isReviewed && (
+              <div
+                data-testid="reviewed-banner"
+                className="bg-green-50 border-b border-green-200 px-4 lg:px-6 py-2 text-sm text-green-800"
+              >
+                Reviewed — read-only
+              </div>
             )}
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              onClick={handleMarkReviewed}
-              disabled={isReviewed || busySuggestions.size > 0}
-              data-testid="mark-reviewed-btn"
-            >
-              {isReviewed ? "Reviewed" : "Mark Reviewed"}
-            </Button>
-            <Button variant="outline" size="sm" className="hidden lg:flex">
-              <Download className="mr-2 h-4 w-4" />
-              <span className="hidden xl:inline">Export</span>
-            </Button>
-            <Button variant="outline" size="sm" className="hidden lg:flex">
-              <Send className="mr-2 h-4 w-4" />
-              <span className="hidden xl:inline">Send to Author</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Header Row 2 - Status Information */}
-        <div className="px-4 lg:px-6 py-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          {/* Left: Large manuscript title */}
-          <h1 className="text-2xl lg:text-3xl font-semibold text-foreground truncate flex-1 min-w-0">{manuscript.title}</h1>
-
-          {/* Right: Status badges and metadata */}
-          <div className="flex items-center gap-2 lg:gap-4 flex-wrap lg:flex-nowrap flex-shrink-0">
-            <ProcessingStatus manuscript={manuscript} />
-            <Badge className={getStatusBadgeVariant(manuscript.status)}>
-              Round {manuscript.round}
-            </Badge>
-            <Badge className={getStatusBadgeVariant(manuscript.status)}>
-              {manuscript.status}
-            </Badge>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span>{manuscript.owner}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <SettingsIcon className="h-4 w-4" />
-              <span>Current turn</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <div className="h-[calc(100vh-129px)] flex flex-col lg:flex-row">
-        {/* Document Canvas - Left Column */}
-        <div id="document-canvas" className="flex-1 min-h-0 overflow-hidden">
-          {isReviewed && (
-            <div
-              data-testid="reviewed-banner"
-              className="bg-green-50 border-b border-green-200 px-4 lg:px-6 py-2 text-sm text-green-800"
-            >
-              Reviewed — read-only
-            </div>
-          )}
-          {/* Wait for JWT before rendering editor to ensure AiSuggestion extension is loaded */}
-          {jwtLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-                <p className="text-muted-foreground">Initializing editor...</p>
+            {/* Wait for JWT before rendering editor to ensure AiSuggestion extension is loaded */}
+            {jwtLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                  <p className="text-muted-foreground">Initializing editor...</p>
+                </div>
               </div>
-            </div>
-          ) : jwtError ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-md">
-                <div className="text-4xl mb-4">⚠️</div>
-                <h3 className="text-lg font-semibold mb-2">JWT Authentication Error</h3>
-                <p className="text-muted-foreground mb-4">{jwtError}</p>
-                <Button onClick={refreshToken} variant="outline">
-                  Retry
-                </Button>
+            ) : jwtError ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center max-w-md">
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <h3 className="text-lg font-semibold mb-2">JWT Authentication Error</h3>
+                  <p className="text-muted-foreground mb-4">{jwtError}</p>
+                  <Button onClick={refreshToken} variant="outline">
+                    Retry
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <DocumentCanvas 
-            manuscript={{...manuscript, contentText}} 
-            suggestions={isReviewed ? [] : suggestions}
-            isReadOnly={isReviewed}
-            onCreateSuggestion={createManualSuggestion}
-            getUISuggestions={getUISuggestions}
-            getChecks={getChecks}
-            maxVisibleSuggestions={maxVisibleAI}
-            maxVisibleChecks={maxVisibleChecks}
-            // Enable AI suggestions for experimental editor
-            aiSuggestionConfig={(() => {
-              // Only enable if credentials are available
-              if (!tiptapToken || !tiptapAppId) {
-                return {
-                  enabled: false,
-                  appId: undefined,
-                  token: undefined,
-                  rules: [],
+            ) : (
+              <DocumentCanvas
+              manuscript={{...manuscript, contentText}}
+              suggestions={isReviewed ? [] : suggestions}
+              isReadOnly={isReviewed}
+              onCreateSuggestion={createManualSuggestion}
+              getUISuggestions={getUISuggestions}
+              getChecks={getChecks}
+              maxVisibleSuggestions={maxVisibleAI}
+              maxVisibleChecks={maxVisibleChecks}
+              // Enable AI suggestions for experimental editor
+              aiSuggestionConfig={(() => {
+                // Only enable if credentials are available
+                if (!tiptapToken || !tiptapAppId) {
+                  return {
+                    enabled: false,
+                    appId: undefined,
+                    token: undefined,
+                    rules: [],
+                  };
+                }
+
+                // Get selected rules from available rules
+                const selectedRules = availableRules
+                  .filter(rule => selectedRuleIds.includes(rule.id))
+                  .map(rule => ({
+                    id: rule.id,
+                    title: rule.title,
+                    prompt: rule.prompt,
+                    color: rule.color,
+                    backgroundColor: rule.backgroundColor,
+                  }));
+
+                const config: Record<string, unknown> = {
+                  enabled: true,
+                  // Using fresh JWT token directly
+                  appId: tiptapAppId,
+                  token: tiptapToken,
+                  rules: selectedRules,
+                  loadOnStart: false, // Disable automatic loading as requested
+                  reloadOnUpdate: false, // Don't reload on every edit
+                  // Popover configuration
+                  onPopoverElementCreate: setPopoverElement,
+                  onSelectedSuggestionChange: setSelectedSuggestion,
+                  // Progress tracking
+                  onProgressUpdate: handleProgressUpdate,
                 };
-              }
+                return config;
+              })()}
+            />
+            )}
+          </div>
+        </SidebarInset>
 
-              // Get selected rules from available rules
-              const selectedRules = availableRules
-                .filter(rule => selectedRuleIds.includes(rule.id))
-                .map(rule => ({
-                  id: rule.id,
-                  title: rule.title,
-                  prompt: rule.prompt,
-                  color: rule.color,
-                  backgroundColor: rule.backgroundColor,
-                }));
+        {/* Right Sidebar - Full height collapsible */}
+        <Sidebar
+          side="right"
+          collapsible="offcanvas"
+          variant="floating"
+          className="bg-slate-50/50 dark:bg-slate-900/30 [&_[data-sidebar=sidebar]]:border-none [&_[data-sidebar=sidebar]]:mr-6 !inset-y-auto !top-6 !bottom-10 !h-auto"
+          style={{ '--sidebar-width': '400px' } as React.CSSProperties}
+        >
+          <SidebarContent className="p-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+              {/* Tab List */}
+              <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none bg-transparent border-b flex-shrink-0 h-12 p-0">
+                <TabsTrigger
+                  value="changes"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
+                  Changes {suggestions.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
+                      {suggestions.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="comments"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
+                  Comments
+                </TabsTrigger>
+                <TabsTrigger
+                  value="checks"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
+                  Checks {checks.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
+                      {checks.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="new-content"
+                  className="text-xs px-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                >
+                  New
+                </TabsTrigger>
+              </TabsList>
 
-              const config: Record<string, unknown> = {
-                enabled: true,
-                // Using fresh JWT token directly
-                appId: tiptapAppId,
-                token: tiptapToken,
-                rules: selectedRules,
-                loadOnStart: false, // Disable automatic loading as requested
-                reloadOnUpdate: false, // Don't reload on every edit
-                // Popover configuration
-                onPopoverElementCreate: setPopoverElement,
-                onSelectedSuggestionChange: setSelectedSuggestion,
-                // Progress tracking
-                onProgressUpdate: handleProgressUpdate,
-              };
-              return config;
-            })()}
-          />
-          )}
-        </div>
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
+                <TabsContent value="changes" className="h-full mt-0">
+                  <ChangeList
+                    suggestions={isReviewed ? [] : suggestions}
+                    onAcceptSuggestion={handleAcceptSuggestion}
+                    onRejectSuggestion={handleRejectSuggestion}
+                    busySuggestions={busySuggestions}
+                    isReviewed={isReviewed}
+                    showSuggestions={showSuggestions}
+                    onToggleSuggestions={setShowSuggestions}
+                    onApplyAllSuggestions={handleApplyAllSuggestions}
+                    onTriggerPopover={handleTriggerPopover}
+                    availableRules={availableRules}
+                  />
+                </TabsContent>
 
-        {/* Right Sidebar */}
-        <div id="right-sidebar" className="w-full lg:w-80 bg-muted border-t lg:border-t-0 lg:border-l border-border overflow-hidden flex-shrink-0">
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            {/* Tab List */}
-            <TabsList className="grid w-full grid-cols-4 rounded-none bg-muted">
-              <TabsTrigger value="changes" className="text-xs px-2">
-                Changes {suggestions.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
-                    {suggestions.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="comments" className="text-xs px-2">Comments</TabsTrigger>
-              <TabsTrigger value="checks" className="text-xs px-2">
-                Checks {checks.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1 text-xs">
-                    {checks.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="new-content" className="text-xs px-1">New</TabsTrigger>
-            </TabsList>
-
-            {/* Tab Content */}
-            <div className="flex-1 overflow-hidden">
-              <TabsContent value="changes" className="h-full mt-0">
-                <ChangeList
-                  suggestions={isReviewed ? [] : suggestions}
-                  onAcceptSuggestion={handleAcceptSuggestion}
-                  onRejectSuggestion={handleRejectSuggestion}
-                  busySuggestions={busySuggestions}
-                  isReviewed={isReviewed}
-                  showSuggestions={showSuggestions}
-                  onToggleSuggestions={setShowSuggestions}
-                  onApplyAllSuggestions={handleApplyAllSuggestions}
-                  onTriggerPopover={handleTriggerPopover}
-                  availableRules={availableRules}
-                />
-              </TabsContent>
-
-              <TabsContent value="comments" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    <div className="bg-card border border-card-border rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                          <User className="h-3 w-3" />
+                <TabsContent value="comments" className="h-full mt-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                      <div className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
+                            <User className="h-3 w-3" />
+                          </div>
+                          <span className="text-sm font-medium">System</span>
+                          <span className="text-xs text-muted-foreground">Now</span>
                         </div>
-                        <span className="text-sm font-medium">System</span>
-                        <span className="text-xs text-muted-foreground">Now</span>
+                        <p className="text-sm mb-2">This is the AI suggestions editor. AI suggestions will appear directly in the text as you type or when you run AI Pass.</p>
+                        <p className="text-xs text-muted-foreground mb-3">AI Mode</p>
                       </div>
-                      <p className="text-sm mb-2">This is the AI suggestions editor. AI suggestions will appear directly in the text as you type or when you run AI Pass.</p>
-                      <p className="text-xs text-muted-foreground mb-3">AI Mode</p>
                     </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
+                  </ScrollArea>
+                </TabsContent>
 
-              <TabsContent value="checks" className="h-full mt-0">
-                <ChecksList 
-                  checks={isReviewed ? [] : checks}
-                  onAcceptCheck={handleAcceptCheck}
-                  onRejectCheck={handleRejectCheck}
-                  busyChecks={busyChecks}
-                  isReviewed={isReviewed}
-                  onRunChecks={handleRunChecks}
-                />
-              </TabsContent>
+                <TabsContent value="checks" className="h-full mt-0">
+                  <ChecksList
+                    checks={isReviewed ? [] : checks}
+                    onAcceptCheck={handleAcceptCheck}
+                    onRejectCheck={handleRejectCheck}
+                    busyChecks={busyChecks}
+                    isReviewed={isReviewed}
+                    onRunChecks={handleRunChecks}
+                  />
+                </TabsContent>
 
-              <TabsContent value="new-content" className="h-full mt-0">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
-                    <div className="bg-card border border-card-border rounded-lg p-3">
-                      <div className="flex items-start gap-2">
-                        <Plus className="h-4 w-4 text-green-500 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Advanced AI Features</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            This editor uses TipTap Pro AI suggestions for enhanced editing capabilities.
-                          </p>
+                <TabsContent value="new-content" className="h-full mt-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                      <div className="bg-card border border-card-border rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">Advanced AI Features</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              This editor uses TipTap Pro AI suggestions for enhanced editing capabilities.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-            </div>
-          </Tabs>
-        </div>
+                  </ScrollArea>
+                </TabsContent>
+              </div>
+            </Tabs>
+          </SidebarContent>
+        </Sidebar>
       </div>
 
       {/* Run AI Settings Modal */}
@@ -1478,9 +1757,11 @@ const Editor = () => {
                 // Initialize selectedRuleIds from database-enabled rules on first load
                 if (!rulesInitialized && rules.length > 0) {
                   const enabledRuleIds = rules.filter(r => r.enabled).map(r => r.id);
-                  setSelectedRuleIds(enabledRuleIds);
+                  // Only select first 2 enabled rules by default
+                  const defaultSelectedIds = enabledRuleIds.slice(0, 2);
+                  setSelectedRuleIds(defaultSelectedIds);
                   setRulesInitialized(true);
-                  console.log('✅ Initialized selectedRuleIds from database:', enabledRuleIds);
+                  console.log('✅ Initialized selectedRuleIds from database (first 2):', defaultSelectedIds);
                 }
               }}
             />
@@ -1567,9 +1848,31 @@ const Editor = () => {
           </SheetHeader>
           <VersionHistory
             manuscriptId={manuscript.id}
-            onRestore={() => {
+            currentVersion={currentVersion}
+            onRestore={(restoredVersion, manualSuggestions) => {
               // Refresh editor state after restore
               setShowVersionHistory(false);
+
+              // Convert restored AI suggestions to UI format and merge with manual suggestions
+              const editor = getGlobalEditor();
+              if (editor) {
+                try {
+                  const aiSuggestions = convertAiSuggestionsToUI(editor);
+
+                  // Merge AI and manual suggestions, sorted by position
+                  const allSuggestions = sortSuggestionsByPosition([...aiSuggestions, ...manualSuggestions]);
+                  setSuggestions(allSuggestions);
+
+                  console.log(`✅ Restored ${aiSuggestions.length} AI + ${manualSuggestions.length} manual suggestions`);
+
+                  // Update current version to the restored version
+                  setCurrentVersion(restoredVersion);
+                  console.log(`✅ Current version set to ${restoredVersion}`);
+                } catch (error) {
+                  console.error('Failed to restore suggestions:', error);
+                }
+              }
+
               toast({
                 title: "Document restored",
                 description: "The document has been restored from the selected version"
@@ -1604,6 +1907,27 @@ const Editor = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Save Version Loading Overlay */}
+      <Dialog open={isSavingSnapshot}>
+        <DialogContent
+          className="sm:max-w-md [&>button]:hidden"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Saving Version</DialogTitle>
+          </DialogHeader>
+          <div className="py-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary flex-shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                Creating snapshot of your document...
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* AI Suggestion Popover Portal */}
       {popoverElement && selectedSuggestion && createPortal(
         <SuggestionPopover
@@ -1613,7 +1937,7 @@ const Editor = () => {
         />,
         popoverElement
       )}
-    </div>
+    </SidebarProvider>
   );
 };
 

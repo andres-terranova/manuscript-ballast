@@ -2,20 +2,25 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSnapshots, restoreSnapshot, type Snapshot } from '@/services/snapshotService';
 import { getGlobalEditor } from '@/lib/editorUtils';
 import { useToast } from '@/hooks/use-toast';
-import { RotateCcw, Clock } from 'lucide-react';
+import { RotateCcw, Clock, AlertTriangle } from 'lucide-react';
+import type { UISuggestion } from '@/lib/types';
 
 interface VersionHistoryProps {
   manuscriptId: string;
-  onRestore?: () => void;  // Optional callback after successful restore
+  currentVersion?: number;  // Currently loaded version number
+  onRestore?: (restoredVersion: number, manualSuggestions: UISuggestion[]) => void;  // Optional callback after successful restore
 }
 
-export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps) {
+export function VersionHistory({ manuscriptId, currentVersion, onRestore }: VersionHistoryProps) {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<number | null>(null);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [versionToRestore, setVersionToRestore] = useState<number | null>(null);
   const { toast } = useToast();
 
   // Load snapshots on mount and when manuscriptId changes
@@ -42,7 +47,14 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
     }
   }, [manuscriptId, toast]);
 
-  const handleRestore = async (version: number) => {
+  const handleRestoreClick = (version: number) => {
+    setVersionToRestore(version);
+    setShowRestoreDialog(true);
+  };
+
+  const handleConfirmRestore = async () => {
+    if (versionToRestore === null) return;
+
     const editor = getGlobalEditor();
     if (!editor) {
       toast({
@@ -50,27 +62,22 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
         description: 'Cannot restore snapshot without editor instance',
         variant: 'destructive'
       });
+      setShowRestoreDialog(false);
       return;
     }
 
-    // Confirmation dialog
-    const confirmed = window.confirm(
-      `Restore to version ${version}?\n\nCurrent changes will be lost. This action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    setRestoring(version);
+    setShowRestoreDialog(false);
+    setRestoring(versionToRestore);
     try {
-      await restoreSnapshot(editor, manuscriptId, version);
+      const { manualSuggestions } = await restoreSnapshot(editor, manuscriptId, versionToRestore);
 
       toast({
         title: 'Version restored successfully',
-        description: `Document restored to version ${version}`
+        description: `Document restored to version ${versionToRestore}`
       });
 
-      // Call optional callback
-      onRestore?.();
+      // Call optional callback with restored version number and manual suggestions
+      onRestore?.(versionToRestore, manualSuggestions);
 
       // Reload snapshots to refresh UI
       await loadSnapshots();
@@ -91,7 +98,9 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
       upload: 'Initial Upload',
       send_to_author: 'Sent to Author',
       return_to_editor: 'Returned to Editor',
-      manual: 'Manual Snapshot'
+      manual: 'Manual Snapshot',
+      ai_pass_complete: 'AI Pass Complete',
+      apply_all: 'Applied All Suggestions'
     };
     return labels[event] || event;
   };
@@ -152,6 +161,9 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
         <div className="p-4 space-y-3">
           {snapshots.map((snapshot, index) => {
             const isLatest = index === 0; // First item after reverse
+            const isCurrent = currentVersion !== undefined
+              ? snapshot.version === currentVersion
+              : isLatest; // Fallback to latest if currentVersion not provided
             const isRestoring = restoring === snapshot.version;
 
             return (
@@ -182,13 +194,21 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
                   {snapshot.metadata.wordCount.toLocaleString()} words
                   {' · '}
                   {snapshot.metadata.characterCount.toLocaleString()} characters
+                  {snapshot.metadata?.suggestionCount && snapshot.metadata.suggestionCount > 0 && (
+                    <>
+                      {' · '}
+                      <span className="font-medium text-foreground">
+                        {snapshot.metadata.suggestionCount} suggestion{snapshot.metadata.suggestionCount !== 1 ? 's' : ''}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleRestore(snapshot.version)}
-                  disabled={restoring !== null || isLatest}
+                  onClick={() => handleRestoreClick(snapshot.version)}
+                  disabled={restoring !== null || isCurrent}
                   className="w-full"
                 >
                   {isRestoring ? (
@@ -196,7 +216,7 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
                       <div className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full mr-2" />
                       Restoring...
                     </>
-                  ) : isLatest ? (
+                  ) : isCurrent ? (
                     <>
                       <RotateCcw className="h-3 w-3 mr-2" />
                       Current Version
@@ -213,6 +233,46 @@ export function VersionHistory({ manuscriptId, onRestore }: VersionHistoryProps)
           })}
         </div>
       </ScrollArea>
+
+      {/* Restore Confirmation Dialog */}
+      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <DialogContent
+          className="sm:max-w-md"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              Restore Version {versionToRestore}?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              This will restore your document to version {versionToRestore}.
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800 font-medium">
+              ☝️ Tip: Save your changes
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowRestoreDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleConfirmRestore}
+            >
+              Restore Version
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

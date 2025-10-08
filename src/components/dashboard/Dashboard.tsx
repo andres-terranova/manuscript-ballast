@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, X, Settings, Clock, Trash2 } from "lucide-react";
+import { Search, Upload, Bell, MoreHorizontal, User, Monitor, FileText, ChevronLeft, Settings, Clock, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManuscripts, type Manuscript } from "@/contexts/ManuscriptsContext";
@@ -324,34 +324,27 @@ const Dashboard = () => {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {uploadStep > 1 && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => setUploadStep(1)}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                      )}
+                  <div className="flex items-center gap-2">
+                    {uploadStep > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setUploadStep(1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <div>
                       <DialogTitle>
                         {uploadStep === 1 ? "Upload Manuscript" : "Configure Style Rules"}
                       </DialogTitle>
                       <DialogDescription>
-                        {uploadStep === 1 
-                          ? "Select a manuscript file to upload and process" 
+                        {uploadStep === 1
+                          ? "Select a manuscript file to upload and process"
                           : "Configure editing rules for your manuscript"
                         }
                       </DialogDescription>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setShowUploadModal(false)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
                   </div>
                 </DialogHeader>
                 
@@ -369,7 +362,7 @@ const Dashboard = () => {
                           Drop your manuscript file here
                         </h3>
                         <p className="text-gray-600 mb-4">
-                          Supports Markdown (.md) and Word (.docx) files
+                          Supports Word (.docx) files
                         </p>
                         <input
                           id="file-upload-input"
@@ -553,12 +546,17 @@ const Dashboard = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredManuscripts.map((manuscript) => (
-                  <TableRow
-                    key={manuscript.id}
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => navigate(`/manuscript/${manuscript.id}`)}
-                  >
+                {filteredManuscripts.map((manuscript) => {
+                  const queueStatus = getManuscriptStatus(manuscript.id);
+                  const isProcessing = queueStatus?.status === 'pending' || queueStatus?.status === 'processing';
+                  const isReady = !isProcessing && manuscript.processingStatus !== 'failed';
+
+                  return (
+                    <TableRow
+                      key={manuscript.id}
+                      className={isReady ? "cursor-pointer hover:bg-gray-50" : "cursor-not-allowed opacity-60"}
+                      onClick={isReady ? () => navigate(`/manuscript/${manuscript.id}`) : undefined}
+                    >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <span>{manuscript.title}</span>
@@ -570,8 +568,8 @@ const Dashboard = () => {
                             return <Badge variant="secondary" className="text-xs animate-pulse">⏳ Queued</Badge>;
                           }
                           if (queueStatus?.status === 'processing') {
-                            const progress = queueStatus.progress?.progress || 0;
-                            const step = queueStatus.progress?.step || 'processing';
+                            const progress = (queueStatus.progress?.progress as number) || 0;
+                            const step = (queueStatus.progress?.step as string) || 'processing';
                             return (
                               <Badge variant="outline" className="text-xs animate-pulse">
                                 ⚡ {step} ({progress}%)
@@ -619,15 +617,6 @@ const Dashboard = () => {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/manuscript/${manuscript.id}/legacy`);
-                            }}
-                          >
-                            Open in Legacy Editor
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
                               setDeleteConfirmManuscript(manuscript);
                             }}
                             className="text-red-600 focus:text-red-600"
@@ -639,7 +628,8 @@ const Dashboard = () => {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

@@ -110,28 +110,19 @@ export const ChangeList = ({
 
   return (
     <div data-testid="changes-list" className="h-full flex flex-col">
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-foreground">Change List</h3>
-            {onToggleSuggestions && (
-              <Button
-                size="sm"
-                variant={showSuggestions ? "default" : "outline"}
-                className="h-6 px-2 text-xs"
-                onClick={() => onToggleSuggestions(!showSuggestions)}
-              >
-                {showSuggestions ? "Hide" : "Show"}
-              </Button>
-            )}
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border/40">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h3 className="font-semibold text-sm text-foreground">Change List</h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Apply All Button */}
             {onApplyAllSuggestions && filteredSuggestions.length > 0 && !isReviewed && (
               <Button
                 size="sm"
                 variant="default"
-                className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700"
+                className="h-6 px-2.5 text-xs bg-emerald-600/90 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 transition-colors duration-200"
                 onClick={onApplyAllSuggestions}
                 disabled={busySuggestions.size > 0}
               >
@@ -147,23 +138,23 @@ export const ChangeList = ({
         
       </div>
 
-      {/* Rule Filter (AI Editor Roles) */}
+      {/* Rule Filter */}
       {(rulesInUse.length > 0 || hasNonAISuggestions) && (
-        <div className="p-3 border-b border-border" data-testid="changes-filter-group">
-          <div className="flex gap-1 flex-wrap">
+        <div className="px-4 py-2.5 border-b border-border/30" data-testid="changes-filter-group">
+          <div className="flex gap-0.5 flex-wrap">
             <Button
               size="sm"
-              variant={ruleFilter === "all" ? "default" : "ghost"}
-              className="text-xs h-7"
+              variant={ruleFilter === "all" ? "secondary" : "ghost"}
+              className="text-xs h-7 px-3 font-normal rounded-md"
               onClick={() => setRuleFilter("all")}
             >
-              All Roles
+              All
             </Button>
             {hasNonAISuggestions && (
               <Button
                 size="sm"
-                variant={ruleFilter === "non-ai" ? "default" : "ghost"}
-                className="text-xs h-7"
+                variant={ruleFilter === "non-ai" ? "secondary" : "ghost"}
+                className="text-xs h-7 px-3 font-normal rounded-md"
                 onClick={() => setRuleFilter("non-ai")}
               >
                 Manual
@@ -173,15 +164,14 @@ export const ChangeList = ({
               <Button
                 key={rule.id}
                 size="sm"
-                variant={ruleFilter === rule.id ? "default" : "ghost"}
-                className="text-xs h-7 gap-2"
+                variant={ruleFilter === rule.id ? "secondary" : "ghost"}
+                className="text-xs h-7 px-3 gap-1.5 font-normal rounded-md"
                 onClick={() => setRuleFilter(rule.id)}
               >
                 <div
-                  className="w-2 h-2 rounded-sm border"
+                  className="w-2 h-2 rounded-full"
                   style={{
-                    backgroundColor: rule.backgroundColor,
-                    borderColor: rule.color,
+                    backgroundColor: rule.color,
                   }}
                 />
                 {rule.title}
@@ -191,8 +181,9 @@ export const ChangeList = ({
         </div>
       )}
 
+      {/* Scrollable Card List */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-4">
+        <div className="p-3 space-y-2">
           {visibleSuggestions.length > 0 ? (
             visibleSuggestions.map((suggestion, index) => {
               const isBusy = busySuggestions.has(suggestion.id);
@@ -224,9 +215,9 @@ export const ChangeList = ({
           )}
         </div>
 
-        {/* Subtle pagination at bottom */}
+        {/* Pagination */}
         {totalPages > 1 && visibleSuggestions.length > 0 && (
-          <div className="sticky bottom-0 bg-background border-t border-border p-2">
+          <div className="sticky bottom-0 bg-background border-t border-border/30 py-2">
             <div className="flex items-center justify-center gap-2">
               <Button
                 size="sm"
@@ -235,9 +226,9 @@ export const ChangeList = ({
                 disabled={currentPage === 1}
                 className="h-6 px-2 text-xs"
               >
-                <ChevronLeft className="h-3 w-3" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-              <span className="text-xs text-muted-foreground px-2">
+              <span className="text-xs text-muted-foreground/80 px-2 font-medium min-w-[60px] text-center">
                 {currentPage} / {totalPages}
               </span>
               <Button
@@ -247,7 +238,7 @@ export const ChangeList = ({
                 disabled={currentPage === totalPages}
                 className="h-6 px-2 text-xs"
               >
-                <ChevronRight className="h-3 w-3" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
