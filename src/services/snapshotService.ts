@@ -154,7 +154,7 @@ export async function restoreSnapshot(
   editor: Editor,
   manuscriptId: string,
   version: number
-): Promise<{ manualSuggestions: UISuggestion[] }> {
+): Promise<{ manualSuggestions: UISuggestion[]; aiSuggestions: Suggestion[] }> {
   try {
     // Step 1: Fetch snapshots from database
     const { data: manuscript, error: fetchError } = await supabase
@@ -229,7 +229,10 @@ export async function restoreSnapshot(
       manualSuggestionsRestored: manualSuggestionsToRestore.length
     });
 
-    return { manualSuggestions: manualSuggestionsToRestore };
+    return {
+      manualSuggestions: manualSuggestionsToRestore,
+      aiSuggestions: snapshot.aiSuggestions || []
+    };
 
   } catch (error) {
     console.error('Snapshot restoration failed:', error);

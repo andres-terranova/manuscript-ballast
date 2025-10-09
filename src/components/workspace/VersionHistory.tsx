@@ -8,11 +8,12 @@ import { getGlobalEditor } from '@/lib/editorUtils';
 import { useToast } from '@/hooks/use-toast';
 import { RotateCcw, Clock, AlertTriangle } from 'lucide-react';
 import type { UISuggestion } from '@/lib/types';
+import type { Suggestion } from '@tiptap-pro/extension-ai-suggestion';
 
 interface VersionHistoryProps {
   manuscriptId: string;
   currentVersion?: number;  // Currently loaded version number
-  onRestore?: (restoredVersion: number, manualSuggestions: UISuggestion[]) => void;  // Optional callback after successful restore
+  onRestore?: (restoredVersion: number, manualSuggestions: UISuggestion[], aiSuggestions: Suggestion[]) => void;  // Optional callback after successful restore
 }
 
 export function VersionHistory({ manuscriptId, currentVersion, onRestore }: VersionHistoryProps) {
@@ -69,15 +70,15 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
     setShowRestoreDialog(false);
     setRestoring(versionToRestore);
     try {
-      const { manualSuggestions } = await restoreSnapshot(editor, manuscriptId, versionToRestore);
+      const { manualSuggestions, aiSuggestions } = await restoreSnapshot(editor, manuscriptId, versionToRestore);
 
       toast({
         title: 'Version restored successfully',
         description: `Document restored to version ${versionToRestore}`
       });
 
-      // Call optional callback with restored version number and manual suggestions
-      onRestore?.(versionToRestore, manualSuggestions);
+      // Call optional callback with restored version number, manual suggestions, and AI suggestions from snapshot
+      onRestore?.(versionToRestore, manualSuggestions, aiSuggestions);
 
       // Reload snapshots to refresh UI
       await loadSnapshots();
