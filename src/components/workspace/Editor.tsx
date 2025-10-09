@@ -8,6 +8,7 @@ import { ButtonGroup, ButtonGroupItem } from "@/components/ui/button-group";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1445,23 +1446,23 @@ const Editor = () => {
               {/* Action Toolbar */}
               <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
                 {/* Version Control Group */}
-                <ButtonGroup className="hidden lg:inline-flex">
+                <ButtonGroup className="hidden lg:inline-flex bg-slate-100/50 rounded-md shadow-sm">
                   <ButtonGroupItem
                     position="first"
                     onClick={() => createSnapshotSafe('manual')}
                     title="Create a snapshot of the current version"
-                    className="h-8 px-2.5"
+                    className="h-8 px-2.5 hover:bg-slate-200/70 transition-colors duration-150"
                   >
-                    <Save className="mr-1.5 h-4 w-4" />
+                    <Save className="mr-1.5 h-4 w-4 text-slate-600" />
                     Save
                   </ButtonGroupItem>
                   <ButtonGroupItem
                     position="last"
                     onClick={() => setShowVersionHistory(true)}
                     title="View version history"
-                    className="h-8 px-2.5"
+                    className="h-8 px-2.5 hover:bg-slate-200/70 transition-colors duration-150"
                   >
-                    <History className="h-4 w-4" />
+                    <History className="h-4 w-4 text-slate-600" />
                   </ButtonGroupItem>
                 </ButtonGroup>
 
@@ -1483,12 +1484,12 @@ const Editor = () => {
                         onClick={() => setShowRunAIModal(true)}
                         disabled={!tiptapToken || !tiptapAppId || jwtLoading}
                         title={jwtError ? `JWT Error: ${jwtError}` : "Run AI editing pass"}
-                        className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800 h-8 px-2.5"
+                        className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800 h-8 px-2.5 transition-all duration-150 shadow-sm hover:shadow-md"
                       >
                         {jwtLoading ? (
                           <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Loading...</>
                         ) : (
-                          <><Play className="mr-1.5 h-4 w-4" />Run AI Pass</>
+                          <><Play className="mr-1.5 h-4 w-4 text-purple-600" />Run AI Pass</>
                         )}
                       </ButtonGroupItem>
                     </ButtonGroup>
@@ -1502,9 +1503,9 @@ const Editor = () => {
                     onClick={handleMarkReviewed}
                     disabled={isReviewed || busySuggestions.size > 0}
                     data-testid="mark-reviewed-btn"
-                    className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800 h-8 px-2.5"
+                    className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800 h-8 px-2.5 transition-all duration-150 shadow-sm hover:shadow-md"
                   >
-                    <CheckCircle className="h-4 w-4" />
+                    <CheckCircle className="h-4 w-4 text-green-600" />
                   </ButtonGroupItem>
                   <ButtonGroupItem
                     position="middle"
@@ -1516,7 +1517,7 @@ const Editor = () => {
                     {isExporting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Download className="h-4 w-4" />
+                      <Download className="h-4 w-4 text-slate-600" />
                     )}
                   </ButtonGroupItem>
                   <ButtonGroupItem
@@ -1524,7 +1525,7 @@ const Editor = () => {
                     title="Send to author"
                     className="h-8 px-2.5"
                   >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-4 w-4 text-slate-600" />
                   </ButtonGroupItem>
                 </ButtonGroup>
 
@@ -1659,7 +1660,15 @@ const Editor = () => {
                   className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
                 >
                   Changes {suggestions.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "ml-1 px-1.5 text-[10px] font-medium rounded-full transition-all duration-200",
+                        suggestions.length > 50 ? "bg-amber-100 text-amber-700 border border-amber-200" :
+                        suggestions.length > 20 ? "bg-blue-100 text-blue-700 border border-blue-200" :
+                        "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                      )}
+                    >
                       {suggestions.length}
                     </Badge>
                   )}
@@ -1675,7 +1684,15 @@ const Editor = () => {
                   className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
                 >
                   Checks {checks.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "ml-1 px-1.5 text-[10px] font-medium rounded-full transition-all duration-200",
+                        checks.length > 50 ? "bg-amber-100 text-amber-700 border border-amber-200" :
+                        checks.length > 20 ? "bg-blue-100 text-blue-700 border border-blue-200" :
+                        "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                      )}
+                    >
                       {checks.length}
                     </Badge>
                   )}
