@@ -280,7 +280,7 @@ export const useTiptapEditor = ({
                     const element = document.createElement('div');
                     element.style.position = 'relative';
                     element.style.display = 'inline-block';
-                    element.style.zIndex = '1000';
+                    element.style.zIndex = '40';
 
                     // Set the popover element for React Portal
                     aiSuggestionConfig.onPopoverElementCreate?.(element);

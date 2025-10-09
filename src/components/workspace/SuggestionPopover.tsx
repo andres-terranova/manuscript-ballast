@@ -46,7 +46,7 @@ export const SuggestionPopover = ({
       top: '-10px',
       left: '0',
       transform: 'translateY(-100%)',
-      zIndex: 9999
+      zIndex: 40
     }}>
       <Card 
         className="w-80 shadow-lg border-2" 
