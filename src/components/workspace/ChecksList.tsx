@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
+import { ButtonGroup, ButtonGroupItem } from "@/components/ui/button-group";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings2, Play } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { CheckItem } from "@/lib/styleValidator";
 import { CheckCard } from "./CheckCard";
@@ -12,15 +13,17 @@ interface ChecksListProps {
   busyChecks?: Set<string>;
   isReviewed?: boolean;
   onRunChecks?: () => void;
+  onOpenStyleRules?: () => void;
 }
 
-export const ChecksList = ({ 
-  checks, 
-  onAcceptCheck, 
-  onRejectCheck, 
-  busyChecks = new Set(), 
+export const ChecksList = ({
+  checks,
+  onAcceptCheck,
+  onRejectCheck,
+  busyChecks = new Set(),
   isReviewed = false,
-  onRunChecks 
+  onRunChecks,
+  onOpenStyleRules
 }: ChecksListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -57,14 +60,28 @@ export const ChecksList = ({
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-semibold text-foreground">Style Checks</h3>
-          <Button 
-            size="sm" 
-            onClick={onRunChecks}
-            data-testid="checks-run"
-            disabled={isReviewed}
-          >
-            Run Checks
-          </Button>
+          <ButtonGroup>
+            <ButtonGroupItem
+              position="first"
+              onClick={onOpenStyleRules}
+              title="Configure style rules"
+              disabled={isReviewed}
+              className="h-8 px-2.5"
+            >
+              <Settings2 className="h-4 w-4" />
+            </ButtonGroupItem>
+            <ButtonGroupItem
+              position="last"
+              onClick={onRunChecks}
+              data-testid="checks-run"
+              disabled={isReviewed}
+              title="Run style checks"
+              className="h-8 px-2.5"
+            >
+              <Play className="mr-1.5 h-4 w-4" />
+              Run Checks
+            </ButtonGroupItem>
+          </ButtonGroup>
         </div>
         <p className="text-sm text-muted-foreground">
           Showing {visibleChecks.length} of {checks.length} total
