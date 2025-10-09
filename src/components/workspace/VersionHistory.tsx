@@ -2,11 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { getSnapshots, restoreSnapshot, type Snapshot } from '@/services/snapshotService';
 import { getGlobalEditor } from '@/lib/editorUtils';
 import { useToast } from '@/hooks/use-toast';
-import { RotateCcw, Clock, AlertTriangle } from 'lucide-react';
+import { RotateCcw, Clock, ArrowUpRight } from 'lucide-react';
 import type { UISuggestion } from '@/lib/types';
 import type { Suggestion } from '@tiptap-pro/extension-ai-suggestion';
 
@@ -20,8 +19,6 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<number | null>(null);
-  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
-  const [versionToRestore, setVersionToRestore] = useState<number | null>(null);
   const { toast } = useToast();
 
   // Load snapshots on mount and when manuscriptId changes
@@ -48,14 +45,7 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
     }
   }, [manuscriptId, toast]);
 
-  const handleRestoreClick = (version: number) => {
-    setVersionToRestore(version);
-    setShowRestoreDialog(true);
-  };
-
-  const handleConfirmRestore = async (saveChanges: boolean) => {
-    if (versionToRestore === null) return;
-
+  const handleRestoreClick = async (version: number) => {
     const editor = getGlobalEditor();
     if (!editor) {
       toast({
@@ -63,33 +53,20 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
         description: 'Cannot restore snapshot without editor instance',
         variant: 'destructive'
       });
-      setShowRestoreDialog(false);
       return;
     }
 
-    setShowRestoreDialog(false);
-
-    // If saveChanges is true, create a snapshot before restoring
-    if (saveChanges) {
-      // TODO: Implement save current version functionality
-      // This will create a new snapshot of the current state before restoring
-      toast({
-        title: 'Saving current version',
-        description: 'Creating snapshot before restore...'
-      });
-    }
-
-    setRestoring(versionToRestore);
+    setRestoring(version);
     try {
-      const { manualSuggestions, aiSuggestions } = await restoreSnapshot(editor, manuscriptId, versionToRestore);
+      const { manualSuggestions, aiSuggestions } = await restoreSnapshot(editor, manuscriptId, version);
 
       toast({
         title: 'Version restored successfully',
-        description: `Document restored to version ${versionToRestore}`
+        description: `Document restored to version ${version}`
       });
 
       // Call optional callback with restored version number, manual suggestions, and AI suggestions from snapshot
-      onRestore?.(versionToRestore, manualSuggestions, aiSuggestions);
+      onRestore?.(version, manualSuggestions, aiSuggestions);
 
       // Reload snapshots to refresh UI
       await loadSnapshots();
@@ -169,6 +146,21 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
         </p>
       </div>
 
+      {/* Back to Latest button - show when viewing old version */}
+      {currentVersion !== undefined && snapshots.length > 0 && currentVersion < snapshots[0].version && (
+        <div className="p-4 border-b bg-muted/30">
+          <Button
+            onClick={() => handleRestoreClick(snapshots[0].version)}
+            disabled={restoring !== null}
+            className="w-full"
+            variant="default"
+          >
+            <ArrowUpRight className="h-4 w-4 mr-2" />
+            Back to Latest
+          </Button>
+        </div>
+      )}
+
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-3">
           {snapshots.map((snapshot, index) => {
@@ -243,49 +235,6 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
           })}
         </div>
       </ScrollArea>
-
-      {/* Restore Confirmation Dialog */}
-      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
-        <DialogContent
-          className="sm:max-w-lg"
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              Restore Version {versionToRestore}?
-            </DialogTitle>
-            <DialogDescription>
-              Active suggestions will also be saved.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <div className="flex gap-2 justify-center">
-              <Button
-                variant="outline"
-                onClick={() => setShowRestoreDialog(false)}
-                className="flex-1 border-border/80"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => handleConfirmRestore(true)}
-                className="flex-1"
-              >
-                Save & Restore
-              </Button>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={() => handleConfirmRestore(false)}
-              className="w-full text-muted-foreground hover:text-destructive"
-            >
-              Restore Without Saving
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

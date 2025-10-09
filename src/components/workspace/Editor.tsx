@@ -1835,7 +1835,7 @@ const Editor = () => {
               // Convert restored AI suggestions to UI format using snapshot data directly
               // This avoids timing issues with TipTap's extension storage
               try {
-                const aiSuggestionsUI: UISuggestion[] = (snapshotAiSuggestions || []).map((suggestion: any, index: number) => {
+                const aiSuggestionsUI: UISuggestion[] = (snapshotAiSuggestions || []).map((suggestion: unknown, index: number) => {
                   // Extract rule information from the snapshot's TipTap suggestion
                   const ruleId = suggestion.rule?.id || suggestion.ruleId;
                   const ruleTitle = suggestion.rule?.title || getRuleTitle(ruleId);
