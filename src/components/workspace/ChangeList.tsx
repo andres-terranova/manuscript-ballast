@@ -121,8 +121,8 @@ export const ChangeList = ({
             {onApplyAllSuggestions && filteredSuggestions.length > 0 && !isReviewed && (
               <Button
                 size="sm"
-                variant="default"
-                className="h-6 px-2.5 text-xs bg-emerald-600/90 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 transition-colors duration-200"
+                variant="outline"
+                className="h-7 px-2.5 text-[11px] border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-600/60 dark:text-emerald-400 dark:border-emerald-500/40 dark:hover:bg-emerald-950/30 transition-colors duration-200"
                 onClick={onApplyAllSuggestions}
                 disabled={busySuggestions.size > 0}
               >

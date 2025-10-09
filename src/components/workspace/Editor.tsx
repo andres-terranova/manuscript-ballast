@@ -1414,13 +1414,13 @@ const Editor = () => {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen bg-white flex w-full">
+      <div className="min-h-screen bg-slate-50/40 flex w-full">
         {/* Main Content Area - Uses SidebarInset for proper spacing */}
         <SidebarInset className="flex-1 bg-transparent border-none">
           {/* Header */}
-          <header id="header" className="border-b border-border bg-white">
+          <header id="header" className="border-b border-border bg-slate-100/60">
             {/* Header Row 1 - Breadcrumb Navigation */}
-            <div className="px-4 lg:px-6 py-3 flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+            <div className="px-4 lg:px-6 py-3 flex items-center gap-2 text-sm text-muted-foreground min-w-0 bg-white/80">
               <button
                 onClick={() => navigate("/dashboard")}
                 className="hover:text-foreground transition-colors flex-shrink-0"
@@ -1432,7 +1432,7 @@ const Editor = () => {
             </div>
 
             {/* Header Row 2 - Title & Toolbar */}
-            <div className="px-4 lg:px-6 py-4 flex flex-col gap-4">
+            <div className="px-4 lg:px-6 py-4 flex flex-col gap-4 bg-slate-50">
               {/* Manuscript Title */}
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl lg:text-3xl font-semibold text-foreground flex-1">{manuscript.title}</h1>
@@ -1486,9 +1486,9 @@ const Editor = () => {
                         className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800 h-8 px-2.5"
                       >
                         {jwtLoading ? (
-                          <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /><span className="hidden sm:inline">Loading...</span></>
+                          <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Loading...</>
                         ) : (
-                          <><Play className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">Run AI Pass</span></>
+                          <><Play className="mr-1.5 h-4 w-4" />Run AI Pass</>
                         )}
                       </ButtonGroupItem>
                     </ButtonGroup>
@@ -1504,8 +1504,7 @@ const Editor = () => {
                     data-testid="mark-reviewed-btn"
                     className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800 h-8 px-2.5"
                   >
-                    <CheckCircle className="mr-1.5 h-4 w-4" />
-                    <span className="hidden xl:inline">{isReviewed ? "Reviewed" : "Mark Reviewed"}</span>
+                    <CheckCircle className="h-4 w-4" />
                   </ButtonGroupItem>
                   <ButtonGroupItem
                     position="middle"
@@ -1515,9 +1514,9 @@ const Editor = () => {
                     className="h-8 px-2.5"
                   >
                     {isExporting ? (
-                      <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /><span className="hidden xl:inline">Exporting...</span></>
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <><Download className="mr-1.5 h-4 w-4" /><span className="hidden xl:inline">Export</span></>
+                      <Download className="h-4 w-4" />
                     )}
                   </ButtonGroupItem>
                   <ButtonGroupItem
@@ -1525,8 +1524,7 @@ const Editor = () => {
                     title="Send to author"
                     className="h-8 px-2.5"
                   >
-                    <Send className="mr-1.5 h-4 w-4" />
-                    <span className="hidden xl:inline">Send to Author</span>
+                    <Send className="h-4 w-4" />
                   </ButtonGroupItem>
                 </ButtonGroup>
 
@@ -1539,7 +1537,7 @@ const Editor = () => {
           </header>
 
           {/* Document Canvas */}
-          <div id="document-canvas" className="h-[calc(100vh-129px)] overflow-hidden">
+          <div id="document-canvas" className="h-[calc(100vh-129px)] overflow-hidden bg-slate-50/70">
             {isReviewed && (
               <div
                 data-testid="reviewed-banner"
@@ -1626,16 +1624,39 @@ const Editor = () => {
           side="right"
           collapsible="offcanvas"
           variant="floating"
-          className="bg-slate-50/50 dark:bg-slate-900/30 [&_[data-sidebar=sidebar]]:border-none [&_[data-sidebar=sidebar]]:mr-6 !inset-y-auto !top-6 !bottom-10 !h-auto"
-          style={{ '--sidebar-width': '400px' } as React.CSSProperties}
+          className="bg-transparent dark:bg-transparent [&_[data-sidebar=sidebar]]:bg-slate-100 [&_[data-sidebar=sidebar]]:border-none lg:[&_[data-sidebar=sidebar]]:bg-transparent lg:[&_[data-sidebar=sidebar]]:mr-6 lg:!inset-y-auto lg:!top-6 lg:!bottom-6 lg:!h-auto"
+          style={{ '--sidebar-width': '440px' } as React.CSSProperties}
         >
-          <SidebarContent className="p-0">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+          <SidebarContent className="p-0 bg-transparent lg:bg-slate-50/70 lg:rounded-lg lg:border lg:border-card-border h-full flex flex-col overflow-hidden">
+            {/* Version Control Header */}
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-b bg-slate-100/80 flex-shrink-0">
+              <ButtonGroup>
+                <ButtonGroupItem
+                  position="first"
+                  onClick={() => createSnapshotSafe('manual')}
+                  title="Create a snapshot of the current version"
+                  className="h-8 px-2.5"
+                >
+                  <Save className="mr-1.5 h-4 w-4" />
+                  Save
+                </ButtonGroupItem>
+                <ButtonGroupItem
+                  position="last"
+                  onClick={() => setShowVersionHistory(true)}
+                  title="View version history"
+                  className="h-8 px-2.5"
+                >
+                  <History className="h-4 w-4" />
+                </ButtonGroupItem>
+              </ButtonGroup>
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col -mt-3 min-h-0">
               {/* Tab List */}
-              <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none bg-transparent border-b flex-shrink-0 h-12 p-0">
+              <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none bg-slate-100/60 flex-shrink-0 h-12 p-0 relative">
                 <TabsTrigger
                   value="changes"
-                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
                 >
                   Changes {suggestions.length > 0 && (
                     <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
@@ -1645,13 +1666,13 @@ const Editor = () => {
                 </TabsTrigger>
                 <TabsTrigger
                   value="comments"
-                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
                 >
                   Comments
                 </TabsTrigger>
                 <TabsTrigger
                   value="checks"
-                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                  className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
                 >
                   Checks {checks.length > 0 && (
                     <Badge variant="secondary" className="ml-1 px-1 text-[10px] font-normal bg-background/50 border-0 text-foreground">
@@ -1661,7 +1682,7 @@ const Editor = () => {
                 </TabsTrigger>
                 <TabsTrigger
                   value="new-content"
-                  className="text-xs px-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground"
+                  className="text-xs px-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
                 >
                   New
                 </TabsTrigger>
