@@ -53,7 +53,7 @@ export const DocumentCanvas = ({
   maxVisibleChecks = 200,
   aiSuggestionConfig
 }: DocumentCanvasProps) => {
-  const { updateManuscript } = useManuscripts();
+  const { updateManuscriptSilent } = useManuscripts();
   const [showSuggestDialog, setShowSuggestDialog] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
 
@@ -62,7 +62,7 @@ export const DocumentCanvas = ({
   const contentHtml = manuscript.contentHtml || textToHtml(manuscript.contentText);
 
   const handleEditorUpdate = (html: string, text: string) => {
-    updateManuscript(manuscript.id, {
+    updateManuscriptSilent(manuscript.id, {
       content_html: html,
       content_text: text
     });
