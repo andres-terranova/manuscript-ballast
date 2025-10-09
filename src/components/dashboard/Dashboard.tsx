@@ -75,16 +75,16 @@ const Dashboard = () => {
 
   const getStatusBadge = (status: Manuscript['status']) => {
     const statusConfig = {
-      'In Review': { color: 'bg-blue-100 text-blue-800' },
-      'Reviewed': { color: 'bg-green-100 text-green-800' },
-      'Tool Pending': { color: 'bg-gray-100 text-gray-800' },
-      'With Author': { color: 'bg-purple-100 text-purple-800' }
+      'In Review': { color: 'bg-blue-100 text-blue-800 hover:bg-blue-100' },
+      'Reviewed': { color: 'bg-green-100 text-green-800 hover:bg-green-100' },
+      'Tool Pending': { color: 'bg-gray-100 text-gray-800 hover:bg-gray-100' },
+      'With Author': { color: 'bg-purple-100 text-purple-800 hover:bg-purple-100' }
     };
-    
+
     const config = statusConfig[status] || statusConfig['In Review'];
-    
+
     return (
-      <Badge className={`${config.color} border-0`}>
+      <Badge className={`${config.color} border-0 pointer-events-none`}>
         {status}
       </Badge>
     );

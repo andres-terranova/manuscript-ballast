@@ -161,9 +161,7 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
         <div className="p-4 space-y-3">
           {snapshots.map((snapshot, index) => {
             const isLatest = index === 0; // First item after reverse
-            const isCurrent = currentVersion !== undefined
-              ? snapshot.version === currentVersion
-              : isLatest; // Fallback to latest if currentVersion not provided
+            const isCurrent = currentVersion !== undefined && snapshot.version === currentVersion;
             const isRestoring = restoring === snapshot.version;
 
             return (
