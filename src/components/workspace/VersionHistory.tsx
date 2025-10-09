@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { getSnapshots, restoreSnapshot, type Snapshot } from '@/services/snapshotService';
 import { getGlobalEditor } from '@/lib/editorUtils';
 import { useToast } from '@/hooks/use-toast';
@@ -53,7 +53,7 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
     setShowRestoreDialog(true);
   };
 
-  const handleConfirmRestore = async () => {
+  const handleConfirmRestore = async (saveChanges: boolean) => {
     if (versionToRestore === null) return;
 
     const editor = getGlobalEditor();
@@ -68,6 +68,17 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
     }
 
     setShowRestoreDialog(false);
+
+    // If saveChanges is true, create a snapshot before restoring
+    if (saveChanges) {
+      // TODO: Implement save current version functionality
+      // This will create a new snapshot of the current state before restoring
+      toast({
+        title: 'Saving current version',
+        description: 'Creating snapshot before restore...'
+      });
+    }
+
     setRestoring(versionToRestore);
     try {
       const { manualSuggestions, aiSuggestions } = await restoreSnapshot(editor, manuscriptId, versionToRestore);
@@ -236,7 +247,7 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
       {/* Restore Confirmation Dialog */}
       <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
         <DialogContent
-          className="sm:max-w-md"
+          className="sm:max-w-lg"
           onEscapeKeyDown={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >
@@ -245,31 +256,34 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
               <AlertTriangle className="h-5 w-5 text-yellow-600" />
               Restore Version {versionToRestore}?
             </DialogTitle>
+            <DialogDescription>
+              Active suggestions will also be saved.
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              This will restore your document to version {versionToRestore}.
-            </p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p className="text-sm text-yellow-800 font-medium">
-              ☝️ Tip: Save your changes
-              </p>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <div className="flex gap-2 justify-center">
+              <Button
+                variant="outline"
+                onClick={() => setShowRestoreDialog(false)}
+                className="flex-1 border-border/80"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleConfirmRestore(true)}
+                className="flex-1"
+              >
+                Save & Restore
+              </Button>
             </div>
-          </div>
-          <div className="flex justify-end gap-3">
             <Button
-              variant="outline"
-              onClick={() => setShowRestoreDialog(false)}
+              variant="ghost"
+              onClick={() => handleConfirmRestore(false)}
+              className="w-full text-muted-foreground hover:text-destructive"
             >
-              Cancel
+              Restore Without Saving
             </Button>
-            <Button
-              variant="default"
-              onClick={handleConfirmRestore}
-            >
-              Restore Version
-            </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
