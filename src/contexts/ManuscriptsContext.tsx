@@ -13,6 +13,7 @@ interface ManuscriptsContextType {
   error: string | null;
   getManuscriptById: (id: string) => Manuscript | undefined;
   updateManuscript: (id: string, updates: ManuscriptUpdateInput) => Promise<void>;
+  updateManuscriptSilent: (id: string, updates: ManuscriptUpdateInput) => Promise<void>;
   addManuscript: (input: ManuscriptCreateInput) => Promise<Manuscript>;
   deleteManuscript: (id: string) => Promise<void>;
   refreshManuscripts: () => Promise<void>;
@@ -62,15 +63,36 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       const updatedDbManuscript = await ManuscriptService.updateManuscript(id, updates);
       const updatedManuscript = dbToFrontend(updatedDbManuscript);
-      
-      setManuscripts(prev => prev.map(m => 
+
+      setManuscripts(prev => prev.map(m =>
         m.id === id ? updatedManuscript : m
       ));
-      
+
       toast({
         title: "Success",
         description: "Manuscript updated successfully",
       });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update manuscript';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
+  const updateManuscriptSilent = async (id: string, updates: ManuscriptUpdateInput) => {
+    try {
+      const updatedDbManuscript = await ManuscriptService.updateManuscript(id, updates);
+      const updatedManuscript = dbToFrontend(updatedDbManuscript);
+
+      setManuscripts(prev => prev.map(m =>
+        m.id === id ? updatedManuscript : m
+      ));
+
+      // No toast notification for silent updates
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update manuscript';
       toast({
@@ -136,15 +158,16 @@ export const ManuscriptsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   return (
-    <ManuscriptsContext.Provider value={{ 
-      manuscripts, 
-      loading, 
-      error, 
-      getManuscriptById, 
-      updateManuscript, 
-      addManuscript, 
+    <ManuscriptsContext.Provider value={{
+      manuscripts,
+      loading,
+      error,
+      getManuscriptById,
+      updateManuscript,
+      updateManuscriptSilent,
+      addManuscript,
       deleteManuscript,
-      refreshManuscripts 
+      refreshManuscripts
     }}>
       {children}
     </ManuscriptsContext.Provider>
