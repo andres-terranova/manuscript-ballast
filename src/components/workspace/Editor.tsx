@@ -228,6 +228,22 @@ const Editor = () => {
   const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
   const [availableRules, setAvailableRules] = useState<AIEditorRule[]>([]);
   const [rulesInitialized, setRulesInitialized] = useState(false);
+
+  // Load available rules on component mount (needed for filters to work on snapshot restore)
+  useEffect(() => {
+    const loadAvailableRules = async () => {
+      try {
+        const { AIEditorRulesService } = await import('@/services/aiEditorRulesService');
+        const rules = await AIEditorRulesService.getAllRules();
+        setAvailableRules(rules);
+        console.log('✅ Loaded available rules on mount:', rules.length);
+      } catch (error) {
+        console.error('Failed to load available rules:', error);
+      }
+    };
+
+    loadAvailableRules();
+  }, []);
   
   const handleOpenStyleRules = () => {
     setTempStyleRules(activeStyleRules);
@@ -1658,7 +1674,7 @@ const Editor = () => {
                           <span className="text-sm font-medium">System</span>
                           <span className="text-xs text-muted-foreground">Now</span>
                         </div>
-                        <p className="text-sm mb-2">This is the AI suggestions editor. AI suggestions will appear directly in the text as you type or when you run AI Pass.</p>
+                        <p className="text-sm mb-2">This is the Comment card. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
                         <p className="text-xs text-muted-foreground mb-3">AI Mode</p>
                       </div>
                     </div>
@@ -1812,31 +1828,45 @@ const Editor = () => {
           <VersionHistory
             manuscriptId={manuscript.id}
             currentVersion={currentVersion}
-            onRestore={async (restoredVersion, manualSuggestions) => {
+            onRestore={async (restoredVersion, manualSuggestions, snapshotAiSuggestions) => {
               // Refresh editor state after restore
               setShowVersionHistory(false);
 
-              // Convert restored AI suggestions to UI format and merge with manual suggestions
-              const editor = getGlobalEditor();
-              if (editor) {
-                try {
-                  // Small delay to ensure setAiSuggestions has completed in restoreSnapshot
-                  await new Promise(resolve => setTimeout(resolve, 100));
+              // Convert restored AI suggestions to UI format using snapshot data directly
+              // This avoids timing issues with TipTap's extension storage
+              try {
+                const aiSuggestionsUI: UISuggestion[] = (snapshotAiSuggestions || []).map((suggestion: any, index: number) => {
+                  // Extract rule information from the snapshot's TipTap suggestion
+                  const ruleId = suggestion.rule?.id || suggestion.ruleId;
+                  const ruleTitle = suggestion.rule?.title || getRuleTitle(ruleId);
 
-                  const aiSuggestions = convertAiSuggestionsToUI(editor);
+                  return {
+                    id: suggestion.id || `ai-suggestion-${index}`,
+                    type: suggestion.replacementOptions && suggestion.replacementOptions.length > 0 ? 'replace' : 'delete' as SuggestionType,
+                    origin: 'server' as const,
+                    pmFrom: suggestion.deleteRange?.from || 0,
+                    pmTo: suggestion.deleteRange?.to || 0,
+                    before: suggestion.deleteText || '',
+                    after: suggestion.replacementOptions?.[0]?.addText || '',
+                    category: 'ai-suggestion' as SuggestionCategory,
+                    note: `${ruleTitle || 'AI'}: ${suggestion.replacementOptions?.[0]?.note || suggestion.note || 'Improvement suggestion'}`,
+                    actor: 'AI' as SuggestionActor,
+                    ruleId: ruleId,
+                    ruleTitle: ruleTitle
+                  };
+                });
 
-                  // Merge AI and manual suggestions, sorted by position
-                  const allSuggestions = sortSuggestionsByPosition([...aiSuggestions, ...manualSuggestions]);
-                  setSuggestions(allSuggestions);
+                // Merge AI and manual suggestions, sorted by position
+                const allSuggestions = sortSuggestionsByPosition([...aiSuggestionsUI, ...manualSuggestions]);
+                setSuggestions(allSuggestions);
 
-                  console.log(`✅ Restored ${aiSuggestions.length} AI + ${manualSuggestions.length} manual suggestions`);
+                console.log(`✅ Restored ${aiSuggestionsUI.length} AI + ${manualSuggestions.length} manual suggestions`);
 
-                  // Update current version to the restored version
-                  setCurrentVersion(restoredVersion);
-                  console.log(`✅ Current version set to ${restoredVersion}`);
-                } catch (error) {
-                  console.error('Failed to restore suggestions:', error);
-                }
+                // Update current version to the restored version
+                setCurrentVersion(restoredVersion);
+                console.log(`✅ Current version set to ${restoredVersion}`);
+              } catch (error) {
+                console.error('Failed to restore suggestions:', error);
               }
 
               toast({
