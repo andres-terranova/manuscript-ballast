@@ -1356,25 +1356,25 @@ const Editor = () => {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen bg-slate-50/40 flex w-full">
+      <div className="h-screen overflow-hidden bg-slate-50/40 flex w-full">
         {/* Main Content Area - Uses SidebarInset for proper spacing */}
         <SidebarInset className="flex-1 bg-transparent border-none">
           {/* Header */}
           <header id="header" className="border-b border-border bg-slate-100/60">
-            {/* Header Row 1 - Breadcrumb Navigation */}
-            <div className="px-4 lg:px-6 py-3 flex items-center gap-2 text-sm text-muted-foreground min-w-0 bg-white/80">
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="hover:text-foreground transition-colors flex-shrink-0"
-              >
-                Manuscripts
-              </button>
-              <span className="flex-shrink-0">&gt;</span>
-              <span className="text-foreground font-medium truncate">{manuscript.title}</span>
-            </div>
-
-            {/* Header Row 2 - Title & Toolbar */}
+            {/* Title & Toolbar */}
             <div className="px-4 lg:px-6 py-4 flex flex-col gap-4 bg-slate-50">
+              {/* Breadcrumb Navigation */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+                <button
+                  onClick={() => navigate("/dashboard")}
+                  className="hover:text-foreground transition-colors flex-shrink-0"
+                >
+                  Manuscripts
+                </button>
+                <span className="flex-shrink-0">&gt;</span>
+                <span className="text-foreground font-medium truncate">{manuscript.title}</span>
+              </div>
+
               {/* Manuscript Title */}
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl lg:text-3xl font-semibold text-foreground flex-1">{manuscript.title}</h1>
@@ -1386,27 +1386,6 @@ const Editor = () => {
 
               {/* Action Toolbar */}
               <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
-                {/* Version Control Group */}
-                <ButtonGroup className="hidden lg:inline-flex bg-slate-100/50 rounded-md shadow-sm">
-                  <ButtonGroupItem
-                    position="first"
-                    onClick={() => createSnapshotSafe('manual')}
-                    title="Create a snapshot of the current version"
-                    className="h-8 px-2.5 hover:bg-slate-200/70 transition-colors duration-150"
-                  >
-                    <Save className="mr-1.5 h-4 w-4 text-slate-600" />
-                    Save
-                  </ButtonGroupItem>
-                  <ButtonGroupItem
-                    position="last"
-                    onClick={() => setShowVersionHistory(true)}
-                    title="View version history"
-                    className="h-8 px-2.5 hover:bg-slate-200/70 transition-colors duration-150"
-                  >
-                    <History className="h-4 w-4 text-slate-600" />
-                  </ButtonGroupItem>
-                </ButtonGroup>
-
                 {!isReviewed && (
                   <>
                     {/* Style & AI Editing Group */}
