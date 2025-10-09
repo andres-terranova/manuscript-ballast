@@ -45,7 +45,8 @@ import {
   History,
   Save,
   PanelRight,
-  CheckCircle
+  CheckCircle,
+  Sparkles
 } from "lucide-react";
 import { DocumentCanvas } from "./DocumentCanvas";
 import { ChangeList } from "./ChangeList";
@@ -1378,82 +1379,13 @@ const Editor = () => {
               {/* Manuscript Title */}
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl lg:text-3xl font-semibold text-foreground flex-1">{manuscript.title}</h1>
-                {/* Sidebar Toggle - Mobile/Desktop */}
-                <SidebarTrigger className="lg:hidden h-8 w-8">
+
+                {/* Sidebar Toggle - Mobile & Desktop */}
+                <SidebarTrigger className="h-8 w-8">
                   <PanelRight className="h-4 w-4" />
                 </SidebarTrigger>
               </div>
 
-              {/* Action Toolbar */}
-              <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
-                {!isReviewed && (
-                  <>
-                    {/* Style & AI Editing Group */}
-                    <ButtonGroup className="hidden lg:inline-flex">
-                      <ButtonGroupItem
-                        position="first"
-                        onClick={handleOpenStyleRules}
-                        title="Configure style rules"
-                        className="h-8 px-2.5"
-                        aria-label="Style Rules"
-                      >
-                        <Settings2 className="h-4 w-4" />
-                      </ButtonGroupItem>
-                      <ButtonGroupItem
-                        position="last"
-                        onClick={() => setShowRunAIModal(true)}
-                        disabled={!tiptapToken || !tiptapAppId || jwtLoading}
-                        title={jwtError ? `JWT Error: ${jwtError}` : "Run AI editing pass"}
-                        className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-800 h-8 px-2.5 transition-all duration-150 shadow-sm hover:shadow-md"
-                      >
-                        {jwtLoading ? (
-                          <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Loading...</>
-                        ) : (
-                          <><Play className="mr-1.5 h-4 w-4 text-purple-600" />Run AI Pass</>
-                        )}
-                      </ButtonGroupItem>
-                    </ButtonGroup>
-                  </>
-                )}
-
-                {/* Review → Export → Send Group */}
-                <ButtonGroup className="hidden lg:inline-flex">
-                  <ButtonGroupItem
-                    position="first"
-                    onClick={handleMarkReviewed}
-                    disabled={isReviewed || busySuggestions.size > 0}
-                    data-testid="mark-reviewed-btn"
-                    className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800 h-8 px-2.5 transition-all duration-150 shadow-sm hover:shadow-md"
-                  >
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  </ButtonGroupItem>
-                  <ButtonGroupItem
-                    position="middle"
-                    onClick={handleExportDocx}
-                    disabled={isExporting}
-                    title="Export to DOCX"
-                    className="h-8 px-2.5"
-                  >
-                    {isExporting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4 text-slate-600" />
-                    )}
-                  </ButtonGroupItem>
-                  <ButtonGroupItem
-                    position="last"
-                    title="Send to author"
-                    className="h-8 px-2.5"
-                  >
-                    <Send className="h-4 w-4 text-slate-600" />
-                  </ButtonGroupItem>
-                </ButtonGroup>
-
-                {/* Desktop Sidebar Toggle */}
-                <SidebarTrigger className="hidden lg:flex ml-auto h-8 w-8">
-                  <PanelRight className="h-4 w-4" />
-                </SidebarTrigger>
-              </div>
             </div>
           </header>
 
@@ -1549,27 +1481,83 @@ const Editor = () => {
           style={{ '--sidebar-width': '440px' } as React.CSSProperties}
         >
           <SidebarContent className="p-0 bg-transparent lg:bg-slate-50/70 lg:rounded-lg lg:border lg:border-card-border h-full flex flex-col overflow-hidden">
-            {/* Version Control Header */}
-            <div className="flex items-center justify-end gap-2 px-4 py-3 border-b bg-slate-100/80 flex-shrink-0">
-              <ButtonGroup>
-                <ButtonGroupItem
-                  position="first"
-                  onClick={() => createSnapshotSafe('manual')}
-                  title="Create a snapshot of the current version"
-                  className="h-8 px-2.5"
+            {/* Action Toolbar Header */}
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-slate-100/80 flex-shrink-0">
+              {/* Primary Action - Left */}
+              {!isReviewed && (
+                <Button
+                  onClick={() => setShowRunAIModal(true)}
+                  disabled={!tiptapToken || !tiptapAppId || jwtLoading}
+                  title={jwtError ? `JWT Error: ${jwtError}` : "Run AI editing pass"}
+                  className="bg-purple-600 hover:bg-purple-700 text-white h-8 px-3 transition-all duration-150 shadow-sm hover:shadow-md"
                 >
-                  <Save className="mr-1.5 h-4 w-4" />
-                  Save
-                </ButtonGroupItem>
-                <ButtonGroupItem
-                  position="last"
-                  onClick={() => setShowVersionHistory(true)}
-                  title="View version history"
-                  className="h-8 px-2.5"
-                >
-                  <History className="h-4 w-4" />
-                </ButtonGroupItem>
-              </ButtonGroup>
+                  {jwtLoading ? (
+                    <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Loading...</>
+                  ) : (
+                    <><Sparkles className="mr-1.5 h-4 w-4" />Run AI Editors</>
+                  )}
+                </Button>
+              )}
+
+              {/* Spacer */}
+              <div className="flex-1" />
+
+              {/* Right Side: Version Control + Document Actions */}
+              <div className="flex items-center gap-3">
+                {/* Version Control Group */}
+                <ButtonGroup>
+                  <ButtonGroupItem
+                    position="first"
+                    onClick={() => createSnapshotSafe('manual')}
+                    title="Save current version"
+                    className="h-8 px-2.5"
+                  >
+                    <Save className="h-4 w-4" />
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="last"
+                    onClick={() => setShowVersionHistory(true)}
+                    title="View version history"
+                    className="h-8 px-2.5"
+                  >
+                    <History className="h-4 w-4" />
+                  </ButtonGroupItem>
+                </ButtonGroup>
+
+                {/* Document Actions Group */}
+                <ButtonGroup>
+                  <ButtonGroupItem
+                    position="first"
+                    onClick={handleExportDocx}
+                    disabled={isExporting}
+                    title="Export to DOCX"
+                    className="h-8 px-2.5"
+                  >
+                    {isExporting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="middle"
+                    title="Send to author"
+                    className="h-8 px-2.5"
+                  >
+                    <Send className="h-4 w-4" />
+                  </ButtonGroupItem>
+                  <ButtonGroupItem
+                    position="last"
+                    onClick={handleMarkReviewed}
+                    disabled={isReviewed || busySuggestions.size > 0}
+                    data-testid="mark-reviewed-btn"
+                    title="Mark as reviewed (final action)"
+                    className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 hover:text-green-800 transition-all duration-150"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                  </ButtonGroupItem>
+                </ButtonGroup>
+              </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col -mt-3 min-h-0">
@@ -1668,6 +1656,7 @@ const Editor = () => {
                     busyChecks={busyChecks}
                     isReviewed={isReviewed}
                     onRunChecks={handleRunChecks}
+                    onOpenStyleRules={handleOpenStyleRules}
                   />
                 </TabsContent>
 
