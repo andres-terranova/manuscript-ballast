@@ -251,7 +251,7 @@ const AIEditorRuleSelector: React.FC<AIEditorRuleSelectorProps> = ({
             onClick={() => setShowManageRules(true)}
             className="text-sm"
           >
-            Manage Rules
+            Manage Roles
           </Button>
           {selectedRuleIds.length > 0 && (
             <Badge variant="secondary" className="text-xs">

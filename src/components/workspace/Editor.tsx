@@ -1494,7 +1494,7 @@ const Editor = () => {
                   {jwtLoading ? (
                     <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Loading...</>
                   ) : (
-                    <><Sparkles className="mr-1.5 h-4 w-4" />Run AI Editors</>
+                    <><Sparkles className="mr-1.5 h-4 w-4" />AI Editors</>
                   )}
                 </Button>
               )}
