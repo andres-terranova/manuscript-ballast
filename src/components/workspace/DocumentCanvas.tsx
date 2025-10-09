@@ -137,8 +137,6 @@ export const DocumentCanvas = ({
           <div className="p-6 lg:p-12">
             <ProcessingStatusCard manuscript={manuscript} />
             <div className="manuscript-content">
-              <h1 className="text-2xl lg:text-3xl font-bold mb-6 lg:mb-8 text-center">{manuscript.title}</h1>
-              
               <div className="prose max-w-none">
                 <SuggestContextMenu onSuggest={handleSuggest}>
                   <EditorContent 

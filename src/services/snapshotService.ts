@@ -179,25 +179,23 @@ export async function restoreSnapshot(
     // Step 3: Restore content to editor (TipTap setContent command)
     editor.commands.setContent(snapshot.content);
 
-    // Step 3b: Restore AI suggestions if present
-    if (snapshot.aiSuggestions && snapshot.aiSuggestions.length > 0) {
-      try {
-        // CRITICAL: Suggestions must be restored AFTER content
-        // to ensure positions are valid
-        const success = editor.commands.setAiSuggestions(snapshot.aiSuggestions);
+    // Step 3b: Restore AI suggestions using setAiSuggestions
+    // NOTE: setAiSuggestions REPLACES all suggestions (pass empty array to clear)
+    try {
+      const suggestionsToRestore = snapshot.aiSuggestions || [];
 
-        if (success) {
-          console.log(`✅ Restored ${snapshot.aiSuggestions.length} AI suggestions`);
-        } else {
-          console.warn('⚠️ setAiSuggestions returned false - suggestions may not be restored');
-        }
-      } catch (error) {
-        console.error('Error restoring AI suggestions:', error);
-        // Don't fail the entire restore - document is already restored
-        // User can run AI pass again if needed
+      // CRITICAL: Suggestions must be restored AFTER content to ensure positions are valid
+      const success = editor.commands.setAiSuggestions(suggestionsToRestore);
+
+      if (success) {
+        console.log(`✅ Restored ${suggestionsToRestore.length} AI suggestions from snapshot`);
+      } else {
+        console.warn('⚠️ setAiSuggestions returned false - suggestions may not be restored');
       }
-    } else {
-      console.log('ℹ️ No AI suggestions to restore');
+    } catch (error) {
+      console.error('Error restoring AI suggestions:', error);
+      // Don't fail the entire restore - document is already restored
+      // User can run AI pass again if needed
     }
 
     // Step 3c: Return manual suggestions to caller
