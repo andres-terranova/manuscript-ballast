@@ -134,7 +134,7 @@ const Editor = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id || 'system';
 
-      await createSnapshot(editor, manuscript.id, event, userId, label, suggestions);
+      await createSnapshot(editor, manuscript.id, event, userId, label, suggestionsRef.current);
       console.log(`✅ Snapshot created: ${event}`);
 
       // Update current version to the newly created snapshot
@@ -933,7 +933,7 @@ const Editor = () => {
     toast({
       title: "Suggestion added."
     });
-  }, [toast]);
+  }, [toast, sortSuggestionsByPosition]);
 
   // Position remapping for document changes
   useEffect(() => {
@@ -964,7 +964,7 @@ const Editor = () => {
         editor.view.dispatch = originalDispatch;
       }
     };
-  }, [suggestions.length]);
+  }, [suggestions.length, sortSuggestionsByPosition]);
 
   // Handle Run AI Pass - Enhanced version with large document support
   const handleRunAIPass = async () => {
@@ -1353,7 +1353,7 @@ const Editor = () => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [manuscript?.id]); // Only re-run when manuscript changes, not on function updates
+  }, [manuscript?.id, convertAiSuggestionsToUI]); // Only re-run when manuscript changes, not on function updates
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {
     switch (status) {
