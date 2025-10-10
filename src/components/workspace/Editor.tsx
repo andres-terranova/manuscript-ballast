@@ -1259,42 +1259,36 @@ const Editor = () => {
 
       setIsLoading(true);
       console.log('[Editor] Set loading to true');
-      
-      let found = getManuscriptById(id);
-      console.log('[Editor] Found manuscript:', found);
-      
-      if (!found && retryCount < maxRetries) {
-        try {
-          await refreshManuscripts();
-          await new Promise(resolve => setTimeout(resolve, 200));
-          found = getManuscriptById(id);
-          
-          if (!found) {
-            setRetryCount(prev => prev + 1);
-            return;
-          }
-        } catch (error) {
-          console.error('Error refreshing manuscripts:', error);
-          setRetryCount(prev => prev + 1);
+
+      try {
+        // Fetch full manuscript directly from service (includes content fields)
+        const dbManuscript = await ManuscriptService.getManuscriptById(id);
+        console.log('[Editor] Fetched manuscript from service:', dbManuscript);
+
+        if (!dbManuscript) {
+          setNotFound(true);
+          setIsLoading(false);
           return;
         }
-      }
-      
-      if (!found) {
+
+        // Convert to frontend format
+        const { dbToFrontend } = await import('@/types/manuscript');
+        const frontendManuscript = dbToFrontend(dbManuscript);
+
+        setManuscript(frontendManuscript);
+        setContentText(frontendManuscript.contentText);
+        setNotFound(false);
+        setIsLoading(false);
+        setRetryCount(0);
+      } catch (error) {
+        console.error('Error loading manuscript:', error);
         setNotFound(true);
         setIsLoading(false);
-        return;
       }
-      
-      setManuscript(found);
-      setContentText(found.contentText);
-      setNotFound(false);
-      setIsLoading(false);
-      setRetryCount(0);
     };
-    
+
     loadManuscript();
-  }, [id, navigate, getManuscriptById, retryCount, refreshManuscripts]);
+  }, [id, navigate]);
 
 
   const getStatusBadgeVariant = (status: Manuscript["status"]) => {

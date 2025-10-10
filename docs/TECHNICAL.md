@@ -2,31 +2,333 @@
 
 **For Claude Code**: This is your ONE technical reference. Everything about how the system works is here.
 
-**Sections**: AI Suggestions · Architecture · Editor & Components · Database · Edge Functions · React Patterns
+**⚡ NEW TO THE CODEBASE?** Start with [ARCHITECTURE](#architecture) (foundational concepts), then move to [AI Suggestions](#ai-suggestions-system) (primary feature).
+
+**Sections**: Architecture (foundational) · AI Suggestions (primary feature) · Snapshots (version control) · Editor & Components · DOCX Export · External Resources
 
 ---
 
 # 📌 Quick Navigation
 
 ```
-AI Suggestions
+Architecture (FOUNDATIONAL - START HERE)
+├─ Database Schema (JSONB-first design)
+├─ Queue System (Background job processing)
+└─ Row Level Security
+
+AI Suggestions System (PRIMARY FEATURE)
 ├─ Common Mistakes (READ FIRST)
 ├─ Key Files & Functions
-├─ Dynamic Configuration
+├─ Dynamic Configuration (EXPERIMENT 8)
 ├─ Complete Flow
 ├─ TipTap API Reference
-└─ Debugging
+└─ Debugging Tips
 
-Architecture
-├─ Database Schema (JSONB-first)
-├─ Queue System (Background jobs)
-└─ Versioning Strategy (TipTap snapshots)
+Snapshot System (VERSION CONTROL)
+├─ Database Schema & Storage
+├─ Save/Restore Flows
+├─ Implementation Details
+└─ Current State vs Snapshots
 
 Editor & Components
-├─ Editor.tsx (Primary editor)
+├─ Editor.tsx (Primary component)
 ├─ Edge Functions (Supabase)
 └─ React Integration Patterns
+
+DOCX Export
+└─ Basic clean export functionality
+
+External Resources
+└─ TipTap docs, Stack documentation
 ```
+
+---
+
+# ARCHITECTURE
+
+## Database Schema (JSON-First Design)
+
+### Design Philosophy
+**JSONB-Only Architecture**: All suggestions, comments, and snapshots stored as JSONB arrays in `manuscripts` table. No separate tables for these entities.
+
+**Why JSONB?**:
+- ✅ **Simplicity**: Single table, no joins needed
+- ✅ **Flexibility**: Easy schema evolution without migrations
+- ✅ **Performance**: PostgreSQL JSONB is fast for reads/writes
+- ✅ **Atomic updates**: All manuscript data updates atomically
+
+### Core Tables
+
+#### `manuscripts`
+```sql
+CREATE TABLE manuscripts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  title TEXT NOT NULL,
+  content JSONB NOT NULL,              -- TipTap JSON document
+  suggestions JSONB DEFAULT '[]',      -- AI suggestions array
+  comments JSONB DEFAULT '[]',         -- Comments array (v1.0)
+  snapshots JSONB DEFAULT '[]',        -- Version snapshots (v1.0)
+  status TEXT CHECK (status IN ('draft', 'sent_to_author', 'returned_to_editor', 'completed')),
+  shared_with UUID[],                  -- Array of user IDs with access
+  activity_log JSONB DEFAULT '[]',     -- Activity timeline
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `processing_queue`
+```sql
+CREATE TABLE processing_queue (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL,
+  manuscript_id UUID REFERENCES manuscripts(id),
+  operation TEXT NOT NULL,             -- 'docx_import', 'ai_pass', etc.
+  status TEXT NOT NULL,                -- 'pending', 'processing', 'completed', 'failed'
+  input_data JSONB,                    -- Operation-specific input
+  result_data JSONB,                   -- Operation result
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `profiles`
+```sql
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
+  email TEXT NOT NULL,
+  full_name TEXT,
+  role TEXT CHECK (role IN ('editor', 'author')),  -- v1.0
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### JSONB Schema Formats
+
+#### Suggestions Array
+```typescript
+suggestions: Array<{
+  id: string,
+  ruleId: string,
+  pmFrom: number,        // ProseMirror position
+  pmTo: number,
+  deleteHtml: string,
+  insertHtml: string,
+  note: string,
+  status: 'pending' | 'accepted' | 'rejected',
+  timestamp: string
+}>
+```
+
+#### Comments Array (v1.0)
+```typescript
+comments: Array<{
+  id: string,
+  user_id: string,
+  position: number,
+  text: string,
+  timestamp: string,
+  replies: Array<{
+    id: string,
+    user_id: string,
+    text: string,
+    timestamp: string
+  }>
+}>
+```
+
+
+### Row Level Security (RLS)
+
+```sql
+-- Manuscripts: Users can only access their own or shared manuscripts
+CREATE POLICY manuscripts_select ON manuscripts
+  FOR SELECT USING (
+    auth.uid() = user_id OR
+    auth.uid() = ANY(shared_with)
+  );
+
+CREATE POLICY manuscripts_insert ON manuscripts
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY manuscripts_update ON manuscripts
+  FOR UPDATE USING (
+    auth.uid() = user_id OR
+    auth.uid() = ANY(shared_with)
+  );
+
+-- Queue: Users can only see their own queue items
+CREATE POLICY queue_select ON processing_queue
+  FOR SELECT USING (auth.uid() = user_id);
+```
+
+## Queue System (Background Job Processing)
+
+### Purpose
+Process long-running operations (DOCX import, AI passes) in background without browser timeouts.
+
+### Architecture
+
+**Components**:
+1. **Client**: Submits job to queue, polls for completion
+2. **Queue Table**: `processing_queue` stores job state
+3. **Edge Function**: `queue-processor` runs jobs
+4. **Cron Trigger**: Invokes processor every 1 minute
+
+### Flow
+
+```
+1. Client uploads DOCX → Supabase Storage
+   ↓
+2. Insert job into processing_queue
+   → status: 'pending'
+   → input_data: { storage_path, manuscript_id }
+   ↓
+3. Cron invokes queue-processor (every 1 min)
+   ↓
+4. Processor claims job (UPDATE status = 'processing')
+   ↓
+5. Execute operation (e.g., convert DOCX → TipTap JSON)
+   ↓
+6. Update manuscript with result
+   ↓
+7. Mark job complete (status = 'completed')
+   ↓
+8. Client polling detects completion
+```
+
+### Client-Side Usage
+
+```typescript
+// src/hooks/useQueueProcessor.ts
+const { submitJob, pollJob, cancelPolling } = useQueueProcessor();
+
+// Submit job
+const jobId = await submitJob({
+  operation: 'docx_import',
+  manuscript_id: manuscriptId,
+  input_data: { storage_path: filePath }
+});
+
+// Poll until complete
+const result = await pollJob(jobId, {
+  interval: 10000,  // Poll every 10s
+  maxAttempts: 60   // Timeout after 10 minutes
+});
+```
+
+### Edge Function
+
+**File**: `supabase/functions/queue-processor/index.ts`
+
+```typescript
+// 1. Claim next pending job
+const { data: job } = await supabase
+  .from('processing_queue')
+  .update({ status: 'processing' })
+  .eq('status', 'pending')
+  .order('created_at')
+  .limit(1)
+  .single();
+
+// 2. Execute operation
+if (job.operation === 'docx_import') {
+  const content = await convertDocxToTiptap(job.input_data.storage_path);
+
+  // 3. Update manuscript
+  await supabase
+    .from('manuscripts')
+    .update({ content })
+    .eq('id', job.manuscript_id);
+}
+
+// 4. Mark complete
+await supabase
+  .from('processing_queue')
+  .update({
+    status: 'completed',
+    result_data: { success: true }
+  })
+  .eq('id', job.id);
+```
+
+### Performance
+
+- **Small docs** (189KB): ~1.5s
+- **Large docs** (437KB): ~3s
+- **Auto-processing delay**: Max 10s (client polls every 10s)
+
+### DOCX Processing Status Updates
+
+**Current Implementation** (Polling-Based):
+
+Client polls `processing_queue` and `manuscripts.processing_status` to detect completion:
+```typescript
+// Active job: Poll every 5 seconds
+// Idle (no jobs): Poll every 30 seconds
+// Dashboard blocks editor access until processingStatus === 'completed'
+```
+
+**Benefits**:
+- ✅ Simple implementation
+- ✅ Dynamic polling (5s active, 30s idle) prevents connection pool exhaustion
+- ✅ Dashboard explicitly checks completion status (prevents race conditions)
+- ✅ Responsive UI during active processing
+
+**Current Limitations**:
+- ❌ Unnecessary database queries when idle
+- ❌ Small race condition window (though mitigated by explicit status check)
+- ❌ Dashboard polls even when user isn't actively waiting
+- ❌ Polling delay = slower perceived response time
+
+**Why This Works**: Dashboard blocks editor access until `processingStatus === 'completed'`, ensuring users cannot access editor before DOCX is fully processed. This explicit check prevents race conditions where partial data might be displayed.
+
+**Future Optimization** (Next Version):
+
+Migrate to Supabase Realtime for instant updates:
+```typescript
+// Subscribe to processing_queue changes
+supabase
+  .channel('processing_queue_changes')
+  .on('postgres_changes', {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'processing_queue',
+    filter: `user_id=eq.${userId}`
+  }, (payload) => {
+    // Instant notification when job status changes
+    if (payload.new.status === 'completed') {
+      // Handle completion immediately
+    }
+  })
+  .subscribe();
+
+// Subscribe to manuscripts.processing_status changes
+supabase
+  .channel('manuscript_status_changes')
+  .on('postgres_changes', {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'manuscripts',
+    filter: `id=eq.${manuscriptId}`
+  }, (payload) => {
+    // Instant notification when processing_status updates
+    if (payload.new.processing_status === 'completed') {
+      // Navigate to editor immediately
+    }
+  })
+  .subscribe();
+```
+
+**Benefits of Realtime**:
+- ✅ Instant updates (no polling delay)
+- ✅ Zero database queries when idle
+- ✅ Better UX (immediate response to status changes)
+- ✅ Reduced server load (no polling overhead)
+- ✅ Keep polling as fallback/health check only
+
+**Migration Effort**: ~1-2 hours (Supabase Realtime is straightforward)
 
 ---
 
@@ -34,7 +336,7 @@ Editor & Components
 
 **10-Second Summary**: TipTap Pro AI Suggestion extension with custom backend integration. Dynamic configuration (10-40 chunkSize, 3-10 batchSize) based on document size. Parallel batch processing via edge functions. Handles 85K+ word documents.
 
-**Critical File**: `src/components/workspace/Editor.tsx` (NOT ManuscriptWorkspace.tsx!)
+**Critical File**: `src/components/workspace/Editor.tsx` (handles both AI and manual suggestions)
 
 ## 🚨 Common Mistakes - READ THIS FIRST
 
@@ -44,10 +346,13 @@ Editor & Components
 const suggestions = editor.storage.aiSuggestion.getSuggestions() // All at once
 ```
 
-### ❌ Misconception #2: "I'll work with ManuscriptWorkspace.tsx"
-**Reality**: That's a DIFFERENT system (manual suggestions with decorations)
-- ManuscriptWorkspace.tsx = Manual suggestions (legacy)
-- Editor.tsx = AI suggestions (TipTap Pro)
+### ❌ Misconception #2: "Manual suggestions and AI suggestions are in separate files"
+**Reality**: Editor.tsx handles BOTH AI and manual suggestions
+- Editor.tsx = Both AI suggestions (TipTap Pro) AND manual suggestions (user-created)
+- ManuscriptWorkspace.tsx = Does not exist (removed/never implemented)
+- Unified storage: Both types in `suggestions` React state array
+- Unified UI: Both types in ChangeList sidebar
+- Differentiated by `origin` field: `'server'` (AI) vs `'manual'` (user)
 
 ### ❌ Misconception #3: "Suggestions load progressively"
 **Reality**: Parallel batch processing, ALL results return together
@@ -900,6 +1205,322 @@ await createSnapshot(..., 'apply_all', ..., suggestions);
 4. **Incremental Snapshots**: Store only deltas (more efficient storage)
 5. **Snapshot Annotations**: Allow users to add notes to snapshots
 
+## Current State vs Snapshots
+
+### How Current Manuscript State is Maintained
+
+**Current State** (different from snapshots):
+- Stored in `manuscripts` table (NOT in snapshots array)
+- Updated automatically on every editor change
+- No manual save needed - happens in real-time
+
+**Database Storage**:
+```typescript
+manuscripts table:
+├─ content_html: string      // Current document HTML (auto-updated)
+├─ content_text: string      // Current plain text (auto-updated)
+├─ word_count: number        // Current word count (auto-updated)
+├─ character_count: number   // Current character count (auto-updated)
+└─ snapshots: JSONB[]        // Historical snapshots (manual milestones)
+```
+
+### Auto-Update Implementation
+
+**Location**: `src/components/workspace/DocumentCanvas.tsx:172`
+
+**Handler**: `updateManuscriptSilent()`
+```typescript
+const handleEditorUpdate = (html: string, text: string) => {
+  updateManuscriptSilent(manuscript.id, {
+    content_html: html,
+    content_text: text
+  });
+};
+```
+
+**Update Method** (`ManuscriptsContext.tsx:86-105`):
+```typescript
+const updateManuscriptSilent = async (id: string, updates: ManuscriptUpdateInput) => {
+  // Updates database WITHOUT showing toast notification
+  const updatedDbManuscript = await ManuscriptService.updateManuscript(id, updates);
+  const updatedManuscript = dbToFrontend(updatedDbManuscript);
+
+  // Updates local React state
+  setManuscripts(prev => prev.map(m =>
+    m.id === id ? updatedManuscript : m
+  ));
+
+  // No success toast (silent update for automatic edits)
+};
+```
+
+**Why Silent?**
+- Prevents intrusive "Manuscript updated successfully" toasts during typing
+- User doesn't need confirmation for automatic saves
+- Error toasts still display if update fails
+
+### Current State vs Latest Snapshot
+
+| Aspect | Current State | Latest Snapshot |
+|--------|--------------|-----------------|
+| **Location** | `manuscripts.content_html` | `manuscripts.snapshots[last]` |
+| **Update Frequency** | Every keystroke (debounced) | Manual milestones only |
+| **Contains** | Document content only | Content + suggestions + metadata |
+| **Purpose** | Live working state | Historical checkpoint |
+| **User Action** | Automatic | Manual "Save Version" or workflow event |
+
+### Important Distinction
+
+**"Latest" means different things**:
+- **Latest Snapshot** = Most recent saved checkpoint (manual or automatic milestone)
+- **Current State** = Real-time document in database (continuously updated)
+
+**Example**:
+```
+User flow:
+1. Opens manuscript → content loaded from current state
+2. Edits document → updateManuscriptSilent() saves to current state
+3. Runs AI Pass → Snapshot created (v1) with pre-AI state
+4. Reviews suggestions → Current state still updating
+5. Clicks "Save Version" → Snapshot created (v2) with post-review state
+6. Makes more edits → Current state updates, snapshots unchanged
+7. "Back to Latest" → Should restore current state (step 6), NOT snapshot v2
+```
+
+**The Bug**: Current implementation restores from latest snapshot, not current state.
+
+### Manual Suggestions Limitation
+
+**Current Behavior**:
+- Manual suggestions exist ONLY in React state (in-memory)
+- NOT auto-saved to `manuscripts` table
+- ONLY persisted when creating snapshots
+
+**Impact on "Back to Latest"**:
+```typescript
+What gets restored:
+✅ Document content (content_html from manuscripts table)
+❌ Manual suggestions (lost - only in snapshots)
+❌ AI suggestions (lost - only in TipTap extension storage)
+```
+
+**Why This Limitation Exists**:
+- Current state auto-update (`updateManuscriptSilent()`) only saves content
+- Suggestions are considered draft/ephemeral until snapshot milestone
+- Prevents excessive database writes on every suggestion change
+
+**User Impact**:
+```
+Scenario:
+1. User restores old snapshot (v5)
+2. User adds manual suggestions (in-memory only)
+3. User clicks "Back to Latest"
+4. Result: ❌ Manual suggestions are lost
+```
+
+**Workaround**:
+- Users must create manual snapshot before exploring old versions
+- "Save Version" button preserves both document + suggestions
+
+**Future Enhancement**:
+- Option 1: Auto-save suggestions to `manuscripts.suggestions` JSONB column
+- Option 2: Warn user before "Back to Latest" if unsaved suggestions exist
+- Option 3: Add "suggestions" field to current state auto-updates
+
+---
+
+# EDITOR & COMPONENTS
+
+## Editor.tsx (Primary Editor Component)
+
+**Location**: `src/components/workspace/Editor.tsx`
+**Size**: 944 lines (the largest component)
+**Purpose**: Main TipTap Pro AI editor with suggestion handling
+
+### Key Responsibilities
+
+1. **TipTap Editor Initialization**
+   - Configure AI Suggestion extension
+   - Set up toolbar, menus, extensions
+   - Handle JWT authentication
+
+2. **AI Suggestion Lifecycle**
+   - Trigger AI passes
+   - Wait for processing completion
+   - Convert TipTap format → UI format
+   - Handle accept/reject actions
+
+3. **Manual Suggestion Lifecycle**
+   - Create manual suggestions from user selections (lines 907-953)
+   - Store in React state alongside AI suggestions
+   - Apply accept/reject actions (same handlers as AI)
+   - Save to snapshots for version control
+
+4. **UI State Management**
+   - Popover positioning (AI suggestions)
+   - Selection tracking (both AI and manual)
+   - Change list synchronization (unified list)
+
+### Critical Functions
+
+**AI Suggestions:**
+
+**`convertAiSuggestionsToUI()`** (lines 438-492)
+- Transforms TipTap AI suggestions → our UISuggestion format
+- **Sorts by position**: `.sort((a, b) => a.pmFrom - b.pmFrom)`
+- Maps TipTap fields to our schema
+- Returns sorted array for ChangeList
+
+**`waitForAiSuggestions()`** (lines 495-567)
+- Monitors `editor.extensionStorage.aiSuggestion` for completion
+- Event-based waiting using transaction events
+- Returns Promise<UISuggestion[]>
+
+**`handlePopoverAccept()` / `handlePopoverReject()`** (lines 571-599)
+- Calls TipTap commands: `editor.commands.applyAiSuggestion()`
+- Updates local state
+- Syncs with ChangeList
+
+**Manual Suggestions:**
+
+**`createManualSuggestion()`** (lines 907-953)
+- Creates suggestion from user's text selection
+- Takes: `{ mode: 'insert'|'delete'|'replace', after: string, note: string }`
+- Validates selection and input
+- Adds to React state with `origin: 'manual'`
+- Triggers decoration refresh
+
+**`handleAcceptSuggestion()` / `handleRejectSuggestion()`** (lines 622-780)
+- **Unified handlers**: Check suggestion origin (AI vs manual)
+- AI: Use TipTap commands (`applyAiSuggestion`, `rejectAiSuggestion`)
+- Manual: Direct document edits + state updates
+- Both: Update suggestions list, show toast
+
+### Integration Points
+
+- **useTiptapEditor**: Hook provides editor instance with config
+- **AIEditorRules**: Defines available AI roles and prompts
+- **ChangeList**: Sidebar showing all suggestions (paginated)
+- **Popover**: Inline suggestion UI with accept/reject buttons
+
+## Edge Functions (Supabase)
+
+**Location**: `supabase/functions/`
+
+### ai-suggestions-html
+
+**Purpose**: Process single HTML chunk with AI rules
+
+**Input**:
+```typescript
+{
+  html: string,      // Pre-chunked HTML from TipTap
+  chunkId: string,
+  rules: Array<{ id, title, prompt }>
+}
+```
+
+**Process**:
+1. Loop through rules sequentially
+2. Call OpenAI GPT-4 for each rule
+3. Parse JSON response (array of suggestions)
+4. Collect all suggestions across rules
+5. Return aggregated array
+
+**Output**:
+```typescript
+{
+  items: Array<{
+    ruleId, deleteHtml, insertHtml, note, chunkId
+  }>
+}
+```
+
+**Performance**: ~10-15s per chunk (varies by rule count)
+
+### queue-processor
+
+**Purpose**: Execute background jobs from processing_queue
+
+**Trigger**: Cron (every 1 minute)
+
+**Operations**:
+- `docx_import`: Convert DOCX → TipTap JSON
+- Future: `ai_pass`, `export_docx`
+
+**Pattern**:
+```typescript
+// 1. Claim job (atomic UPDATE)
+// 2. Execute operation
+// 3. Update result
+// 4. Mark complete/failed
+```
+
+### generate-tiptap-jwt
+
+**Purpose**: Generate 24hr JWT token for TipTap Pro authentication
+
+**Why Edge Function?**: Secrets must stay server-side (never expose API keys client-side)
+
+**Usage**:
+```typescript
+const response = await fetch('/functions/v1/generate-tiptap-jwt');
+const { token } = await response.json();
+
+// Token valid for 24 hours, cached client-side
+```
+
+## React Integration Patterns
+
+### Component Hierarchy
+
+```
+App
+└── Editor.tsx (route: /manuscript/:id - TipTap Pro editor)
+    ├── Toolbar (Run AI Pass button, format controls, Save/Export)
+    ├── DocumentCanvas (TipTap's editor view)
+    │   ├── AI Suggestion Decorations (inline highlights)
+    │   └── Manual Suggestion Decorations (inline highlights)
+    ├── ChangeList (sidebar)
+    │   └── SuggestionCards (unified AI + manual, filtered by rule)
+    ├── VersionHistory (sidebar sheet)
+    └── AIEditorRuleSelector (modal)
+```
+
+### State Management
+
+**No global state library** - Uses React Context + hooks
+
+**Contexts**:
+- `AuthContext`: User authentication state
+- `ManuscriptContext`: Current manuscript data
+- `EditorContext`: Editor instance and AI suggestions state
+
+### Performance Optimizations
+
+**React.memo**:
+- Suggestion cards wrapped in `React.memo` to prevent re-renders
+- ChangeList pagination reduces DOM nodes
+
+**Known Issue**: 5K+ suggestions still freeze due to TipTap's synchronous position mapping (not React's fault)
+
+### Key Hooks
+
+**`useTiptapEditor(content, aiSuggestionConfig)`**
+- Returns configured editor instance
+- Handles AI Suggestion extension setup
+- Manages dynamic configuration (EXPERIMENT 8)
+
+**`useQueueProcessor()`**
+- Submit jobs to processing_queue
+- Poll for completion
+- Handle errors/timeouts
+
+**`useManuscript(id)`**
+- Fetch manuscript data
+- Subscribe to real-time updates
+- Handle CRUD operations
+
 ---
 
 # DOCX EXPORT
@@ -1079,470 +1700,6 @@ WARN  Issue while reading ".npmrc". Failed to replace env in config: ${TIPTAP_PR
 - ✅ Chrome/Edge
 - ✅ Firefox
 - ✅ Safari
-
----
-
-# ARCHITECTURE
-
-## Database Schema (JSON-First Design)
-
-### Design Philosophy
-**JSONB-Only Architecture**: All suggestions, comments, and snapshots stored as JSONB arrays in `manuscripts` table. No separate tables for these entities.
-
-**Why JSONB?**:
-- ✅ **Simplicity**: Single table, no joins needed
-- ✅ **Flexibility**: Easy schema evolution without migrations
-- ✅ **Performance**: PostgreSQL JSONB is fast for reads/writes
-- ✅ **Atomic updates**: All manuscript data updates atomically
-
-### Core Tables
-
-#### `manuscripts`
-```sql
-CREATE TABLE manuscripts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id),
-  title TEXT NOT NULL,
-  content JSONB NOT NULL,              -- TipTap JSON document
-  suggestions JSONB DEFAULT '[]',      -- AI suggestions array
-  comments JSONB DEFAULT '[]',         -- Comments array (v1.0)
-  snapshots JSONB DEFAULT '[]',        -- Version snapshots (v1.0)
-  status TEXT CHECK (status IN ('draft', 'sent_to_author', 'returned_to_editor', 'completed')),
-  shared_with UUID[],                  -- Array of user IDs with access
-  activity_log JSONB DEFAULT '[]',     -- Activity timeline
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### `processing_queue`
-```sql
-CREATE TABLE processing_queue (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL,
-  manuscript_id UUID REFERENCES manuscripts(id),
-  operation TEXT NOT NULL,             -- 'docx_import', 'ai_pass', etc.
-  status TEXT NOT NULL,                -- 'pending', 'processing', 'completed', 'failed'
-  input_data JSONB,                    -- Operation-specific input
-  result_data JSONB,                   -- Operation result
-  error_message TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### `profiles`
-```sql
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id),
-  email TEXT NOT NULL,
-  full_name TEXT,
-  role TEXT CHECK (role IN ('editor', 'author')),  -- v1.0
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-### JSONB Schema Formats
-
-#### Suggestions Array
-```typescript
-suggestions: Array<{
-  id: string,
-  ruleId: string,
-  pmFrom: number,        // ProseMirror position
-  pmTo: number,
-  deleteHtml: string,
-  insertHtml: string,
-  note: string,
-  status: 'pending' | 'accepted' | 'rejected',
-  timestamp: string
-}>
-```
-
-#### Comments Array (v1.0)
-```typescript
-comments: Array<{
-  id: string,
-  user_id: string,
-  position: number,
-  text: string,
-  timestamp: string,
-  replies: Array<{
-    id: string,
-    user_id: string,
-    text: string,
-    timestamp: string
-  }>
-}>
-```
-
-#### Snapshots Array (v1.0)
-```typescript
-snapshots: Array<{
-  id: string,
-  version: number,
-  timestamp: string,
-  user_id: string,
-  content: JSON,         // Full TipTap snapshot
-  metadata: {
-    trigger: 'manual' | 'send' | 'return' | 'auto',
-    label?: string,
-    stats: {
-      wordCount: number,
-      suggestionCount: number,
-      acceptedCount: number,
-      rejectedCount: number
-    }
-  }
-}>
-```
-
-### Row Level Security (RLS)
-
-```sql
--- Manuscripts: Users can only access their own or shared manuscripts
-CREATE POLICY manuscripts_select ON manuscripts
-  FOR SELECT USING (
-    auth.uid() = user_id OR
-    auth.uid() = ANY(shared_with)
-  );
-
-CREATE POLICY manuscripts_insert ON manuscripts
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY manuscripts_update ON manuscripts
-  FOR UPDATE USING (
-    auth.uid() = user_id OR
-    auth.uid() = ANY(shared_with)
-  );
-
--- Queue: Users can only see their own queue items
-CREATE POLICY queue_select ON processing_queue
-  FOR SELECT USING (auth.uid() = user_id);
-```
-
-## Queue System (Background Job Processing)
-
-### Purpose
-Process long-running operations (DOCX import, AI passes) in background without browser timeouts.
-
-### Architecture
-
-**Components**:
-1. **Client**: Submits job to queue, polls for completion
-2. **Queue Table**: `processing_queue` stores job state
-3. **Edge Function**: `queue-processor` runs jobs
-4. **Cron Trigger**: Invokes processor every 1 minute
-
-### Flow
-
-```
-1. Client uploads DOCX → Supabase Storage
-   ↓
-2. Insert job into processing_queue
-   → status: 'pending'
-   → input_data: { storage_path, manuscript_id }
-   ↓
-3. Cron invokes queue-processor (every 1 min)
-   ↓
-4. Processor claims job (UPDATE status = 'processing')
-   ↓
-5. Execute operation (e.g., convert DOCX → TipTap JSON)
-   ↓
-6. Update manuscript with result
-   ↓
-7. Mark job complete (status = 'completed')
-   ↓
-8. Client polling detects completion
-```
-
-### Client-Side Usage
-
-```typescript
-// src/hooks/useQueueProcessor.ts
-const { submitJob, pollJob, cancelPolling } = useQueueProcessor();
-
-// Submit job
-const jobId = await submitJob({
-  operation: 'docx_import',
-  manuscript_id: manuscriptId,
-  input_data: { storage_path: filePath }
-});
-
-// Poll until complete
-const result = await pollJob(jobId, {
-  interval: 10000,  // Poll every 10s
-  maxAttempts: 60   // Timeout after 10 minutes
-});
-```
-
-### Edge Function
-
-**File**: `supabase/functions/queue-processor/index.ts`
-
-```typescript
-// 1. Claim next pending job
-const { data: job } = await supabase
-  .from('processing_queue')
-  .update({ status: 'processing' })
-  .eq('status', 'pending')
-  .order('created_at')
-  .limit(1)
-  .single();
-
-// 2. Execute operation
-if (job.operation === 'docx_import') {
-  const content = await convertDocxToTiptap(job.input_data.storage_path);
-
-  // 3. Update manuscript
-  await supabase
-    .from('manuscripts')
-    .update({ content })
-    .eq('id', job.manuscript_id);
-}
-
-// 4. Mark complete
-await supabase
-  .from('processing_queue')
-  .update({
-    status: 'completed',
-    result_data: { success: true }
-  })
-  .eq('id', job.id);
-```
-
-### Performance
-
-- **Small docs** (189KB): ~1.5s
-- **Large docs** (437KB): ~3s
-- **Auto-processing delay**: Max 10s (client polls every 10s)
-
-## Versioning Strategy (TipTap Snapshots)
-
-### TipTap Native Snapshots
-
-Uses TipTap's [Document Snapshot API](https://tiptap.dev/docs/collaboration/documents/snapshot) for version history.
-
-**Key Concept**: Store full TipTap JSON snapshots in `manuscripts.snapshots` JSONB array.
-
-### Snapshot Creation
-
-```typescript
-// Manual snapshot
-const snapshot = {
-  id: uuid(),
-  version: currentVersion + 1,
-  timestamp: new Date().toISOString(),
-  user_id: userId,
-  content: editor.getJSON(),  // Full TipTap document
-  metadata: {
-    trigger: 'manual',
-    label: 'Before author review',
-    stats: {
-      wordCount: getWordCount(editor),
-      suggestionCount: suggestions.length,
-      acceptedCount: acceptedSuggestions.length,
-      rejectedCount: rejectedSuggestions.length
-    }
-  }
-};
-
-// Append to snapshots array
-await supabase
-  .from('manuscripts')
-  .update({
-    snapshots: [...existingSnapshots, snapshot]
-  })
-  .eq('id', manuscriptId);
-```
-
-### Auto-Snapshot Triggers (v1.0)
-
-1. **Send to Author**: Snapshot before sharing
-2. **Return to Editor**: Snapshot when author returns
-3. **Manual**: User clicks "Create Snapshot"
-
-### Snapshot Restoration
-
-```typescript
-// Load snapshot by version
-const snapshot = snapshots.find(s => s.version === targetVersion);
-
-// Restore to editor
-editor.commands.setContent(snapshot.content);
-
-// Optional: Create new snapshot before restoring (safety)
-await createSnapshot({ trigger: 'restore', label: 'Before restore' });
-```
-
----
-
-# EDITOR & COMPONENTS
-
-## Editor.tsx (Primary Editor Component)
-
-**Location**: `src/components/workspace/Editor.tsx`
-**Size**: 944 lines (the largest component)
-**Purpose**: Main TipTap Pro AI editor with suggestion handling
-
-### Key Responsibilities
-
-1. **TipTap Editor Initialization**
-   - Configure AI Suggestion extension
-   - Set up toolbar, menus, extensions
-   - Handle JWT authentication
-
-2. **AI Suggestion Lifecycle**
-   - Trigger AI passes
-   - Wait for processing completion
-   - Convert TipTap format → UI format
-   - Handle accept/reject actions
-
-3. **UI State Management**
-   - Popover positioning
-   - Selection tracking
-   - Change list synchronization
-
-### Critical Functions
-
-**`convertAiSuggestionsToUI()`**
-- Transforms TipTap AI suggestions → our UISuggestion format
-- **Sorts by position**: `.sort((a, b) => a.pmFrom - b.pmFrom)`
-- Maps TipTap fields to our schema
-- Returns sorted array for ChangeList
-
-**`waitForAiSuggestions()`**
-- Monitors `editor.extensionStorage.aiSuggestion` for completion
-- Polls every 100ms until `isLoading === false`
-- Returns Promise<UISuggestion[]>
-
-**`handlePopoverAccept()` / `handlePopoverReject()`**
-- Calls TipTap commands: `editor.commands.applyAiSuggestion()`
-- Updates local state
-- Syncs with ChangeList
-
-### Integration Points
-
-- **useTiptapEditor**: Hook provides editor instance with config
-- **AIEditorRules**: Defines available AI roles and prompts
-- **ChangeList**: Sidebar showing all suggestions (paginated)
-- **Popover**: Inline suggestion UI with accept/reject buttons
-
-## Edge Functions (Supabase)
-
-**Location**: `supabase/functions/`
-
-### ai-suggestions-html
-
-**Purpose**: Process single HTML chunk with AI rules
-
-**Input**:
-```typescript
-{
-  html: string,      // Pre-chunked HTML from TipTap
-  chunkId: string,
-  rules: Array<{ id, title, prompt }>
-}
-```
-
-**Process**:
-1. Loop through rules sequentially
-2. Call OpenAI GPT-4 for each rule
-3. Parse JSON response (array of suggestions)
-4. Collect all suggestions across rules
-5. Return aggregated array
-
-**Output**:
-```typescript
-{
-  items: Array<{
-    ruleId, deleteHtml, insertHtml, note, chunkId
-  }>
-}
-```
-
-**Performance**: ~10-15s per chunk (varies by rule count)
-
-### queue-processor
-
-**Purpose**: Execute background jobs from processing_queue
-
-**Trigger**: Cron (every 1 minute)
-
-**Operations**:
-- `docx_import`: Convert DOCX → TipTap JSON
-- Future: `ai_pass`, `export_docx`
-
-**Pattern**:
-```typescript
-// 1. Claim job (atomic UPDATE)
-// 2. Execute operation
-// 3. Update result
-// 4. Mark complete/failed
-```
-
-### generate-tiptap-jwt
-
-**Purpose**: Generate 24hr JWT token for TipTap Pro authentication
-
-**Why Edge Function?**: Secrets must stay server-side (never expose API keys client-side)
-
-**Usage**:
-```typescript
-const response = await fetch('/functions/v1/generate-tiptap-jwt');
-const { token } = await response.json();
-
-// Token valid for 24 hours, cached client-side
-```
-
-## React Integration Patterns
-
-### Component Hierarchy
-
-```
-App
-└── ManuscriptWorkspace (route: /manuscript/:id)
-    └── Editor.tsx (TipTap Pro editor)
-        ├── Toolbar (Run AI Pass button, format controls)
-        ├── EditorContent (TipTap's editor view)
-        │   └── AI Suggestion Decorations (inline highlights)
-        └── ChangeList (sidebar)
-            └── SuggestionCards (paginated, 25/page)
-```
-
-### State Management
-
-**No global state library** - Uses React Context + hooks
-
-**Contexts**:
-- `AuthContext`: User authentication state
-- `ManuscriptContext`: Current manuscript data
-- `EditorContext`: Editor instance and AI suggestions state
-
-### Performance Optimizations
-
-**React.memo**:
-- Suggestion cards wrapped in `React.memo` to prevent re-renders
-- ChangeList pagination reduces DOM nodes
-
-**Known Issue**: 5K+ suggestions still freeze due to TipTap's synchronous position mapping (not React's fault)
-
-### Key Hooks
-
-**`useTiptapEditor(content, aiSuggestionConfig)`**
-- Returns configured editor instance
-- Handles AI Suggestion extension setup
-- Manages dynamic configuration (EXPERIMENT 8)
-
-**`useQueueProcessor()`**
-- Submit jobs to processing_queue
-- Poll for completion
-- Handle errors/timeouts
-
-**`useManuscript(id)`**
-- Fetch manuscript data
-- Subscribe to real-time updates
-- Handle CRUD operations
 
 ---
 

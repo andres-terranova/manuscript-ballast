@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { getSnapshots, restoreSnapshot, type Snapshot } from '@/services/snapshotService';
+import { getSnapshots, restoreSnapshot, restoreToCurrentState, type Snapshot } from '@/services/snapshotService';
 import { getGlobalEditor } from '@/lib/editorUtils';
 import { useToast } from '@/hooks/use-toast';
 import { RotateCcw, Clock, ArrowUpRight } from 'lucide-react';
@@ -82,6 +82,43 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
     }
   };
 
+  const handleBackToLatest = async () => {
+    const editor = getGlobalEditor();
+    if (!editor) {
+      toast({
+        title: 'Editor not available',
+        description: 'Cannot restore current state without editor instance',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setRestoring(-1); // Use -1 to indicate "current state" restoration
+    try {
+      await restoreToCurrentState(editor, manuscriptId);
+
+      toast({
+        title: 'Restored to current state',
+        description: 'Document restored to latest working version'
+      });
+
+      // Call callback with empty suggestions (current state has none)
+      onRestore?.(0, [], []); // version 0 = current state, no suggestions
+
+      // Reload snapshots to refresh UI
+      await loadSnapshots();
+    } catch (error) {
+      console.error('Error restoring to current state:', error);
+      toast({
+        title: 'Failed to restore current state',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
+      });
+    } finally {
+      setRestoring(null);
+    }
+  };
+
   const formatEvent = (event: string): string => {
     const labels: Record<string, string> = {
       upload: 'Initial Upload',
@@ -150,7 +187,7 @@ export function VersionHistory({ manuscriptId, currentVersion, onRestore }: Vers
       {currentVersion !== undefined && snapshots.length > 0 && currentVersion < snapshots[0].version && (
         <div className="p-4 border-b bg-muted/30">
           <Button
-            onClick={() => handleRestoreClick(snapshots[0].version)}
+            onClick={handleBackToLatest}
             disabled={restoring !== null}
             className="w-full"
             variant="default"

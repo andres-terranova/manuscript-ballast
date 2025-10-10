@@ -89,9 +89,22 @@ export async function createSnapshot(
       throw new Error(`Failed to fetch snapshots: ${fetchError.message}`);
     }
 
-    // Step 4: Determine next version number
+    // Step 4: Determine next version number and limit snapshots
     const existingSnapshots = (manuscript?.snapshots as Snapshot[]) || [];
-    const version = existingSnapshots.length + 1;
+
+    // CRITICAL FIX: Limit snapshots to prevent unbounded growth and database issues
+    const MAX_SNAPSHOTS = 10; // Keep only the most recent 10 snapshots
+
+    // If we're at the limit, remove the oldest snapshot(s) to make room
+    const snapshotsToKeep = existingSnapshots.length >= MAX_SNAPSHOTS
+      ? existingSnapshots.slice(-(MAX_SNAPSHOTS - 1)) // Keep the last 9 to make room for the new one
+      : existingSnapshots;
+
+    // Version should continue incrementing even when we remove old snapshots
+    const lastVersion = existingSnapshots.length > 0
+      ? existingSnapshots[existingSnapshots.length - 1].version
+      : 0;
+    const version = lastVersion + 1;
 
     // Step 5: Create new snapshot object
     const snapshot: Snapshot = {
@@ -113,10 +126,17 @@ export async function createSnapshot(
       createdBy: userId
     };
 
-    // Step 6: Append to snapshots array and update database
+    // Step 6: Append to limited snapshots array and update database
+    const updatedSnapshots = [...snapshotsToKeep, snapshot];
+
+    // Log if we're removing old snapshots
+    if (existingSnapshots.length >= MAX_SNAPSHOTS) {
+      console.log(`⚠️ Snapshot limit reached. Removing ${existingSnapshots.length - snapshotsToKeep.length} old snapshot(s) to maintain limit of ${MAX_SNAPSHOTS}`);
+    }
+
     const { error: updateError } = await supabase
       .from('manuscripts')
-      .update({ snapshots: [...existingSnapshots, snapshot] })
+      .update({ snapshots: updatedSnapshots })
       .eq('id', manuscriptId);
 
     if (updateError) {
@@ -278,4 +298,69 @@ export async function getLatestSnapshot(manuscriptId: string): Promise<Snapshot 
 
   // Snapshots are ordered by version, latest is last
   return snapshots[snapshots.length - 1];
+}
+
+/**
+ * Restore manuscript to its current state from database (NOT from snapshots)
+ *
+ * This restores the live working document that's continuously auto-saved,
+ * which is different from historical snapshots.
+ *
+ * @param editor - TipTap editor instance
+ * @param manuscriptId - Manuscript UUID
+ * @returns Promise<void>
+ * @throws Error if database fetch fails
+ *
+ * @note Suggestions are NOT restored - they only exist in snapshots or in-memory.
+ *       Current state contains ONLY document content (content_html).
+ */
+export async function restoreToCurrentState(
+  editor: Editor,
+  manuscriptId: string
+): Promise<void> {
+  try {
+    console.log('🔄 Restoring to current state (from database, not snapshots)...');
+
+    // Step 1: Fetch current manuscript state from database
+    const { data: manuscript, error: fetchError } = await supabase
+      .from('manuscripts')
+      .select('content_html, word_count, character_count')
+      .eq('id', manuscriptId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching current manuscript state:', fetchError);
+      throw new Error(`Failed to fetch current state: ${fetchError.message}`);
+    }
+
+    if (!manuscript?.content_html) {
+      throw new Error('No current content found in database');
+    }
+
+    // Step 2: Restore content to editor (HTML format)
+    editor.commands.setContent(manuscript.content_html);
+
+    // Step 3: Clear all AI suggestions (current state has none)
+    try {
+      const hasAiExtension = editor.commands.setAiSuggestions;
+      if (hasAiExtension) {
+        editor.commands.setAiSuggestions([]);
+        console.log('✅ Cleared AI suggestions (current state has none)');
+      }
+    } catch (error) {
+      console.warn('Could not clear AI suggestions:', error);
+      // Non-critical - continue
+    }
+
+    console.log(`✅ Restored to current state`, {
+      manuscriptId,
+      wordCount: manuscript.word_count,
+      characterCount: manuscript.character_count,
+      note: 'Suggestions NOT restored - only document content'
+    });
+
+  } catch (error) {
+    console.error('Current state restoration failed:', error);
+    throw error;
+  }
 }

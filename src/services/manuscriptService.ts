@@ -4,19 +4,45 @@ import type { Database } from '@/integrations/supabase/types';
 
 export class ManuscriptService {
   
-  // Get all manuscripts for the current user
+  // Get all manuscripts for the current user (lightweight for dashboard)
   static async getAllManuscripts(): Promise<ManuscriptDB[]> {
     const { data, error } = await supabase
       .from('manuscripts')
-      .select('*')
+      .select(`
+        id,
+        title,
+        owner_id,
+        status,
+        ball_in_court,
+        word_count,
+        character_count,
+        excerpt,
+        processing_status,
+        processing_error,
+        docx_file_path,
+        original_filename,
+        file_size,
+        created_at,
+        updated_at
+      `)
       .order('updated_at', { ascending: false });
-    
+
     if (error) {
       console.error('Error fetching manuscripts:', error);
       throw new Error(`Failed to fetch manuscripts: ${error.message}`);
     }
-    
-    return (data || []) as unknown as ManuscriptDB[];
+
+    // Cast to ManuscriptDB and fill in empty arrays for excluded fields
+    return (data || []).map(manuscript => ({
+      ...manuscript,
+      content_text: null,
+      content_html: null,
+      source_markdown: null,
+      style_rules: [],
+      suggestions: [],
+      comments: [],
+      snapshots: null
+    })) as unknown as ManuscriptDB[];
   }
   
   // Get a single manuscript by ID

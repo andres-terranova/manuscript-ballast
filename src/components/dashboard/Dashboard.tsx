@@ -549,7 +549,8 @@ const Dashboard = () => {
                 {filteredManuscripts.map((manuscript) => {
                   const queueStatus = getManuscriptStatus(manuscript.id);
                   const isProcessing = queueStatus?.status === 'pending' || queueStatus?.status === 'processing';
-                  const isReady = !isProcessing && manuscript.processingStatus !== 'failed';
+                  // Explicit check: only allow access when processing is fully completed
+                  const isReady = !isProcessing && manuscript.processingStatus === 'completed';
 
                   return (
                     <TableRow

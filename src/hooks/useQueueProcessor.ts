@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { useManuscripts } from '../contexts/ManuscriptsContext';
 
@@ -13,6 +13,12 @@ export function useQueueProcessor() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatuses, setProcessingStatuses] = useState<Record<string, ProcessingStatus>>({});
   const { refreshManuscripts } = useManuscripts();
+
+  // Use ref to hold latest refreshManuscripts without triggering effect re-runs
+  const refreshManuscriptsRef = useRef(refreshManuscripts);
+  useEffect(() => {
+    refreshManuscriptsRef.current = refreshManuscripts;
+  }, [refreshManuscripts]);
 
   // Function to trigger queue processing
   const processQueue = useCallback(async () => {
@@ -73,75 +79,73 @@ export function useQueueProcessor() {
     }
   }, []); // No dependencies - stable reference
 
-  // Simplified polling with no state dependencies to fix stale closure issues
+  // Realtime subscription for processing queue updates
   useEffect(() => {
-    let isCurrentlyProcessing = false;
+    console.log('Setting up Realtime subscription for processing queue');
 
-    const poll = async () => {
-      // Prevent overlapping polls
-      if (isCurrentlyProcessing) {
-        console.log('Skipping poll cycle - already processing');
-        return;
-      }
+    // Initial fetch of processing statuses
+    refreshProcessingStatuses();
 
-      try {
-        isCurrentlyProcessing = true;
+    // Subscribe to processing_queue changes
+    const channel = supabase
+      .channel('processing_queue_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // All events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'processing_queue'
+        },
+        async (payload) => {
+          console.log('Realtime: processing_queue changed', payload);
 
-        // Get fresh processing statuses
-        const statusMap = await refreshProcessingStatuses();
+          // Refresh all processing statuses to get current state
+          const statusMap = await refreshProcessingStatuses();
 
-        // Check if processing is needed using fresh data (not stale state)
-        const hasPendingJobs = Object.values(statusMap || {}).some(
-          status => status.status === 'pending' || status.status === 'processing'
-        );
+          // Check if we have pending jobs that need processing
+          const hasPendingJobs = Object.values(statusMap || {}).some(
+            status => status.status === 'pending' || status.status === 'processing'
+          );
 
-        if (hasPendingJobs) {
-          console.log('Found pending jobs, triggering queue processor');
-          setIsProcessing(true);
-          try {
-            await processQueue();
-            // Wait for job completion, then refresh statuses and manuscripts data
-            setTimeout(async () => {
+          if (hasPendingJobs) {
+            console.log('Realtime: Found pending jobs, triggering queue processor');
+            setIsProcessing(true);
+            try {
+              await processQueue();
+              await new Promise(resolve => setTimeout(resolve, 2000));
               await refreshProcessingStatuses();
-              await refreshManuscripts();
-            }, 2000);
-          } finally {
-            setIsProcessing(false);
-          }
-        } else {
-          // Check if any jobs just completed and refresh manuscripts if so
-          const previousStatusMap = processingStatuses;
-          const hasNewlyCompletedJobs = Object.values(statusMap || {}).some(status => {
-            const previousStatus = previousStatusMap[status.manuscriptId];
-            return status.status === 'completed' &&
-                   previousStatus &&
-                   previousStatus.status !== 'completed';
-          });
 
-          if (hasNewlyCompletedJobs) {
-            console.log('Found newly completed jobs, refreshing manuscripts data');
-            await refreshManuscripts();
+              // Only refresh manuscripts when job COMPLETES (not during progress updates)
+              if (payload.eventType === 'UPDATE' && payload.new?.status === 'completed') {
+                console.log('Realtime: Job completed, refreshing manuscripts');
+                await refreshManuscriptsRef.current();
+              }
+            } finally {
+              setIsProcessing(false);
+            }
+          } else if (payload.eventType === 'UPDATE' && payload.new?.status === 'completed') {
+            // Job just completed but no longer in pending/processing state
+            console.log('Realtime: Job completed, refreshing manuscripts');
+            await refreshManuscriptsRef.current();
           }
         }
-      } catch (error) {
-        console.error('Polling error:', error);
-      } finally {
-        isCurrentlyProcessing = false;
-      }
-    };
-
-    // Start immediate poll
-    console.log('Starting queue processor polling');
-    poll();
-
-    // Set up stable 10-second interval
-    const intervalId = setInterval(poll, 10000);
+      )
+      .on('system', { event: 'CHANNEL_ERROR' }, (payload) => {
+        // Only log actual errors (status !== 'ok')
+        if (payload.status !== 'ok') {
+          console.error('Realtime channel error:', payload);
+        }
+      })
+      .on('system', { event: 'CHANNEL_READY' }, () => {
+        console.log('Realtime channel connected and ready');
+      })
+      .subscribe();
 
     return () => {
-      console.log('Cleaning up queue processor polling');
-      clearInterval(intervalId);
+      console.log('Cleaning up Realtime subscription');
+      channel.unsubscribe();
     };
-  }, [processQueue, refreshProcessingStatuses, refreshManuscripts, processingStatuses]);
+  }, [processQueue, refreshProcessingStatuses]);
 
   // Function to get status for a specific manuscript
   const getManuscriptStatus = useCallback((manuscriptId: string): ProcessingStatus | null => {
