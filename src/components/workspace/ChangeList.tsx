@@ -72,10 +72,28 @@ export const ChangeList = ({
     return allAvailableRules.filter(r => ruleIdsInUse.has(r.id));
   }, [suggestions, allAvailableRules]);
 
-  const hasNonAISuggestions = useMemo(() => 
-    suggestions.some(s => !isAISuggestion(s)), 
+  const hasNonAISuggestions = useMemo(() =>
+    suggestions.some(s => !isAISuggestion(s)),
     [suggestions]
   );
+
+  // Calculate counts for each filter
+  const filterCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: suggestions.length,
+      "non-ai": 0
+    };
+
+    suggestions.forEach(s => {
+      if (!isAISuggestion(s)) {
+        counts["non-ai"]++;
+      } else if (s.ruleId) {
+        counts[s.ruleId] = (counts[s.ruleId] || 0) + 1;
+      }
+    });
+
+    return counts;
+  }, [suggestions]);
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -145,19 +163,25 @@ export const ChangeList = ({
             <Button
               size="sm"
               variant={ruleFilter === "all" ? "secondary" : "ghost"}
-              className="text-xs h-7 px-3 font-normal rounded-md"
+              className="text-xs h-7 px-3 font-normal rounded-md flex items-center gap-1.5"
               onClick={() => setRuleFilter("all")}
             >
               All
+              <Badge variant="secondary" className="h-4 px-1 min-w-[20px] text-[10px] font-medium">
+                {filterCounts.all}
+              </Badge>
             </Button>
             {hasNonAISuggestions && (
               <Button
                 size="sm"
                 variant={ruleFilter === "non-ai" ? "secondary" : "ghost"}
-                className="text-xs h-7 px-3 font-normal rounded-md"
+                className="text-xs h-7 px-3 font-normal rounded-md flex items-center gap-1.5"
                 onClick={() => setRuleFilter("non-ai")}
               >
                 Manual
+                <Badge variant="secondary" className="h-4 px-1 min-w-[20px] text-[10px] font-medium">
+                  {filterCounts["non-ai"]}
+                </Badge>
               </Button>
             )}
             {rulesInUse.map((rule) => (
@@ -165,7 +189,7 @@ export const ChangeList = ({
                 key={rule.id}
                 size="sm"
                 variant={ruleFilter === rule.id ? "secondary" : "ghost"}
-                className="text-xs h-7 px-3 gap-1.5 font-normal rounded-md"
+                className="text-xs h-7 px-3 gap-1.5 font-normal rounded-md flex items-center"
                 onClick={() => setRuleFilter(rule.id)}
               >
                 <div
@@ -175,6 +199,9 @@ export const ChangeList = ({
                   }}
                 />
                 {rule.title}
+                <Badge variant="secondary" className="h-4 px-1 min-w-[20px] text-[10px] font-medium">
+                  {filterCounts[rule.id] || 0}
+                </Badge>
               </Button>
             ))}
           </div>

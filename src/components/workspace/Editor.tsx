@@ -1545,7 +1545,7 @@ const Editor = () => {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col -mt-3 min-h-0">
               {/* Tab List */}
-              <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none bg-slate-100/60 flex-shrink-0 h-12 p-0 relative">
+              <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none bg-slate-100/60 flex-shrink-0 h-12 p-0 relative">
                 <TabsTrigger
                   value="changes"
                   className="text-xs px-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
@@ -1587,12 +1587,6 @@ const Editor = () => {
                       {checks.length}
                     </Badge>
                   )}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="new-content"
-                  className="text-xs px-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/40 text-muted-foreground relative -mb-px"
-                >
-                  New
                 </TabsTrigger>
               </TabsList>
 
@@ -1641,24 +1635,6 @@ const Editor = () => {
                     onRunChecks={handleRunChecks}
                     onOpenStyleRules={handleOpenStyleRules}
                   />
-                </TabsContent>
-
-                <TabsContent value="new-content" className="h-full mt-0">
-                  <ScrollArea className="h-full">
-                    <div className="p-4 space-y-4">
-                      <div className="bg-card border border-card-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <Plus className="h-4 w-4 text-green-500 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">Advanced AI Features</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              This editor uses TipTap Pro AI suggestions for enhanced editing capabilities.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </ScrollArea>
                 </TabsContent>
               </div>
             </Tabs>
