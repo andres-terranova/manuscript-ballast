@@ -688,23 +688,12 @@ const Editor = () => {
       }
 
       console.log('Accepting suggestion:', suggestionId, 'at positions', uiSuggestion.pmFrom, uiSuggestion.pmTo);
-      
+
       setSuggestions(prev => {
-        const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
+        const filtered = prev.filter(x => x.id !== suggestionId);
         console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
         return filtered;
       });
-
-      const remaining = suggestions.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
-      console.log('Remapping', remaining.length, 'remaining suggestions');
-      
-      const serverSuggestions = remaining.filter((s): s is ServerSuggestion & { pmFrom: number; pmTo: number } => s.origin === 'server');
-      if (serverSuggestions.length > 0) {
-        const plainText = editor.getText();
-        const remapped = mapPlainTextToPM(editor, plainText, serverSuggestions);
-        const manualSuggestions = remaining.filter(s => s.origin === 'manual');
-        setSuggestions(sortSuggestionsByPosition([...remapped, ...manualSuggestions]));
-      }
 
       toast({
         title: "Change applied."
@@ -762,9 +751,9 @@ const Editor = () => {
     setActionBusy(suggestionId, true);
     try {
       console.log('Rejecting suggestion:', suggestionId, 'at positions', uiSuggestion.pmFrom, uiSuggestion.pmTo);
-      
+
       setSuggestions(prev => {
-        const filtered = prev.filter(x => !(x.id === suggestionId && x.pmFrom === uiSuggestion.pmFrom && x.pmTo === uiSuggestion.pmTo));
+        const filtered = prev.filter(x => x.id !== suggestionId);
         console.log('Filtered suggestions from', prev.length, 'to', filtered.length);
         return filtered;
       });
